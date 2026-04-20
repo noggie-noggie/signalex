@@ -1,0 +1,80 @@
+[
+  {
+    "rule_name": "High-severity supplement safety alert",
+    "trigger_type": "severity_threshold",
+    "filters": {
+      "min_severity": "high",
+      "source_list": ["tga", "fda", "adverse_events", "fda_australia"]
+    },
+    "channels": ["email", "slack"],
+    "frequency": "instant",
+    "_description": "Fire immediately when any regulatory source emits a HIGH severity safety alert about a supplement."
+  },
+  {
+    "rule_name": "Trending ingredient monitor",
+    "trigger_type": "trend_spike",
+    "filters": {
+      "min_spike_ratio": 2.0
+    },
+    "channels": ["email"],
+    "frequency": "daily_digest",
+    "_description": "Alert when any ingredient's 7-day signal count exceeds 2x its 30-day daily average (potential emerging issue)."
+  },
+  {
+    "rule_name": "Omega-3 and Vitamin D competitor signals",
+    "trigger_type": "ingredient_mention",
+    "filters": {
+      "ingredient_list": ["omega-3", "vitamin d", "vitamin d3", "fish oil", "cholecalciferol"],
+      "source_list": ["artg", "pubmed", "advisory_committee"]
+    },
+    "channels": ["email"],
+    "frequency": "daily_digest",
+    "_description": "Track competitor activity and regulatory signals for key omega-3 and Vitamin D product lines."
+  },
+  {
+    "rule_name": "Rising negative sentiment watch",
+    "trigger_type": "sentiment_shift",
+    "filters": {
+      "min_shift": 0.3,
+      "direction": "negative"
+    },
+    "channels": ["email", "slack"],
+    "frequency": "weekly_summary",
+    "_description": "Alert when any ingredient's sentiment score shifts >0.3 toward negative over 14 days (rising risk)."
+  },
+  {
+    "rule_name": "Claim shift detection",
+    "trigger_type": "claim_shift",
+    "filters": {
+      "from_type": "efficacy_claim",
+      "to_type": "safety_concern"
+    },
+    "channels": ["email"],
+    "frequency": "weekly_summary",
+    "_description": "Alert when an ingredient's signal profile shifts from efficacy/benefit claims toward safety concerns."
+  },
+  {
+    "rule_name": "New TGA consultation — any ingredient",
+    "trigger_type": "new_source_signal",
+    "filters": {
+      "source_list": ["tga_consultations"],
+      "min_severity": "low"
+    },
+    "channels": ["email"],
+    "frequency": "daily_digest",
+    "_description": "Notify as soon as any new TGA consultation is published, regardless of ingredient."
+  },
+  {
+    "rule_name": "Adverse event cluster — high trend relevance",
+    "trigger_type": "severity_threshold",
+    "filters": {
+      "source_list": ["adverse_events"],
+      "min_severity": "medium",
+      "extra_field": "trend_relevance",
+      "extra_value": "high"
+    },
+    "channels": ["email", "slack"],
+    "frequency": "daily_digest",
+    "_description": "Alert when adverse event signals show high trend relevance, indicating a possible emerging safety signal."
+  }
+]

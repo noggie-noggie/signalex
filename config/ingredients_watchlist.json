@@ -1,0 +1,21 @@
+{
+  "_comment": "Ingredients to watch individually in PubMed. Each entry generates a dedicated PubMed search query '{ingredient} supplement'. Add or remove entries freely — no code changes needed.",
+  "query_suffix": "supplement",
+  "ingredients": [
+    "turmeric",
+    "ashwagandha",
+    "NMN",
+    "NAD supplement",
+    "creatine",
+    "collagen",
+    "melatonin",
+    "CBD cannabidiol",
+    "probiotics",
+    "omega-3",
+    "vitamin D",
+    "magnesium",
+    "iron supplement",
+    "zinc supplement",
+    "biotin"
+  ]
+}

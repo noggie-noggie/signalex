@@ -1,0 +1,27 @@
+VMS REGULATORY INTELLIGENCE DIGEST
+{{ generated_at }} | {{ period_label }}
+{{ '=' * 60 }}
+
+SUMMARY
+{{ '-' * 60 }}
+{{ narrative }}
+
+{{ '=' * 60 }}
+{{ total_count }} SIGNAL{{ 'S' if total_count != 1 else '' }} DETECTED
+{{ '=' * 60 }}
+
+{% for severity in ["high", "medium", "low"] %}{% if grouped[severity] %}
+{{ '── ' + severity | upper + ' SEVERITY (' + (grouped[severity] | length) | string + ') ' }}{{ '─' * (40 - severity | length) }}
+{% for signal in grouped[severity] %}
+  {{ signal.title }}
+  Authority:  {{ signal.authority | upper }}
+  Type:       {{ signal.event_type | replace("_", " ") | title }}
+{% if signal.ingredient_name and signal.ingredient_name != "unknown" %}  Ingredient: {{ signal.ingredient_name | title }}
+{% endif %}{% if signal.summary %}  Summary:    {{ signal.summary }}
+{% endif %}  URL:        {{ signal.url }}
+
+{% endfor %}{% endif %}{% endfor %}
+{{ '─' * 60 }}
+VMS Regulatory Intelligence Platform — automated monitoring powered by Claude AI.
+Sources: TGA (Australia), FDA (USA).
+Data is for informational purposes only and does not constitute regulatory advice.

@@ -1,0 +1,27 @@
+# Secrets — never commit
+.env
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Generated outputs (large, rebuilt from source)
+signals.html
+digest_preview.html
+citation_report.html
+
+# Database & runtime data
+data/signals.db
+data/*.db
+data/feedback.json
+data/accuracy_log.csv
+
+# Claude session files
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
