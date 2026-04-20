@@ -9,7 +9,6 @@ __pycache__/
 .pytest_cache/
 
 # Generated outputs (large, rebuilt from source)
-signals.html
 digest_preview.html
 citation_report.html
 
