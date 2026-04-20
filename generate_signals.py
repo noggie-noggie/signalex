@@ -300,6 +300,7 @@ button{{cursor:pointer;border:none;font-family:inherit;font-size:inherit}}
 .topbar-row1{{display:flex;align-items:center;gap:16px;flex-wrap:wrap}}
 .brand{{display:flex;align-items:center;gap:10px;flex-shrink:0}}
 .brand-name{{font-family:Georgia,serif;font-size:20px;font-weight:700;color:var(--white)}}
+.brand-sub{{font-size:11px;color:var(--slate-dim);letter-spacing:.02em}}
 .brand-pill{{font-size:9px;background:var(--teal);color:#fff;padding:2px 7px;border-radius:99px;letter-spacing:.06em;text-transform:uppercase;font-family:sans-serif}}
 .search-wrap{{flex:1;min-width:200px;max-width:440px;position:relative}}
 .search-wrap input{{
@@ -645,6 +646,118 @@ button{{cursor:pointer;border:none;font-family:inherit;font-size:inherit}}
 .vis-track{{flex:1;height:10px;background:var(--navy);border-radius:99px;overflow:hidden}}
 .vis-fill{{height:100%;border-radius:99px}}
 .vis-val{{font-size:11px;color:var(--slate);min-width:40px;text-align:right}}
+
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE — max-width 768px
+════════════════════════════════════════════════════════════ */
+@media(max-width:768px){{
+  /* ── Global ── */
+  body{{overflow-x:hidden;font-size:14px}}
+  #content{{padding:14px 12px 60px}}
+
+  /* ── Topbar: scrolls away on mobile, stacks vertically ── */
+  #topbar{{position:relative}}
+  .topbar-inner{{padding:10px 14px 8px}}
+  .topbar-row1{{
+    flex-direction:column;align-items:stretch;gap:8px;flex-wrap:nowrap;
+  }}
+  .brand{{flex-direction:row;align-items:center}}
+  .brand-sub{{display:none}}
+  .brand-pill{{display:none}}
+  .brand-name{{font-size:17px}}
+  .search-wrap{{max-width:100%;min-width:0}}
+  .search-wrap input{{font-size:15px;padding:9px 12px 9px 36px}}
+  .stats-pills{{
+    margin-left:0;display:flex;flex-wrap:wrap;gap:5px;
+  }}
+  .stat-pill{{
+    flex:1 1 calc(50% - 3px);text-align:center;
+    font-size:11px;padding:5px 8px;
+  }}
+
+  /* ── Main tabs: sticky at viewport top, equal-width ── */
+  #maintabbar{{top:0;position:sticky}}
+  .maintab-inner{{justify-content:stretch;padding:0;overflow-x:auto}}
+  .mtab{{
+    flex:1;padding:12px 6px;font-size:12px;
+    letter-spacing:0;text-align:center;
+  }}
+  .mtab .mcnt{{display:none}}
+
+  /* ── Section nav: sticky below tab bar, horizontal scroll ── */
+  #secnav{{top:44px}}
+  .secnav-inner{{padding:0 12px;-webkit-overflow-scrolling:touch}}
+  .snav-tab{{padding:10px 12px;font-size:11px}}
+
+  /* ── VMS filter row: touch-friendly toggles, smaller dividers ── */
+  .vmsfilter-inner{{padding:8px 12px;gap:6px}}
+  .ftoggle{{
+    min-height:40px;padding:7px 14px;font-size:12px;
+    -webkit-tap-highlight-color:transparent;
+  }}
+  .filter-label{{font-size:10px}}
+  .sort-sel{{min-height:40px;padding:6px 10px;font-size:12px}}
+  .divider{{display:none}}
+
+  /* ── Filter chips ── */
+  #filterChips{{padding:0 12px}}
+  .filter-chip,.chip-clear-all{{min-height:34px;padding:5px 12px;font-size:12px}}
+
+  /* ── Ingredient banner ── */
+  #ingBanner{{padding:0 12px}}
+
+  /* ── Panels ── */
+  .panel{{padding:14px 14px}}
+
+  /* ── Section headers ── */
+  .sec-title{{font-size:18px}}
+  .sec-sub{{font-size:12px}}
+
+  /* ── Risk watch cards: 1-col (redundant with 640px rule, belt-and-braces) ── */
+  .risk-grid{{grid-template-columns:1fr}}
+  .risk-card{{height:auto;min-height:76px}}
+
+  /* ── Dashboard grid already handled by existing 768px rule ── */
+
+  /* ── Signal cards ── */
+  .card{{padding:12px 14px}}
+  .card-top{{flex-direction:column;gap:6px}}
+  .card-title{{font-size:14px}}
+  .card-summary{{font-size:13px}}
+  .card-meta{{font-size:12px;gap:8px}}
+
+  /* ── Citation controls: stack vertically ── */
+  .cite-controls{{flex-direction:column;align-items:stretch;gap:8px}}
+  .cite-sel{{width:100%;font-size:15px;padding:9px 10px;min-height:44px}}
+  .result-count{{margin-left:0;font-size:12px}}
+
+  /* ── Citation cards ── */
+  .cit-card{{padding:12px 14px}}
+
+  /* ── Facility/compliance table: scroll horizontally ── */
+  .cmp-table{{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;font-size:11px}}
+
+  /* ── Trending bars ── */
+  .trend-ing{{min-width:90px;font-size:11px}}
+  #trendBars .trend-ing{{min-width:80px}}
+
+  /* ── Ingredient sentiment rows ── */
+  .ing-sent-name{{min-width:90px;font-size:11px}}
+  .sent-score{{min-width:38px}}
+
+  /* ── Source footer ── */
+  .src-footer-panel{{padding:10px 14px}}
+
+  /* ── Shift cards ── */
+  .shift-arrow{{flex-wrap:wrap}}
+  .shift-from,.shift-to{{font-size:11px}}
+
+  /* ── Donut: tighten on small screens ── */
+  .donut{{width:70px;height:70px}}
+  .donut-wrap{{gap:14px}}
+
+  /* ── dash-grid-3 already collapses to 1-col via existing 600px rule ── */
+}}
 </style>
 </head>
 <body>
