@@ -28,8 +28,10 @@ import anthropic
 import config
 from analytics.db import (
     get_signals_missing_sentiment,
+    get_signals_missing_ai_summary,
     get_signals_since,
     update_sentiment,
+    update_ai_summary,
 )
 from classifier.claude import ClassifiedSignal
 
@@ -53,9 +55,27 @@ Respond with a single JSON object — no markdown, no prose. Use exactly these k
   "sentiment"   : string  — one of: positive | neutral | negative
   "confidence"  : number  — 0.0 to 1.0 (how confident you are in the assessment)
   "reasoning"   : string  — one sentence explaining your assessment
+  "ai_summary"  : string  — one sentence explaining the business or regulatory implication for a VMS company,
+                            NOT just restating the finding — explain "so what does this mean for us?"
+                            Focus on: risk exposure, market opportunity, regulatory action required, or competitive implication.
 
 Example:
-{"sentiment":"negative","confidence":0.92,"reasoning":"The TGA safety alert about contaminated supplements directly threatens consumer trust and may trigger product withdrawals."}
+{"sentiment":"negative","confidence":0.92,"reasoning":"The TGA safety alert about contaminated supplements directly threatens consumer trust and may trigger product withdrawals.","ai_summary":"VMS companies with herbal joint products should review sourcing from similar supply chains and prepare consumer communications, as TGA enforcement typically triggers category-wide scrutiny."}
+"""
+
+_AI_SUMMARY_SYSTEM_PROMPT = """\
+You are a business intelligence analyst for a VMS (vitamins, minerals, supplements) company.
+
+Given a regulatory signal, write one sentence explaining its business or regulatory implication
+for a VMS company — NOT just restating the finding. Answer "so what does this mean for us?"
+
+Focus on: risk exposure, market opportunity, required action, or competitive implication.
+
+Respond with a single JSON object:
+  "ai_summary" : string — one sentence, plain business English
+
+Example:
+{"ai_summary":"Companies selling high-dose vitamin D products should add allergen cross-contamination controls and review labelling before the next TGA audit cycle."}
 """
 
 
@@ -79,29 +99,33 @@ def classify_sentiment_batch(signals: list[dict]) -> list[dict]:
             "Sentiment %d/%d: %s",
             i, len(signals), (sig.get("title") or "")[:60],
         )
-        sentiment, confidence, reasoning = _classify_one(client, sig)
+        sentiment, confidence, reasoning, ai_summary = _classify_one(client, sig)
 
         update_sentiment(sig["source_id"], sentiment, confidence, reasoning)
+        if ai_summary:
+            update_ai_summary(sig["source_id"], ai_summary)
         sig = dict(sig)
-        sig.update(sentiment=sentiment, sentiment_confidence=confidence, sentiment_reasoning=reasoning)
+        sig.update(sentiment=sentiment, sentiment_confidence=confidence,
+                   sentiment_reasoning=reasoning, ai_summary=ai_summary)
         enriched.append(sig)
 
     return enriched
 
 
-def _classify_one(client: anthropic.Anthropic, sig: dict) -> tuple[str, float, str]:
-    """Run one sentiment API call. Returns (sentiment, confidence, reasoning)."""
+def _classify_one(client: anthropic.Anthropic, sig: dict) -> tuple[str, float, str, str]:
+    """Run one sentiment API call. Returns (sentiment, confidence, reasoning, ai_summary)."""
     prompt = (
         f"Title: {sig.get('title', '')}\n"
         f"Ingredient: {sig.get('ingredient_name', 'unknown')}\n"
         f"Event Type: {sig.get('event_type', '')}\n"
         f"Severity: {sig.get('severity', '')}\n"
+        f"Authority: {sig.get('authority', '')}\n"
         f"Summary: {sig.get('summary', '')}"
     )
     try:
         response = client.messages.create(
             model      = config.CLAUDE_MODEL,
-            max_tokens = 256,
+            max_tokens = 400,
             system     = _SENTIMENT_SYSTEM_PROMPT,
             messages   = [{"role": "user", "content": prompt}],
         )
@@ -110,11 +134,12 @@ def _classify_one(client: anthropic.Anthropic, sig: dict) -> tuple[str, float, s
         sentiment  = parsed.get("sentiment", "neutral")
         confidence = float(parsed.get("confidence", 0.5))
         reasoning  = parsed.get("reasoning", "")
-        return sentiment, min(1.0, max(0.0, confidence)), reasoning
+        ai_summary = parsed.get("ai_summary", "")
+        return sentiment, min(1.0, max(0.0, confidence)), reasoning, ai_summary
 
     except anthropic.APIError as exc:
         logger.error("Sentiment API error for %s: %s", sig.get("source_id", "?"), exc)
-        return "neutral", 0.0, ""
+        return "neutral", 0.0, "", ""
 
 
 def _parse_json(raw: str) -> dict:
@@ -237,10 +262,55 @@ def _weighted_score(signals: list[dict]) -> float:
 # Entry point: classify all unsent signals then build report
 # ---------------------------------------------------------------------------
 
+def backfill_ai_summaries() -> int:
+    """
+    Generate ai_summary for signals that have sentiment but no ai_summary.
+    Returns count of signals updated.
+    """
+    pending = get_signals_missing_ai_summary()
+    if not pending:
+        logger.info("AI summaries: all signals already have ai_summary")
+        return 0
+
+    logger.info("AI summaries: backfilling %d signals", len(pending))
+    client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    updated = 0
+
+    for i, sig in enumerate(pending, 1):
+        logger.info("AI summary %d/%d: %s", i, len(pending), (sig.get("title") or "")[:60])
+        prompt = (
+            f"Title: {sig.get('title', '')}\n"
+            f"Ingredient: {sig.get('ingredient_name', 'unknown')}\n"
+            f"Event Type: {sig.get('event_type', '')}\n"
+            f"Severity: {sig.get('severity', '')}\n"
+            f"Authority: {sig.get('authority', '')}\n"
+            f"Sentiment: {sig.get('sentiment', '')}\n"
+            f"Summary: {sig.get('summary', '')}"
+        )
+        try:
+            response = client.messages.create(
+                model=config.CLAUDE_MODEL,
+                max_tokens=200,
+                system=_AI_SUMMARY_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            parsed = _parse_json(response.content[0].text.strip())
+            ai_summary = parsed.get("ai_summary", "")
+            if ai_summary:
+                update_ai_summary(sig["source_id"], ai_summary)
+                updated += 1
+        except Exception as exc:
+            logger.error("AI summary error for %s: %s", sig.get("source_id", "?"), exc)
+
+    logger.info("AI summaries: updated %d signals", updated)
+    return updated
+
+
 def run_sentiment_analysis() -> SentimentReport:
     """
-    1. Classify sentiment for any signals missing it.
-    2. Build and return the full ingredient sentiment report.
+    1. Classify sentiment for any signals missing it (also generates ai_summary).
+    2. Backfill ai_summary for signals that have sentiment but missing ai_summary.
+    3. Build and return the full ingredient sentiment report.
     """
     pending = get_signals_missing_sentiment()
     if pending:
@@ -248,5 +318,8 @@ def run_sentiment_analysis() -> SentimentReport:
         classify_sentiment_batch(pending)
     else:
         logger.info("Sentiment: all signals already have sentiment data")
+
+    # Backfill ai_summary for older signals that predate this feature
+    backfill_ai_summaries()
 
     return build_sentiment_report()

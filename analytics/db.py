@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS signals (
     sentiment               TEXT,
     sentiment_confidence    REAL    DEFAULT 0.0,
     sentiment_reasoning     TEXT,
+    ai_summary              TEXT    DEFAULT '',
     created_at              TEXT,
     digest_sent             INTEGER DEFAULT 0
 );
@@ -76,7 +77,15 @@ def get_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
-    conn.commit()
+    # Migrations: add columns introduced after initial schema
+    for col, defn in [
+        ("ai_summary", "TEXT DEFAULT ''"),
+    ]:
+        try:
+            conn.execute(f"ALTER TABLE signals ADD COLUMN {col} {defn}")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass  # column already exists
     return conn
 
 
@@ -101,7 +110,7 @@ def save_signal(sig: "ClassifiedSignal") -> bool:
                 relevance_to_vms, signal_type, ingredient_relevance,
                 potential_impact, trend_relevance,
                 sentiment, sentiment_confidence, sentiment_reasoning,
-                created_at
+                ai_summary, created_at
             ) VALUES (
                 :source_id, :authority, :url, :title, :scraped_at,
                 :ingredient_name, :event_type, :severity, :summary,
@@ -110,7 +119,7 @@ def save_signal(sig: "ClassifiedSignal") -> bool:
                 :relevance_to_vms, :signal_type, :ingredient_relevance,
                 :potential_impact, :trend_relevance,
                 :sentiment, :sentiment_confidence, :sentiment_reasoning,
-                :created_at
+                :ai_summary, :created_at
             )
             """,
             {
@@ -186,6 +195,41 @@ def signal_exists(source_id: str) -> bool:
             "SELECT 1 FROM signals WHERE source_id=?", (source_id,)
         ).fetchone()
         return row is not None
+    finally:
+        conn.close()
+
+
+def url_exists(url: str) -> bool:
+    """Check if a signal with this URL already exists (cross-source dedup)."""
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT 1 FROM signals WHERE url=?", (url,)).fetchone()
+        return row is not None
+    finally:
+        conn.close()
+
+
+def update_ai_summary(source_id: str, ai_summary: str) -> None:
+    """Write the AI business-impact summary for a signal."""
+    conn = get_conn()
+    try:
+        conn.execute(
+            "UPDATE signals SET ai_summary=? WHERE source_id=?",
+            (ai_summary, source_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_signals_missing_ai_summary() -> list[dict]:
+    """Return signals that have no AI summary yet."""
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM signals WHERE (ai_summary IS NULL OR ai_summary = '') ORDER BY scraped_at DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
     finally:
         conn.close()
 

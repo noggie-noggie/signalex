@@ -28,6 +28,13 @@ from scrapers.pubmed import PubMedScraper
 from scrapers.tga_consultations import TGAConsultationsScraper
 from scrapers.advisory_committees import AdvisoryCommitteesScraper
 from scrapers.adverse_events import AdverseEventsScraper
+from scrapers.europe_pmc import EuropePMCScraper
+from scrapers.cochrane import CochraneScraper
+from scrapers.clinical_trials import ClinicalTrialsScraper
+from scrapers.who_ictrp import WHOICTRPScraper
+from scrapers.efsa_journal import EFSAJournalScraper
+from scrapers.biorxiv import BiorxivScraper
+from scrapers.semantic_scholar import SemanticScholarScraper
 from classifier.claude import SignalClassifier
 from alerts.dispatcher import AlertDispatcher
 from storage.signals import SignalStore          # existing TinyDB store (unchanged)
@@ -67,6 +74,20 @@ def _classify_with_feedback(
             return classifier.classify_batch_advisory_committee(raw_signals)
         if source_label == "adverse_events":
             return classifier.classify_batch_adverse_event(raw_signals)
+        if source_label == "europe_pmc":
+            return classifier.classify_batch_europe_pmc(raw_signals)
+        if source_label == "cochrane":
+            return classifier.classify_batch_cochrane(raw_signals)
+        if source_label == "clinical_trials":
+            return classifier.classify_batch_clinical_trials(raw_signals)
+        if source_label == "who_ictrp":
+            return classifier.classify_batch_who_ictrp(raw_signals)
+        if source_label == "efsa":
+            return classifier.classify_batch_efsa(raw_signals)
+        if source_label == "biorxiv":
+            return classifier.classify_batch_biorxiv(raw_signals)
+        if source_label == "semantic_scholar":
+            return classifier.classify_batch_semantic_scholar(raw_signals)
         return classifier.classify_batch(raw_signals)
     finally:
         if few_shot:
@@ -200,6 +221,14 @@ def run_full_pipeline() -> dict:
         ("tga_consultations",   TGAConsultationsScraper,   None,   "tga_consultations"),
         ("advisory_committee",  AdvisoryCommitteesScraper, None,   "advisory_committee"),
         ("adverse_events",      AdverseEventsScraper,      None,   "adverse_events"),
+        # New scientific sources
+        ("europe_pmc",          EuropePMCScraper,          None,   "europe_pmc"),
+        ("cochrane",            CochraneScraper,           None,   "cochrane"),
+        ("clinical_trials",     ClinicalTrialsScraper,     None,   "clinical_trials"),
+        ("who_ictrp",           WHOICTRPScraper,           None,   "who_ictrp"),
+        ("efsa",                EFSAJournalScraper,        None,   "efsa"),
+        ("biorxiv",             BiorxivScraper,            None,   "biorxiv"),
+        ("semantic_scholar",    SemanticScholarScraper,    None,   "semantic_scholar"),
     ]
 
     source_counts:  dict[str, int] = {}

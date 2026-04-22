@@ -75,6 +75,9 @@ class ClassifiedSignal(BaseModel):
     sentiment_confidence:    float = 0.0
     sentiment_reasoning:     str   = ""
 
+    # AI business-impact summary — "Why this matters for a VMS company"
+    ai_summary:              str   = ""
+
 
 # ---------------------------------------------------------------------------
 # System prompt  (set once, reused for every message)
@@ -238,6 +241,157 @@ Respond with a single JSON object — no markdown, no prose. Use exactly these k
 
 Example:
 {"ingredient_name":"St. John's Wort","event_type":"warning","severity":"medium","summary":"FDA advisory committee reviewing drug-herb interactions for St. John's Wort, with implications for supplement labelling requirements.","ingredient_relevance":"high"}
+"""
+
+_EUROPE_PMC_SYSTEM_PROMPT = """\
+You are a regulatory intelligence analyst specialising in vitamins, minerals, and dietary supplements (VMS).
+
+You will receive the title and abstract of a research article indexed in Europe PMC.
+This may be from PubMed, European journals, or preprint servers.
+
+Respond with a single JSON object — no markdown, no prose. Use exactly these keys:
+
+  "ingredient_name"   : string  — primary supplement/ingredient (e.g. "omega-3", "vitamin D"). Use "unknown" if none.
+  "event_type"        : string  — one of: safety_alert | warning | other
+  "severity"          : string  — one of: high | medium | low
+  "summary"           : string  — one sentence plain-English for a non-expert
+  "relevance_to_vms"  : string  — one of: high | medium | low
+  "signal_type"       : string  — one of: safety_concern | efficacy_claim | regulatory_implication | other
+
+Example:
+{"ingredient_name":"vitamin D","event_type":"safety_alert","severity":"medium","summary":"European cohort study links high-dose vitamin D supplementation to increased cardiovascular event risk in older adults.","relevance_to_vms":"high","signal_type":"safety_concern"}
+"""
+
+_COCHRANE_SYSTEM_PROMPT = """\
+You are a regulatory intelligence analyst specialising in vitamins, minerals, and dietary supplements (VMS).
+
+You will receive details of a Cochrane systematic review or meta-analysis about supplement use.
+Cochrane reviews are the highest level of clinical evidence — classify based on the conclusion.
+
+Respond with a single JSON object — no markdown, no prose. Use exactly these keys:
+
+  "ingredient_name"   : string  — primary supplement/ingredient. Use "general" for multi-ingredient reviews.
+  "event_type"        : string  — one of: safety_alert | warning | other
+  "severity"          : string  — one of: high | medium | low
+                                  high   = review concludes "harmful" OR the evidence directly contradicts marketing claims
+                                  medium = review concludes "insufficient evidence" or mixed results
+                                  low    = review finds positive/moderate efficacy evidence
+  "summary"           : string  — one sentence describing the review conclusion and VMS implication
+  "relevance_to_vms"  : string  — one of: high | medium | low
+  "signal_type"       : string  — one of: safety_concern | efficacy_claim | regulatory_implication | other
+  "finding"           : string  — one of: effective | ineffective | inconclusive | harmful
+
+Example:
+{"ingredient_name":"glucosamine","event_type":"other","severity":"medium","summary":"Cochrane review finds glucosamine supplements provide no clinically meaningful benefit for osteoarthritis pain, challenging product efficacy claims.","relevance_to_vms":"high","signal_type":"efficacy_claim","finding":"inconclusive"}
+"""
+
+_CLINICAL_TRIALS_SYSTEM_PROMPT = """\
+You are a regulatory intelligence analyst specialising in vitamins, minerals, and dietary supplements (VMS).
+
+You will receive details of a clinical trial registration from ClinicalTrials.gov.
+Assess the trial's implications for the VMS industry.
+
+Respond with a single JSON object — no markdown, no prose. Use exactly these keys:
+
+  "ingredient_name"     : string  — primary supplement/ingredient being trialled.
+  "event_type"          : string  — one of: safety_alert | new_listing | warning | other
+  "severity"            : string  — one of: high | medium | low
+                                    high   = new safety trial, adverse event investigation, or regulatory-mandated study
+                                    medium = Phase 2/3 efficacy trial; competitor VMS company as sponsor
+                                    low    = Phase 1, observational, or early feasibility study
+  "summary"             : string  — one sentence: what is being studied, sponsor, and VMS implication
+  "relevance_to_vms"    : string  — one of: high | medium | low
+  "signal_type"         : string  — one of: safety_concern | efficacy_claim | regulatory_implication | other
+  "trial_type"          : string  — one of: safety | efficacy | bioavailability | observational | other
+  "competitive_signal"  : boolean — true if the sponsor is a known VMS company
+
+Example:
+{"ingredient_name":"ashwagandha","event_type":"other","severity":"medium","summary":"Blackmores sponsoring Phase 3 RCT on ashwagandha for stress — positive result would significantly strengthen market position.","relevance_to_vms":"high","signal_type":"efficacy_claim","trial_type":"efficacy","competitive_signal":true}
+"""
+
+_WHO_ICTRP_SYSTEM_PROMPT = """\
+You are a regulatory intelligence analyst specialising in vitamins, minerals, and dietary supplements (VMS).
+
+You will receive details of a clinical trial from the WHO International Clinical Trials Registry Platform,
+sourced from non-US registries (ANZCTR, EU CTR, ISRCTN, etc.).
+
+Respond with a single JSON object — no markdown, no prose. Use exactly these keys:
+
+  "ingredient_name"   : string  — primary supplement/ingredient being trialled.
+  "event_type"        : string  — one of: safety_alert | new_listing | warning | other
+  "severity"          : string  — one of: high | medium | low
+  "summary"           : string  — one sentence describing the trial and its VMS relevance
+  "relevance_to_vms"  : string  — one of: high | medium | low
+  "signal_type"       : string  — one of: safety_concern | efficacy_claim | regulatory_implication | other
+  "trial_type"        : string  — one of: safety | efficacy | bioavailability | observational | other
+
+Example:
+{"ingredient_name":"melatonin","event_type":"other","severity":"low","summary":"ANZCTR-registered observational study on melatonin use in Australian adults — provides local prevalence data relevant to TGA scheduling review.","relevance_to_vms":"medium","signal_type":"regulatory_implication","trial_type":"observational"}
+"""
+
+_EFSA_SYSTEM_PROMPT = """\
+You are a regulatory intelligence analyst specialising in vitamins, minerals, and dietary supplements (VMS).
+
+You will receive details of a publication from the EFSA Journal (European Food Safety Authority).
+EFSA opinions directly inform EU regulation of health claims, novel foods, and ingredient safety.
+
+Respond with a single JSON object — no markdown, no prose. Use exactly these keys:
+
+  "ingredient_name"       : string  — primary ingredient/substance assessed.
+  "event_type"            : string  — one of: ban | warning | safety_alert | new_listing | other
+  "severity"              : string  — one of: high | medium | low
+                                      high   = EFSA concludes ingredient is unsafe, recommends ban or restriction
+                                      medium = EFSA identifies concerns, recommends further study or conditions
+                                      low    = EFSA opinion is favourable or informational
+  "summary"               : string  — one sentence: what EFSA assessed and what it means for EU supplement market
+  "relevance_to_vms"      : string  — one of: high | medium | low
+  "signal_type"           : string  — one of: safety_concern | efficacy_claim | regulatory_implication | other
+  "regulatory_impact"     : string  — one of: restrictive | permissive | neutral
+  "market_relevance"      : string  — one of: high | medium | low (EU market implications)
+
+Example:
+{"ingredient_name":"red yeast rice","event_type":"ban","severity":"high","summary":"EFSA concludes red yeast rice monacolin K poses hepatotoxicity risk; EU is expected to ban it as a food supplement ingredient within 12 months.","relevance_to_vms":"high","signal_type":"regulatory_implication","regulatory_impact":"restrictive","market_relevance":"high"}
+"""
+
+_BIORXIV_SYSTEM_PROMPT = """\
+You are a regulatory intelligence analyst specialising in vitamins, minerals, and dietary supplements (VMS).
+
+You will receive details of a PREPRINT (not yet peer-reviewed) from bioRxiv or medRxiv.
+IMPORTANT: This has not been peer-reviewed. Treat as an early signal requiring verification.
+
+Respond with a single JSON object — no markdown, no prose. Use exactly these keys:
+
+  "ingredient_name"   : string  — primary supplement/ingredient. Use "unknown" if none.
+  "event_type"        : string  — one of: safety_alert | warning | other
+  "severity"          : string  — one of: high | medium | low
+                                  IMPORTANT: Downgrade severity by one level vs a published paper.
+                                  A finding that would be HIGH if published → MEDIUM for a preprint.
+                                  A MEDIUM finding → LOW for a preprint.
+  "summary"           : string  — one sentence, must include the word PREPRINT to flag unverified status
+  "relevance_to_vms"  : string  — one of: high | medium | low
+  "signal_type"       : string  — one of: safety_concern | efficacy_claim | regulatory_implication | other
+
+Example:
+{"ingredient_name":"NAD supplement","event_type":"other","severity":"low","summary":"PREPRINT: Early data suggests NMN supplementation may accelerate tumour growth in animal models — requires peer review before regulatory implications can be assessed.","relevance_to_vms":"medium","signal_type":"safety_concern"}
+"""
+
+_SEMANTIC_SCHOLAR_SYSTEM_PROMPT = """\
+You are a regulatory intelligence analyst specialising in vitamins, minerals, and dietary supplements (VMS).
+
+You will receive details of an academic paper from Semantic Scholar, including its citation count.
+High citation count (>50) indicates established evidence; low citation count with recent date = emerging signal.
+
+Respond with a single JSON object — no markdown, no prose. Use exactly these keys:
+
+  "ingredient_name"   : string  — primary supplement/ingredient. Use "unknown" if none.
+  "event_type"        : string  — one of: safety_alert | warning | other
+  "severity"          : string  — one of: high | medium | low
+  "summary"           : string  — one sentence plain-English for a non-expert
+  "relevance_to_vms"  : string  — one of: high | medium | low
+  "signal_type"       : string  — one of: safety_concern | efficacy_claim | regulatory_implication | other
+
+Example:
+{"ingredient_name":"creatine","event_type":"other","severity":"low","summary":"Highly-cited meta-analysis (n=1,240) confirms creatine supplementation safely improves strength performance — reinforces efficacy claims for sports nutrition products.","relevance_to_vms":"high","signal_type":"efficacy_claim"}
 """
 
 _ADVERSE_EVENT_SYSTEM_PROMPT = """\
@@ -605,6 +759,102 @@ class SignalClassifier:
             logger.info("Adverse event classify %d/%d: %s", i, len(signals), sig["title"][:60])
             results.append(self.classify_adverse_event(sig))
         return results
+
+    # ------------------------------------------------------------------
+    # New source classifiers (7 scientific scrapers)
+    # ------------------------------------------------------------------
+
+    def _classify_science(
+        self,
+        signal: RawSignal,
+        system_prompt: str,
+        source_label: str,
+        extra_fields: list[str] | None = None,
+    ) -> "ClassifiedSignal":
+        """Generic science scraper classifier — reused by 7 new sources."""
+        base = self._base_dict(signal)
+        try:
+            response = self.client.messages.create(
+                model=config.CLAUDE_MODEL,
+                max_tokens=config.CLAUDE_MAX_TOKENS,
+                system=system_prompt,
+                messages=[{"role": "user", "content": self._build_prompt(signal)}],
+            )
+        except Exception as exc:
+            logger.error("Claude API error (%s) for %s: %s", source_label, signal["source_id"], exc)
+            return ClassifiedSignal(**base, source_label=source_label)
+
+        parsed = self._parse_json(response.content[0].text.strip(), signal["source_id"])
+        kwargs: dict = {
+            **base,
+            "source_label":     source_label,
+            "ingredient_name":  parsed.get("ingredient_name", "unknown"),
+            "event_type":       parsed.get("event_type", "other"),
+            "severity":         parsed.get("severity", "low"),
+            "summary":          parsed.get("summary", ""),
+            "relevance_to_vms": parsed.get("relevance_to_vms", "low"),
+            "signal_type":      parsed.get("signal_type", ""),
+            "input_tokens":     response.usage.input_tokens,
+            "output_tokens":    response.usage.output_tokens,
+        }
+        # Stash extra parsed fields that map to known ClassifiedSignal attributes
+        for field in (extra_fields or []):
+            if field in parsed:
+                if field == "regulatory_impact":
+                    kwargs["potential_impact"] = parsed[field]
+                elif field == "competitive_signal":
+                    kwargs["competitor_signal"] = bool(parsed[field])
+                elif field == "market_relevance":
+                    kwargs["market_significance"] = parsed[field]
+        return ClassifiedSignal(**kwargs)
+
+    def classify_europe_pmc(self, signal: RawSignal) -> "ClassifiedSignal":
+        return self._classify_science(signal, _EUROPE_PMC_SYSTEM_PROMPT, "europe_pmc")
+
+    def classify_batch_europe_pmc(self, signals: list[RawSignal]) -> list["ClassifiedSignal"]:
+        return [self._log_classify("Europe PMC", i, len(signals), sig, self.classify_europe_pmc) for i, sig in enumerate(signals, 1)]
+
+    def classify_cochrane(self, signal: RawSignal) -> "ClassifiedSignal":
+        return self._classify_science(signal, _COCHRANE_SYSTEM_PROMPT, "cochrane")
+
+    def classify_batch_cochrane(self, signals: list[RawSignal]) -> list["ClassifiedSignal"]:
+        return [self._log_classify("Cochrane", i, len(signals), sig, self.classify_cochrane) for i, sig in enumerate(signals, 1)]
+
+    def classify_clinical_trials(self, signal: RawSignal) -> "ClassifiedSignal":
+        return self._classify_science(signal, _CLINICAL_TRIALS_SYSTEM_PROMPT, "clinical_trials",
+                                      extra_fields=["trial_type", "competitive_signal"])
+
+    def classify_batch_clinical_trials(self, signals: list[RawSignal]) -> list["ClassifiedSignal"]:
+        return [self._log_classify("ClinicalTrials", i, len(signals), sig, self.classify_clinical_trials) for i, sig in enumerate(signals, 1)]
+
+    def classify_who_ictrp(self, signal: RawSignal) -> "ClassifiedSignal":
+        return self._classify_science(signal, _WHO_ICTRP_SYSTEM_PROMPT, "who_ictrp")
+
+    def classify_batch_who_ictrp(self, signals: list[RawSignal]) -> list["ClassifiedSignal"]:
+        return [self._log_classify("WHO ICTRP", i, len(signals), sig, self.classify_who_ictrp) for i, sig in enumerate(signals, 1)]
+
+    def classify_efsa(self, signal: RawSignal) -> "ClassifiedSignal":
+        return self._classify_science(signal, _EFSA_SYSTEM_PROMPT, "efsa",
+                                      extra_fields=["regulatory_impact", "market_relevance"])
+
+    def classify_batch_efsa(self, signals: list[RawSignal]) -> list["ClassifiedSignal"]:
+        return [self._log_classify("EFSA", i, len(signals), sig, self.classify_efsa) for i, sig in enumerate(signals, 1)]
+
+    def classify_biorxiv(self, signal: RawSignal) -> "ClassifiedSignal":
+        return self._classify_science(signal, _BIORXIV_SYSTEM_PROMPT, "biorxiv")
+
+    def classify_batch_biorxiv(self, signals: list[RawSignal]) -> list["ClassifiedSignal"]:
+        return [self._log_classify("bioRxiv", i, len(signals), sig, self.classify_biorxiv) for i, sig in enumerate(signals, 1)]
+
+    def classify_semantic_scholar(self, signal: RawSignal) -> "ClassifiedSignal":
+        return self._classify_science(signal, _SEMANTIC_SCHOLAR_SYSTEM_PROMPT, "semantic_scholar")
+
+    def classify_batch_semantic_scholar(self, signals: list[RawSignal]) -> list["ClassifiedSignal"]:
+        return [self._log_classify("Semantic Scholar", i, len(signals), sig, self.classify_semantic_scholar) for i, sig in enumerate(signals, 1)]
+
+    def _log_classify(self, label: str, i: int, total: int, sig: RawSignal, fn) -> "ClassifiedSignal":
+        logger.info("%s classify %d/%d: %s", label, i, total, sig["title"][:60])
+        return fn(sig)
 
     # ------------------------------------------------------------------
     # Prompt + JSON helpers
