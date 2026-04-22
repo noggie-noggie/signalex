@@ -317,6 +317,21 @@ button{cursor:pointer;border:none;font-family:inherit;font-size:inherit;backgrou
 .rbadge-M{background:var(--amber-bg);color:var(--amber)}
 .rbadge-L{background:var(--green-bg);color:var(--green)}
 .trend-none{font-size:11px;color:var(--slate-dim);font-style:italic;padding:16px 0;text-align:center}
+
+/* ── Empty filter state ────────────────────────────── */
+.empty-filter-state{padding:32px 20px;text-align:center;color:var(--slate)}
+.empty-filter-state .empty-icon{font-size:36px;margin-bottom:12px}
+.empty-filter-state .empty-title{font-size:15px;font-weight:600;color:var(--off);margin-bottom:8px}
+.empty-filter-state .empty-sub{font-size:12px;color:var(--slate-dim);display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:20px}
+.empty-filter-state .empty-sug-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--slate-dim);margin-bottom:10px;text-align:left}
+/* ── Entity signals panel ──────────────────────────── */
+.entity-sig-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.breadcrumb{font-size:13px;color:var(--slate)}.breadcrumb b{color:var(--off)}
+.entity-sig-count{color:var(--teal);font-size:12px}
+.entity-src-group{border:1px solid var(--border);border-radius:8px;margin-bottom:12px;overflow:hidden}
+.entity-src-group summary.entity-src-header{padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;background:var(--navy-mid);list-style:none;display:flex;align-items:center;gap:8px;color:var(--off)}
+.entity-src-group summary.entity-src-header::-webkit-details-marker{display:none}
+.entity-src-body{padding:10px;display:flex;flex-direction:column;gap:8px}
 </style>
 </head>
 <body>
@@ -549,6 +564,7 @@ button{cursor:pointer;border:none;font-family:inherit;font-size:inherit;backgrou
     <span class="results-count" id="entity-count"></span>
   </div>
   <div class="entity-grid" id="entity-grid"></div>
+  <div id="entity-signals" style="display:none;margin-top:20px"></div>
 </div>
 
 <!-- EVIDENCE -->
@@ -664,12 +680,12 @@ const MARKET_MAP = {
   global:['pubmed','cochrane','who_ictrp','biorxiv','semantic_scholar'],
 };
 const CLAIM_KW = {
-  'Weight Loss':    ['weight','fat','slimming','obesity','adipose','metabolism'],
-  'Pain & Inflam.': ['pain','inflammation','arthritis','joint','anti-inflammatory','nsaid'],
-  'Immune Support': ['immune','immunity','antiviral','infection','antimicrobial'],
-  'Cognitive':      ['cognitive','brain','memory','nootropic','focus','mental'],
-  'Cardiovascular': ['cardiovascular','heart','cholesterol','blood pressure','cardiac'],
-  'Muscle & Sport': ['muscle','athletic','performance','creatine','protein','ergogenic'],
+  'Weight Loss':    ['weight loss','weight management','fat','slimming','obesity','adipose','metabolism','appetite','caloric','bmi','body mass','body composition','thermogenic','diet'],
+  'Pain & Inflam.': ['pain','inflammation','inflammatory','arthritis','joint','anti-inflammatory','nsaid','analgesic','nociceptive','osteoarthritis','rheumatoid','fibromyalgia','chronic pain'],
+  'Immune Support': ['immune','immunity','immunomodulat','antiviral','infection','antimicrobial','cold','flu','influenza','pathogen','cytokine','lymphocyte','interferon','vaccine'],
+  'Cognitive':      ['cognitive','brain','memory','nootropic','focus','mental','neurological','neuroprotect','dementia','alzheimer','adhd','concentration','learning','executive function'],
+  'Cardiovascular': ['cardiovascular','heart','cholesterol','blood pressure','cardiac','hypertension','triglyceride','lipid','atherosclerosis','stroke','vascular','endothelial'],
+  'Muscle & Sport': ['muscle','sport','exercise','athletic','creatine','protein','performance','strength','endurance','recovery','ergogenic','hypertrophy','anabolic','testosterone'],
 };
 const AUTH_LABELS = {tga:'TGA',tga_consultations:'TGA Consult.',fda:'FDA',artg:'ARTG',pubmed:'PubMed',adverse_events:'Adv.Events',europe_pmc:'Europe PMC',clinical_trials:'ClinTrials.gov',cochrane:'Cochrane',efsa:'EFSA',biorxiv:'Preprint',semantic_scholar:'Semantic Scholar',who_ictrp:'WHO ICTRP'};
 
@@ -685,30 +701,46 @@ const fmt = d => d?new Date(d).toLocaleDateString('en-AU',{day:'numeric',month:'
 const trunc = (s,n) => s&&s.length>n?s.slice(0,n)+'…':(s||'');
 
 // ─── MULTI-SELECT FILTERING ───────────────────────────────────────────────────
+// ─── MULTI-FIELD TEXT HELPER ─────────────────────────────────────────────────
+function _sigText(s) {
+  return [s.title,s.summary,s.ai_summary,s.ingredient_name,s.ingredient_relevance,s.trend_relevance,s.signal_type].filter(Boolean).join(' ').toLowerCase();
+}
+function _ingMatch(hay, q) {
+  const ql = q.toLowerCase();
+  if (hay.includes(ql)) return true;
+  // partial: split multi-word/slash names and match any meaningful term
+  const terms = ql.split(/[\s\/\-]+/).filter(t=>t.length>2);
+  return terms.length > 0 && terms.some(t => hay.includes(t));
+}
 function filteredSignals() {
-  return SIGNALS.filter(s => {
+  const result = SIGNALS.filter(s => {
     if (filters.auth.size > 0 && !filters.auth.has(s.authority)) return false;
-    if (filters.sev.size > 0 && !filters.sev.has(s.severity)) return false;
-    if (filters.sent.size > 0 && !filters.sent.has(s.sentiment)) return false;
-    if (filters.type.size > 0 && !filters.type.has(s.event_type)) return false;
+    // case-insensitive severity/sentiment match
+    if (filters.sev.size > 0 && !filters.sev.has((s.severity||'').toLowerCase())) return false;
+    if (filters.sent.size > 0 && !filters.sent.has((s.sentiment||'').toLowerCase())) return false;
+    if (filters.type.size > 0) {
+      const et = (s.event_type||'').toLowerCase();
+      // 'recall' also matches title/summary containing 'recall'
+      if (filters.type.has('recall') && !filters.type.has(et)) {
+        if (!_sigText(s).includes('recall')) return false;
+      } else if (!filters.type.has(et)) return false;
+    }
     if (filters.market.size > 0) {
       const allowed = new Set([...filters.market].flatMap(m => MARKET_MAP[m]||[]));
       if (!allowed.has(s.authority)) return false;
     }
     if (activeClaimCat) {
       const kws = CLAIM_KW[activeClaimCat]||[];
-      const txt = ((s.title||'')+' '+(s.summary||'')).toLowerCase();
+      const txt = _sigText(s);  // search ALL text fields
       if (!kws.some(k => txt.includes(k))) return false;
     }
     if (filters.ingredient) {
-      const q = filters.ingredient.toLowerCase();
-      if (!((s.ingredient_name||'').toLowerCase().includes(q)||(s.title||'').toLowerCase().includes(q))) return false;
+      if (!_ingMatch(_sigText(s), filters.ingredient)) return false;
     }
     if (filters.dateFrom && new Date(s.scraped_at) < new Date(filters.dateFrom)) return false;
     if (filters.dateTo && new Date(s.scraped_at) > new Date(filters.dateTo+'T23:59:59Z')) return false;
     if (filters.query) {
-      const q = filters.query.toLowerCase();
-      if (!((s.title||'').toLowerCase().includes(q)||(s.summary||'').toLowerCase().includes(q)||(s.ingredient_name||'').toLowerCase().includes(q))) return false;
+      if (!_sigText(s).includes(filters.query.toLowerCase())) return false;
     }
     return true;
   }).sort((a,b) => {
@@ -717,6 +749,22 @@ function filteredSignals() {
     if (sortMode==='conf') return (b.sentiment_confidence||0)-(a.sentiment_confidence||0);
     return 0;
   });
+  // ── Debug logging ──
+  const af={};
+  if(filters.sev.size)   af.sev=[...filters.sev];
+  if(filters.auth.size)  af.auth=[...filters.auth];
+  if(filters.sent.size)  af.sent=[...filters.sent];
+  if(filters.type.size)  af.type=[...filters.type];
+  if(filters.ingredient) af.ingredient=filters.ingredient;
+  if(activeClaimCat)     af.claimCat=activeClaimCat;
+  if(Object.keys(af).length) {
+    console.log('[Signalex filter]', JSON.stringify(af), '\u2192', result.length, '/', SIGNALS.length, 'matched');
+    if (!result.length) {
+      const samples = SIGNALS.slice(0,5).map(s=>({sev:s.severity,sent:s.sentiment,auth:s.authority,type:s.event_type,ing:s.ingredient_name,title:(s.title||'').slice(0,50)}));
+      console.log('[Signalex] Sample signals for debugging:', samples);
+    }
+  }
+  return result;
 }
 
 // ─── FILTER ACTIONS ───────────────────────────────────────────────────────────
@@ -768,6 +816,7 @@ function _commit() {
   _updateChips();
   _syncKpiCards();
   renderSignals();
+  renderOverviewSignals();
   renderTrendPanels();
 }
 
@@ -860,15 +909,32 @@ function signalCard(s) {
 }
 
 // ─── RENDER SIGNALS ───────────────────────────────────────────────────────────
+function _suggestSignals(n) {
+  const q = (filters.ingredient || (activeClaimCat ? CLAIM_KW[activeClaimCat]?.join(' ') : '') || filters.query || '').toLowerCase();
+  if (!q) return [];
+  const words = q.split(/\W+/).filter(w=>w.length>3);
+  if (!words.length) return [];
+  return SIGNALS.filter(s => words.some(w => _sigText(s).includes(w))).slice(0,n);
+}
 function renderSignals() {
   const data = filteredSignals();
   const pages = Math.ceil(data.length/PER_PAGE);
   currentPage = Math.min(currentPage, pages||1);
   const slice = data.slice((currentPage-1)*PER_PAGE, currentPage*PER_PAGE);
   const list = $('#signals-list');
-  if (list) list.innerHTML = slice.length
-    ? slice.map(s=>signalCard(s)).join('')
-    : '<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No signals match your filters</div></div>';
+  if (list) {
+    if (slice.length) {
+      list.innerHTML = slice.map(s=>signalCard(s)).join('');
+    } else {
+      const sug = _suggestSignals(3);
+      list.innerHTML = '<div class="empty-filter-state">'
+        + '<div class="empty-icon">&#128270;</div>'
+        + '<div class="empty-title">No signals match this filter</div>'
+        + '<div class="empty-sub">Try broadening your search&nbsp;&nbsp;<button class="card-action card-action-primary" onclick="clearAllFilters()">Clear all filters</button></div>'
+        + (sug.length ? '<div class="empty-sug-label">Closest matches:</div>' + sug.map(s=>signalCard(s)).join('') : '')
+        + '</div>';
+    }
+  }
   const sc = $('#signal-count'); if (sc) sc.textContent = `${data.length} signal${data.length!==1?'s':''}`;
   const pg = $('#pagination'); if (!pg) return; pg.innerHTML='';
   if (pages>1) {
@@ -879,28 +945,85 @@ function renderSignals() {
   }
 }
 function renderOverviewSignals() {
-  const regs=['tga','fda','artg','adverse_events','tga_consultations','efsa','cochrane'];
-  const feed=[...SIGNALS.filter(s=>s.severity==='high'),...SIGNALS.filter(s=>s.severity==='medium'&&regs.includes(s.authority))].slice(0,12);
+  const hasFilters = filters.sev.size||filters.auth.size||filters.sent.size||filters.type.size||filters.market.size||filters.ingredient||activeClaimCat||filters.query;
+  let feed;
+  if (hasFilters) {
+    feed = filteredSignals().slice(0,12);
+  } else {
+    const regs=['tga','fda','artg','adverse_events','tga_consultations','efsa','cochrane'];
+    feed=[...SIGNALS.filter(s=>s.severity==='high'),...SIGNALS.filter(s=>s.severity==='medium'&&regs.includes(s.authority))].slice(0,12);
+  }
   const el=$('#overview-signals'); if(!el) return;
-  el.innerHTML = feed.length ? feed.map(s=>signalCard(s)).join('')
-    : '<div class="empty"><div class="empty-icon">&#9989;</div><div class="empty-text">No priority signals</div></div>';
+  if (feed.length) {
+    el.innerHTML = feed.map(s=>signalCard(s)).join('');
+  } else {
+    el.innerHTML = '<div class="empty-filter-state"><div class="empty-icon">&#128270;</div><div class="empty-title">No signals match this filter</div><div class="empty-sub"><button class="card-action card-action-primary" onclick="clearAllFilters()">Clear all filters</button></div></div>';
+  }
 }
 
+// ─── KNOWN INGREDIENT TERMS (for title extraction) ─────────────────────────────
+const KNOWN_INGREDIENTS = ['ashwagandha', 'turmeric', 'curcumin', 'melatonin', 'probiotic', 'probiotics', 'omega-3', 'omega 3', 'collagen', 'magnesium', 'vitamin d', 'vitamin c', 'vitamin b', 'zinc', 'iron', 'calcium', 'creatine', 'caffeine', 'cbd', 'cannabidiol', 'berberine', 'resveratrol', 'coq10', 'coenzyme q10', 'nmn', 'nad+', 'glutathione', 'quercetin', 'folic acid', 'folate', 'biotin', 'selenium', 'iodine', 'fish oil', 'krill oil', 'spirulina', 'chlorella', 'maca', 'ginseng', 'echinacea', 'valerian', 'chamomile', 'st. john', 'ginkgo', 'ginkgo biloba', 'saw palmetto', 'black cohosh', 'evening primrose', 'milk thistle', 'rhodiola', 'holy basil', 'bacopa', "lion's mane", 'reishi', 'chaga', 'saffron', 'garlic', 'cinnamon', 'ginger', 'beetroot', 'acai', 'elderberry', 'lutein', 'lycopene', 'beta-carotene', 'astaxanthin', 'phosphatidylserine', 'alpha lipoic', 'acetyl-l-carnitine', 'l-carnitine', 'l-theanine', '5-htp', 'tryptophan', 'glucosamine', 'chondroitin', 'msm', 'hyaluronic acid', 'colostrum', 'whey protein', 'pea protein', 'betaine', 'arginine', 'citrulline', 'beet', 'nitrate', 'peptide', 'bpc-157', 'tb-500', 'ghk-cu', 'artri ajo', 'sea buckthorn', 'inositol', 'chromium', 'boron', 'silicon', 'strontium', 'lithium', 'manganese', 'molybdenum', 'copper', 'potassium', 'sodium bicarbonate', 'sodium phosphate', 'beta-alanine', 'hmb', 'cla', 'green tea', 'egcg', 'raspberry ketone', 'glucomannan', 'psyllium', 'inulin', 'fos', 'mos', 'lactulose', 'xylitol', 'stevia', 'monk fruit'];
+
 // ─── ENTITIES ─────────────────────────────────────────────────────────────────
+function _extractIngFromTitle(title) {
+  const t = (title||'').toLowerCase();
+  for (const kw of KNOWN_INGREDIENTS) { if (t.includes(kw)) return kw; }
+  return null;
+}
 function renderEntities() {
   const q=($('#entity-search')||{value:''}).value.toLowerCase();
   const map={};
-  SIGNALS.forEach(s=>{const ing=(s.ingredient_name||'').trim().toLowerCase();if(!ing||ing==='unknown')return;if(!map[ing])map[ing]={name:ing,total:0,high:0,neg:0,pos:0};map[ing].total++;if(s.severity==='high')map[ing].high++;if(s.sentiment==='negative')map[ing].neg++;if(s.sentiment==='positive')map[ing].pos++;});
+  SIGNALS.forEach(s=>{
+    let ing=(s.ingredient_name||'').trim().toLowerCase();
+    if(!ing||ing==='unknown') ing = _extractIngFromTitle(s.title) || '';
+    if(!ing) return;
+    if(!map[ing])map[ing]={name:ing,total:0,high:0,neg:0,pos:0};
+    map[ing].total++;
+    if(s.severity==='high')map[ing].high++;
+    if(s.sentiment==='negative')map[ing].neg++;
+    if(s.sentiment==='positive')map[ing].pos++;
+  });
   let items=Object.values(map).sort((a,b)=>b.total-a.total);
   if(q) items=items.filter(i=>i.name.includes(q));
   const maxT=items[0]?.total||1;
   const grid=$('#entity-grid'); if(!grid) return;
-  grid.innerHTML=items.length?items.map(e=>`<div class="entity-card" onclick="filterByIngredient('${e.name.replace(/'/g,"\\'")}')">
-    <div class="entity-name">${e.name}</div>
-    <div class="entity-stats"><span class="entity-stat">${e.total} signals</span>${e.high?`<span class="entity-stat text-red">${e.high} high</span>`:''}${e.pos?`<span class="entity-stat text-green">${e.pos} pos</span>`:''}${e.neg?`<span class="entity-stat text-red">${e.neg} neg</span>`:''}</div>
-    <div class="entity-bar"><div class="entity-bar-fill" style="width:${Math.round(e.total/maxT*100)}%"></div></div>
-  </div>`).join(''):'<div class="empty"><div class="empty-icon">&#9762;</div><div class="empty-text">No entities found</div></div>';
+  grid.innerHTML=items.length?items.map(e=>{
+    const nm=e.name.replace(/'/g,"\\'");
+    return `<div class="entity-card" onclick="showEntitySignals('${nm}')">
+      <div class="entity-name">${e.name}</div>
+      <div class="entity-stats"><span class="entity-stat">${e.total} signals</span>${e.high?`<span class="entity-stat text-red">${e.high} high</span>`:''}${e.pos?`<span class="entity-stat text-green">${e.pos} pos</span>`:''}${e.neg?`<span class="entity-stat text-red">${e.neg} neg</span>`:''}</div>
+      <div class="entity-bar"><div class="entity-bar-fill" style="width:${Math.round(e.total/maxT*100)}%"></div></div>
+    </div>`;
+  }).join(''):'<div class="empty"><div class="empty-icon">&#9762;</div><div class="empty-text">No entities found</div></div>';
   const ec=$('#entity-count'); if(ec) ec.textContent=`${items.length} ingredient${items.length!==1?'s':''}`;
+}
+function showEntitySignals(name) {
+  const el = document.getElementById('entity-signals'); if(!el) return;
+  const matched = SIGNALS.filter(s => _ingMatch(_sigText(s), name))
+    .sort((a,b) => new Date(b.scraped_at)-new Date(a.scraped_at));
+  // Group by authority
+  const byAuth = {};
+  matched.forEach(s => { const k=authLabel(s.authority); if(!byAuth[k]) byAuth[k]=[]; byAuth[k].push(s); });
+  const disp = name.charAt(0).toUpperCase() + name.slice(1);
+  el.innerHTML = `<div class="entity-sig-header">`
+    + `<span class="breadcrumb">Entities &rsaquo; <b>${disp}</b> <span class="entity-sig-count">(${matched.length} signal${matched.length!==1?'s':''})</span></span>`
+    + `<button class="card-action" onclick="clearEntitySignals()">&#8592; Back to all</button>`
+    + `</div>`
+    + (matched.length
+      ? Object.entries(byAuth).map(([src,sigs]) =>
+          `<details class="entity-src-group" open>`
+          + `<summary class="entity-src-header">${src} <span class="badge badge-authority">${sigs.length}</span></summary>`
+          + `<div class="entity-src-body">${sigs.map(s=>signalCard(s)).join('')}</div>`
+          + `</details>`
+        ).join('')
+      : '<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No signals found for &ldquo;'+disp+'&rdquo;</div></div>'
+    );
+  el.style.display='block';
+  el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function clearEntitySignals() {
+  const el=document.getElementById('entity-signals');
+  if(el){el.style.display='none';el.innerHTML='';}
 }
 
 // ─── EVIDENCE ─────────────────────────────────────────────────────────────────
