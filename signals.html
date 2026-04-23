@@ -2900,12 +2900,7 @@ function switchProd(prod) {
   if (vc) vc.style.display = prod === 'vms' ? 'block' : 'none';
   if (pc) pc.style.display = prod === 'pharma' ? 'block' : 'none';
   if (prod === 'pharma') {
-    renderPharmaInsights();
-    renderPharmaOverview();
-    renderCitations();
-    renderEnfPage();
-    renderFacilities();
-    renderPharmaAlerts();
+    showPTab('pharma-overview');
   }
 }
 
@@ -2976,11 +2971,17 @@ function sortCit(col) {
 // ── Pharma tab navigation ────────────────────────────────────────────
 function showPTab(tab) {
   document.querySelectorAll('#pharma-nav .nav-tab').forEach(b=>b.classList.toggle('active',b.dataset.ptab===tab));
+  const pageId = tab.replace('pharma-','pharma-page-');
   document.querySelectorAll('.pharma-page').forEach(p=>{
-    const on = p.id===tab;
+    const on = p.id===pageId;
     p.classList.toggle('p-active',on);
     p.style.display = on ? 'block' : 'none';
   });
+  if(tab==='pharma-overview'){ resetPharmaFilters(); renderPharmaInsights(); }
+  else if(tab==='pharma-citations') renderCitations();
+  else if(tab==='pharma-enforcement') renderEnfPage();
+  else if(tab==='pharma-facilities') renderFacilities();
+  else if(tab==='pharma-alerts') renderPharmaAlerts();
 }
 
 // ── Pharma Overview ──────────────────────────────────────────────────
