@@ -1416,6 +1416,93 @@ canvas.chart-clickable { cursor: pointer; }
 
   #content { padding: 10px 10px 20px !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   PREMIUM FEEL POLISH
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 1. Signal cards: subtle gradient + lifted elevation ─────────── */
+.signal-card {
+  padding: 20px 22px !important;
+  background: linear-gradient(160deg,#152F4A 0%,#132D46 60%) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35),
+              inset 0 1px 0 rgba(255,255,255,.05) !important;
+}
+.signal-card:hover {
+  transform: translateY(-3px) !important;
+  background: linear-gradient(160deg,#1B374E 0%,#162E48 100%) !important;
+  box-shadow: 0 14px 36px rgba(0,0,0,.45),
+              0 0 0 1px rgba(13,148,136,.25),
+              inset 0 1px 0 rgba(255,255,255,.06) !important;
+  border-color: rgba(13,148,136,.4) !important;
+}
+
+/* ── 2. Left borders: red only for truly critical ────────────────── */
+.signal-card.medium-sev { border-left: 2px solid rgba(200,150,30,.2) !important; }
+.signal-card.low-sev    { border-left: none !important; padding-left: 22px !important; }
+
+/* ── 3. Titles: breathing room + line-height ─────────────────────── */
+.card-title  { line-height: 1.55 !important; margin-bottom: 6px !important; }
+
+/* ── 4. AI insight box: visually distinct layer ──────────────────── */
+.card-why {
+  background: rgba(13,148,136,.08) !important;
+  border-left: 2px solid rgba(13,148,136,.7) !important;
+  border-top: 1px solid rgba(13,148,136,.12) !important;
+  border-right: 1px solid rgba(13,148,136,.07) !important;
+  border-bottom: 1px solid rgba(13,148,136,.07) !important;
+  border-radius: 0 5px 5px 0 !important;
+  color: #C8DDE8 !important;
+  font-size: 11.5px !important;
+  padding: 9px 12px 9px 11px !important;
+}
+.card-why::before {
+  content: "AI";
+  display: inline-block;
+  background: rgba(13,148,136,.18);
+  border: 1px solid rgba(13,148,136,.25);
+  color: var(--teal);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+
+/* ── 5. KPI cards: danger as visual anchor, rest more recessive ───── */
+.kpi-card.danger {
+  background: linear-gradient(135deg,#1C2E42 0%,rgba(200,40,40,.16) 100%) !important;
+  border: 1px solid rgba(200,40,40,.28) !important;
+  box-shadow: 0 2px 16px rgba(200,40,40,.12),
+              0 0 0 1px rgba(200,40,40,.06),
+              inset 0 1px 0 rgba(255,255,255,.03) !important;
+}
+.kpi-card.danger .kpi-val { font-size: 32px !important; }
+.kpi-card:not(.danger) { background: #0F2236 !important; border-color: rgba(20,50,85,.55) !important; }
+.kpi-card:not(.danger):hover { background: #132D46 !important; border-color: rgba(30,70,110,.8) !important; }
+
+/* ── 6. Sidebar: livelier hover + stronger active state ─────────── */
+#sidebar > div + div { margin-top: 10px; }
+.filter-opt:hover {
+  background: rgba(255,255,255,.07) !important;
+  border-left: 2px solid rgba(13,148,136,.3) !important;
+  padding-left: 6px !important;
+}
+.filter-opt.active {
+  background: rgba(13,148,136,.2) !important;
+  box-shadow: inset 0 0 0 1px rgba(13,148,136,.12) !important;
+}
+.filter-opt.active .filter-label { color: #F0F0F0 !important; font-weight: 700 !important; }
+
+/* ── 7. Trend panels: recessive, supporting-data feel ───────────── */
+.trend-panel {
+  background: rgba(12,24,40,.55) !important;
+  border: 1px solid rgba(20,50,85,.35) !important;
+  box-shadow: none !important;
+}
+.trend-panel-hd { border-bottom-color: rgba(20,50,85,.4) !important; }
 </style>
 </head>
 <body>
