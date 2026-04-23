@@ -1503,6 +1503,144 @@ canvas.chart-clickable { cursor: pointer; }
   box-shadow: none !important;
 }
 .trend-panel-hd { border-bottom-color: rgba(20,50,85,.4) !important; }
+
+/* ── Consultant Mode toggle ─────────────────────────────────────── */
+.cmode-toggle {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 8px 12px; border-radius: 8px; margin: 12px 0 4px;
+  border: 1px solid rgba(13,148,136,.2); background: rgba(13,148,136,.04);
+  transition: all .2s; user-select: none;
+}
+.cmode-toggle:hover { background: rgba(13,148,136,.10); border-color: rgba(13,148,136,.4); }
+.cmode-toggle.active { background: rgba(13,148,136,.15); border-color: rgba(13,148,136,.6); }
+.cmode-toggle-knob {
+  width: 28px; height: 16px; border-radius: 8px;
+  background: #1A3550; border: 1px solid rgba(13,148,136,.3);
+  position: relative; flex-shrink: 0; transition: background .2s;
+}
+.cmode-toggle-knob::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #3D5268; transition: all .2s;
+}
+.cmode-toggle.active .cmode-toggle-knob { background: rgba(13,148,136,.4); border-color: rgba(13,148,136,.7); }
+.cmode-toggle.active .cmode-toggle-knob::after { left: 14px; background: #0D9488; }
+.cmode-toggle-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #4A6580; }
+.cmode-toggle.active .cmode-toggle-label { color: #0D9488; }
+.cmode-toggle-icon { font-size: 13px; }
+
+/* ── Consulting implication / action blocks on cat-cells ─────────── */
+.cat-cell { position: relative; transition: all .2s; }
+.cat-cell-intel {
+  display: none; padding: 6px 0 2px; border-top: 1px solid rgba(13,148,136,.12);
+  margin-top: 6px; font-size: 10px; line-height: 1.5; color: #5A7A90;
+}
+body.cmode .cat-cell-intel { display: block; }
+.cat-implication { color: #5A7A90; margin-bottom: 4px; }
+.cat-action {
+  display: flex; align-items: flex-start; gap: 6px;
+  font-size: 10px; color: #0D9488; margin-top: 3px;
+}
+.cat-action::before { content: '→'; flex-shrink: 0; color: rgba(13,148,136,.6); }
+.action-tag {
+  display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; padding: 1px 5px; border-radius: 3px; margin-bottom: 4px;
+}
+.action-tag.immediate { background: rgba(200,40,40,.12); color: rgba(220,80,80,.9); border: 1px solid rgba(200,40,40,.2); }
+.action-tag.near-term  { background: rgba(200,150,30,.10); color: rgba(210,150,40,.9); border: 1px solid rgba(200,150,30,.2); }
+.action-tag.monitor    { background: rgba(30,80,140,.12); color: rgba(100,150,200,.8); border: 1px solid rgba(30,80,140,.2); }
+
+/* ── What Changed block ──────────────────────────────────────────── */
+.what-changed-panel {
+  background: rgba(10,22,38,.7); border: 1px solid rgba(13,148,136,.12);
+  border-radius: 10px; padding: 16px 18px; margin-bottom: 18px;
+}
+.what-changed-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.what-changed-title { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #0D9488; }
+.what-changed-period { font-size: 10px; color: #2F4558; }
+.what-changed-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+@media(max-width:700px){ .what-changed-cols { grid-template-columns: 1fr; } }
+.wc-col-hd { font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #2F4558; margin-bottom: 6px; }
+.wc-item { font-size: 11px; color: #7A92A8; padding: 3px 0; display: flex; align-items: baseline; gap: 5px; }
+.wc-item .wc-arrow { font-size: 10px; flex-shrink: 0; }
+.wc-item .wc-arrow.up   { color: rgba(200,40,40,.8); }
+.wc-item .wc-arrow.down { color: rgba(13,148,136,.8); }
+.wc-item .wc-arrow.new  { color: rgba(200,150,30,.9); }
+.wc-label { color: #A0B4C4; font-size: 10px; }
+.wc-delta { color: #4A6580; font-size: 10px; }
+
+/* ── Intelligence page ───────────────────────────────────────────── */
+#pharma-page-intelligence { padding: 0 2px; }
+.intel-section-hd {
+  font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+  color: #2F4558; margin: 22px 0 10px; padding-bottom: 6px;
+  border-bottom: 1px solid rgba(20,50,85,.4);
+}
+.forward-signal-row {
+  display: grid; grid-template-columns: 160px 80px 100px 1fr auto;
+  gap: 12px; align-items: start;
+  padding: 12px 14px; border-radius: 8px; margin-bottom: 6px;
+  background: rgba(10,22,38,.6); border: 1px solid rgba(20,50,85,.35);
+  transition: border-color .15s;
+}
+.forward-signal-row:hover { border-color: rgba(13,148,136,.25); }
+@media(max-width:900px){
+  .forward-signal-row { grid-template-columns: 1fr 80px; grid-template-rows: auto auto auto; }
+  .fs-signal,.fs-action { grid-column: 1/-1; }
+}
+.fs-cat   { font-size: 11px; font-weight: 600; color: #C0CDD8; }
+.fs-dir   { display: flex; align-items: center; gap: 4px; }
+.dir-badge {
+  font-size: 9px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 12px;
+}
+.dir-badge.rising   { background: rgba(200,40,40,.12); color: rgba(220,90,90,.95); border: 1px solid rgba(200,40,40,.2); }
+.dir-badge.stable   { background: rgba(30,80,140,.12); color: rgba(100,150,200,.8); border: 1px solid rgba(30,80,140,.2); }
+.dir-badge.emerging { background: rgba(200,150,30,.10); color: rgba(210,150,40,.9); border: 1px solid rgba(200,150,30,.2); }
+.dir-badge.declining{ background: rgba(13,148,136,.10); color: rgba(13,148,136,.8); border: 1px solid rgba(13,148,136,.2); }
+.fs-conf  { font-size: 9px; color: #2F4558; font-style: italic; align-self: center; }
+.fs-signal{ font-size: 11px; color: #6A8296; line-height: 1.5; }
+.fs-action{ font-size: 10px; color: rgba(13,148,136,.8); }
+.fs-action::before { content: '→ '; }
+
+/* ── Consulting insight cards (Intelligence tab) ─────────────────── */
+.consulting-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media(max-width:800px){ .consulting-cards { grid-template-columns: 1fr; } }
+.cons-card {
+  background: rgba(10,22,38,.65); border: 1px solid rgba(20,50,85,.4);
+  border-radius: 10px; padding: 14px 16px; cursor: default;
+  transition: border-color .15s;
+}
+.cons-card:hover { border-color: rgba(13,148,136,.3); }
+.cons-card-cat { font-size: 11px; font-weight: 700; color: #C0CDD8; margin-bottom: 6px; }
+.cons-row { margin-bottom: 5px; }
+.cons-row-label {
+  font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: #2F4558; margin-bottom: 2px;
+}
+.cons-row-text { font-size: 11px; color: #6A8296; line-height: 1.5; }
+.cons-opportunity { color: rgba(13,148,136,.7); font-size: 10px; font-style: italic; margin-top: 6px; }
+.cons-urgency { margin-bottom: 8px; }
+
+/* ── Consultant mode overlay on pharma-ai-panel ─────────────────── */
+.pharma-consulting-layer {
+  display: none; border-top: 1px solid rgba(13,148,136,.12);
+  margin-top: 12px; padding-top: 12px;
+}
+body.cmode .pharma-consulting-layer { display: block; }
+.pcl-row { margin-bottom: 10px; display: flex; flex-direction: column; gap: 2px; }
+.pcl-label { font-size: 9px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #2F4558; }
+.pcl-text  { font-size: 11px; color: #7A92A8; line-height: 1.55; }
+.pcl-action{ font-size: 11px; color: rgba(13,148,136,.8); }
+.pcl-action::before { content: '→ '; color: rgba(13,148,136,.5); }
+.pcl-oppty { font-size: 10px; color: rgba(13,148,136,.55); font-style: italic; }
+
+/* ── KPI update animation ────────────────────────────────────────── */
+@keyframes kpiFlash { 0%{opacity:.4} 100%{opacity:1} }
+.kpi-updated { animation: kpiFlash .4s ease-out; }
 </style>
 </head>
 <body>
@@ -1538,6 +1676,7 @@ canvas.chart-clickable { cursor: pointer; }
     <button class="nav-tab" data-ptab="pharma-enforcement">&#9888; Enforcement</button>
     <button class="nav-tab" data-ptab="pharma-facilities">&#127981; Facilities</button>
     <button class="nav-tab" data-ptab="pharma-alerts">&#128276; Alerts</button>
+    <button class="nav-tab" data-ptab="pharma-intelligence">&#129488; Intelligence</button>
   </div>
 
   <div class="nav-right">
@@ -1674,6 +1813,11 @@ canvas.chart-clickable { cursor: pointer; }
     </div>
   </div>
   <button class="reset-btn" onclick="resetPharmaFilters()">&#10227; Reset</button>
+  <div id="cmode-toggle" class="cmode-toggle" onclick="toggleCMode()" title="Show consulting interpretations, recommended actions, and commercial implications">
+    <div class="cmode-toggle-knob"></div>
+    <div class="cmode-toggle-label">Consultant Mode</div>
+    <div class="cmode-toggle-icon">&#129488;</div>
+  </div>
 </div>
 
 
@@ -1962,6 +2106,33 @@ canvas.chart-clickable { cursor: pointer; }
       <div class="pharma-ai-title">GMP ENFORCEMENT INTELLIGENCE &mdash; AI SUMMARY</div>
     </div>
     <div id="pharma-ai-body"></div>
+    <div class="pharma-consulting-layer" id="pharma-consulting-layer">
+      <div class="pcl-row">
+        <div class="pcl-label">Implication</div>
+        <div class="pcl-text" id="pcl-implication"></div>
+      </div>
+      <div class="pcl-row">
+        <div class="pcl-label">Recommended Action</div>
+        <div class="pcl-action" id="pcl-action"></div>
+      </div>
+      <div class="pcl-row">
+        <div class="pcl-label">Commercial Opportunity</div>
+        <div class="pcl-oppty" id="pcl-oppty"></div>
+      </div>
+      <div class="pcl-row">
+        <div class="pcl-label">Likely Client Conversation</div>
+        <div class="pcl-text" id="pcl-client"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- What Changed This Period -->
+  <div class="what-changed-panel" id="what-changed-panel">
+    <div class="what-changed-hd">
+      <div class="what-changed-title">&#9652; What Changed This Period</div>
+      <div class="what-changed-period" id="wc-period-label">Oct 2025 – Apr 2026 vs prior 6 months</div>
+    </div>
+    <div class="what-changed-cols" id="what-changed-cols"></div>
   </div>
 
   <div class="pharma-section">
@@ -2049,6 +2220,17 @@ canvas.chart-clickable { cursor: pointer; }
     <div id="pharma-alerts-feed"></div>
   </div>
 </div><!-- /pharma-alerts -->
+
+<!-- ── PHARMA INTELLIGENCE ──────────────────────────────────── -->
+<div class="pharma-page" id="pharma-page-intelligence">
+
+  <div class="intel-section-hd">&#9652; Regulatory Focus Outlook — Forward Signals</div>
+  <div id="forward-signals-list"></div>
+
+  <div class="intel-section-hd">&#129488; Consulting Intelligence — By Category</div>
+  <div class="consulting-cards" id="consulting-cards"></div>
+
+</div><!-- /pharma-intelligence -->
 
 </div><!-- #pharma-content -->
 
@@ -2904,6 +3086,119 @@ function switchProd(prod) {
   }
 }
 
+// ── Consultant Mode state ─────────────────────────────────────────────
+let cMode = false;
+function toggleCMode() {
+  cMode = !cMode;
+  document.body.classList.toggle('cmode', cMode);
+  const t = document.getElementById('cmode-toggle');
+  if(t) t.classList.toggle('active', cMode);
+  renderPharmaOverview();
+  renderPharmaInsights();
+}
+
+// ── Consulting intelligence data per category ────────────────────────
+const CAT_INTEL = {
+  'GMP violations': {
+    urgency:'near-term',
+    implication:'Highest-volume finding across all authorities. Repeat documentation and process compliance gaps suggest systemic QMS weaknesses, not isolated incidents.',
+    action:'Review SOP compliance programme and self-inspection schedule. Prioritise sites with repeat deviations in documentation, cleaning, and batch records.',
+    opportunity:'QMS gap assessment, SOP system redesign, self-inspection programme',
+    client:'"Your site profile likely shares the GMP basics gaps most frequently cited — documentation, batch record discipline, and procedural compliance under operational pressure."',
+  },
+  'Labelling & claims': {
+    urgency:'immediate',
+    implication:'Second-highest finding category. Supplement and nutraceutical firms face disproportionate exposure — labelling claims are the top VMS enforcement trigger across all authorities.',
+    action:'Audit promotional and labelling substantiation packages. Verify claims against applicable jurisdiction standards (AU, US, EU). Priority: therapeutic or structure-function claims.',
+    opportunity:'Labelling compliance review, claims substantiation audit, cross-border claims alignment',
+    client:'"Companies supplying into multiple markets face growing exposure as regulators align on unsupported health claims and labelling misrepresentation."',
+  },
+  'Computerised systems validation': {
+    urgency:'immediate',
+    implication:'Disproportionately high in inspection findings relative to volume. Data integrity and validated system controls are a clear rising regulator priority.',
+    action:'Assess CSV documentation currency for GxP systems. Review audit trail integrity, access governance, and periodic review status. Prioritise legacy systems and admin rights governance.',
+    opportunity:'Data integrity assessment, CSV remediation programme, audit trail governance review',
+    client:'"Sites with legacy computerised systems face escalating inspection risk. Incomplete validation documentation and weak access controls are the most cited failures."',
+  },
+  'Sterility assurance': {
+    urgency:'immediate',
+    implication:'Lower in count than GMP basics but carries disproportionate operational and remediation burden. A single sterility finding can trigger product recall and facility suspension.',
+    action:'Review contamination control strategy (CCS) ownership and completeness. Assess EM trending, aseptic behaviour programme, and intervention qualification status.',
+    opportunity:'Sterility assurance programme review, CCS development, aseptic behaviour training',
+    client:'"Sterile and parenteral facilities operating without a current, regulator-aligned CCS face significant inspection exposure. Remediation burden is high once findings emerge."',
+  },
+  'Contamination & sterility': {
+    urgency:'near-term',
+    implication:'Contamination findings span sterile and non-sterile products. Supplement and food co-manufacturers carry elevated cross-contamination risk that regulators are actively scrutinising.',
+    action:'Conduct targeted contamination risk assessment across facility zoning, equipment sharing, and cleaning validation. Review incoming material release controls.',
+    opportunity:'Contamination control programme, cleaning validation review, facility zoning assessment',
+    client:'"Sites managing both food and supplement production lines face cross-contamination risk. Cleaning validation gaps and shared equipment are the most common triggers."',
+  },
+  'Equipment & facilities': {
+    urgency:'near-term',
+    implication:'Consistent mid-tier finding. Equipment qualification gaps and facility maintenance failures compound into batch release risk and frequently open broader QMS scrutiny.',
+    action:'Review preventive maintenance programme completeness and equipment qualification lifecycle. Assess calibration records for critical instruments and qualification currency.',
+    opportunity:'Equipment qualification audit, maintenance programme assessment, facility compliance review',
+    client:'"Equipment and facility observations are frequently the gateway finding that opens broader QMS scrutiny during inspections."',
+  },
+  'Ingredient safety': {
+    urgency:'near-term',
+    implication:'Significant in the supplement segment. Ingredient adulteration and safety-of-use gaps create regulatory and product liability exposure across multiple authorities.',
+    action:'Strengthen incoming raw material testing and supplier qualification. Review CoA verification process and identity testing programme. Address high-risk ingredient origins.',
+    opportunity:'Supplier qualification remediation, ingredient safety audit, raw material testing programme',
+    client:'"Ingredient sourcing from unqualified or high-risk suppliers is a structural vulnerability that regulators are consistently actioning."',
+  },
+  'Supply chain & procurement': {
+    urgency:'near-term',
+    implication:'Import alert volume and foreign supplier verification failures are an increasing trend. FDA FSVP enforcement is a key driver. Companies relying on imported ingredients are exposed.',
+    action:'Conduct FSVP (or equivalent) programme review. Assess foreign supplier audit status, incoming material controls, and approved supplier list currency.',
+    opportunity:'FSVP programme support, supplier qualification remediation, import compliance review',
+    client:'"Companies relying on imported ingredients without robust supplier qualification face compounding risk as import alert enforcement increases."',
+  },
+  'Container closure integrity': {
+    urgency:'near-term',
+    implication:'Frequently cited in sterile product enforcement. CCI failures create direct product safety risk and are difficult to remediate post-market.',
+    action:'Review CCI testing methodology for sterile products. Assess method validation status, acceptance criteria, and lifecycle testing frequency.',
+    opportunity:'CCI programme development, method validation support, sterile product quality review',
+    client:'"Container closure integrity failures in sterile products are a direct regulatory and patient safety risk — regulators expect validated, lifecycle-based testing."',
+  },
+  'Batch release': {
+    urgency:'near-term',
+    implication:'Batch release findings indicate QP/QA oversight gaps or production documentation failures that are reaching the release stage uncorrected.',
+    action:'Assess batch review and release SOP adequacy. Review QP oversight model for outsourced or imported products. Evaluate batch record completeness criteria.',
+    opportunity:'Batch release process review, QP support, batch documentation system upgrade',
+    client:'"Batch release deficiencies suggest that deviation management and documentation gaps are not being caught before product leaves the site."',
+  },
+};
+
+// ── Forward signals (regulatory focus outlook) ────────────────────────
+const FORWARD_SIGNALS = [
+  { cat:'Computerised systems validation', dir:'rising', conf:'high',
+    signal:'Inspection findings disproportionately high relative to volume. Audit trail integrity and access governance are a clear enforcement priority across FDA and MHRA.',
+    action:'CSV remediation and data integrity assessment' },
+  { cat:'Sterility assurance', dir:'rising', conf:'high',
+    signal:'Sterility and aseptic process observations increasing in inspection findings. Contamination control strategy completeness is the consistent gap.',
+    action:'CCS development, sterility assurance programme review' },
+  { cat:'Supply chain & procurement', dir:'rising', conf:'medium',
+    signal:'Import alert volume trending upward. FDA FSVP enforcement and foreign supplier verification failures are driving this category higher.',
+    action:'FSVP programme review, supplier qualification audit' },
+  { cat:'Labelling & claims', dir:'stable', conf:'high',
+    signal:'Second-highest category and consistently enforced across FDA, TGA, and EFSA. Supplement-adjacent firms face ongoing exposure with no sign of regulator fatigue.',
+    action:'Claims substantiation review, cross-border labelling audit' },
+  { cat:'GMP violations', dir:'stable', conf:'high',
+    signal:'Highest-volume category and baseline enforcement activity. Core GMP documentation and procedural compliance will remain the primary inspection focus.',
+    action:'Self-inspection programme, SOP compliance review' },
+  { cat:'Batch release', dir:'emerging', conf:'medium',
+    signal:'Batch release deficiencies appearing more frequently in inspection findings. May indicate tightening expectations on QP oversight and batch record discipline.',
+    action:'Batch release process audit, QP oversight model review' },
+  { cat:'Deviation management', dir:'emerging', conf:'low',
+    signal:'Low absolute count but appearing in targeted inspection clusters. Regulators are scrutinising CAPA effectiveness and deviation closure quality, not just SOP existence.',
+    action:'CAPA effectiveness review, deviation closure programme' },
+  { cat:'Equipment & facilities', dir:'stable', conf:'medium',
+    signal:'Mid-tier consistent finding. Not markedly increasing, but infrastructure gap observations reliably open broader QMS scrutiny during inspections.',
+    action:'Preventive maintenance programme review' },
+];
+
 // ── Pharma filter state ──────────────────────────────────────────────
 let pF = { auth:'all', factype:'all', srctype:'all', sev:'all', company:'', query:'', dateFrom:'', dateTo:'' };
 let citSortState = { col:'date', dir:-1 };
@@ -2948,7 +3243,7 @@ function syncPFPills() {
     el.classList.toggle('active', pF[dim]===val||(val==='all'&&pF[dim]==='all'));
   });
 }
-function renderPAll() { citPg=1; renderPharmaOverview(); renderCitations(); renderEnfPage(); renderFacilities(); renderPharmaAlerts(); }
+function renderPAll() { citPg=1; renderPharmaOverview(); renderCitations(); renderEnfPage(); renderFacilities(); renderPharmaAlerts(); renderIntelligencePage(); }
 
 function pSetFilter(dim, val) {
   pF[dim] = pF[dim]===val ? 'all' : val;
@@ -2982,18 +3277,33 @@ function showPTab(tab) {
   else if(tab==='pharma-enforcement') renderEnfPage();
   else if(tab==='pharma-facilities') renderFacilities();
   else if(tab==='pharma-alerts') renderPharmaAlerts();
+  else if(tab==='pharma-intelligence') renderIntelligencePage();
 }
 
 // ── Pharma Overview ──────────────────────────────────────────────────
 function renderPharmaOverview() {
   renderCatGrid('pharma-cat-grid','pharma-cat-count');
   renderAuthBars('pharma-auth-bars');
+  renderWhatChanged();
   const data=filteredCits();
   const oc=document.getElementById('pharma-ov-count'); if(oc) oc.textContent=`${data.length} total`;
   const el=document.getElementById('pharma-ov-feed'); if(!el) return;
   const feed=data.slice(0,8);
   el.innerHTML=feed.length?feed.map(c=>citCard(c)).join('')
     :'<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No citations match filters</div></div>';
+  // Update KPI cards with live data
+  const high=data.filter(c=>c.severity==='high').length;
+  const wl=data.filter(c=>c.source_type==='warning_letter').length;
+  const insp=data.filter(c=>c.source_type==='inspection_finding').length;
+  const supp=data.filter(c=>c.facility_type==='Supplement / Nutraceutical').length;
+  const tga=data.filter(c=>c.authority==='TGA').length;
+  const _setKpi=(id,val)=>{const e=document.getElementById(id);if(e){const v=e.querySelector('.kpi-val');if(v){v.textContent=val;v.classList.add('kpi-updated');setTimeout(()=>v.classList.remove('kpi-updated'),600);}}};
+  _setKpi('pk-high', high);
+  _setKpi('pk-wl', wl);
+  _setKpi('pk-483', insp);
+  _setKpi('pk-total', data.length);
+  _setKpi('pk-supp', supp);
+  _setKpi('pk-tga', tga);
 }
 
 function renderCatGrid(gridId, countId) {
@@ -3006,10 +3316,17 @@ function renderCatGrid(gridId, countId) {
     const isAct=pCatFilter===cat;
     const high=data.filter(c=>(c.category||'Other')===cat&&c.severity==='high').length;
     const safe=cat.replace(/'/g,"\\'");
+    const intel = CAT_INTEL[cat];
+    const intelHtml = intel ? `<div class="cat-cell-intel">
+      <div class="action-tag ${intel.urgency}">${intel.urgency}</div>
+      <div class="cat-implication">${intel.implication}</div>
+      <div class="cat-action">${intel.action}</div>
+    </div>` : '';
     return `<div class="cat-cell${isAct?' c-active':''}" onclick="pFilterByCat('${safe}')">
       <div class="cat-cell-name">${cat}</div>
       <div class="cat-cell-ct">${ct}</div>
       <div class="cat-cell-sub">${high?high+' high sev':'all medium'}</div>
+      ${intelHtml}
     </div>`;
   }).join('');
   const cc=document.getElementById(countId); if(cc) cc.textContent=`${data.length} citations`;
@@ -3142,17 +3459,26 @@ function renderPharmaAlerts() {
 
 // ── Pharma AI insights ────────────────────────────────────────────────
 function renderPharmaInsights() {
+  const data=filteredCits();
+  const wlCt=data.filter(c=>c.source_type==='warning_letter').length;
+  const inspCt=data.filter(c=>c.source_type==='inspection_finding').length;
+  const importCt=data.filter(c=>c.source_type==='import_alert').length;
+  const suppCt=data.filter(c=>c.facility_type==='Supplement / Nutraceutical').length;
+  const tgaCt=data.filter(c=>c.authority==='TGA').length;
+  const csvCt=data.filter(c=>c.category==='Computerised systems validation').length;
+  const sterCt=data.filter(c=>c.category==='Sterility assurance').length;
+  const labelCt=data.filter(c=>c.category==='Labelling & claims').length;
   const insights=[
     {col:'#D04444',label:'FDA Warning Letters',
-     text:'109 FDA warning letters on file — GMP violations (65) and labelling &amp; claims (49) top categories. Data integrity and CAPA gaps driving most actions.'},
+     text:`${wlCt} warning letters on file — GMP violations and labelling &amp; claims top categories. Data integrity and CAPA gaps are driving most actions.`},
     {col:'#C87020',label:'483 Observation Trend',
-     text:'62 inspection findings (EFSA + FDA). Computerised systems validation (24) and sterility assurance (17) are systemic gaps across General Pharma and Sterile facilities.'},
+     text:`${inspCt} inspection findings across FDA and EFSA. Computerised systems validation (${csvCt}) and sterility assurance (${sterCt}) are systemic gaps across General Pharma and Sterile facilities.`},
     {col:'#D04444',label:'Import Alert Exposure',
-     text:'26 active FDA import alerts. Contamination &amp; sterility is the primary trigger — audit incoming raw material controls and foreign supplier verification programme.'},
+     text:`${importCt} active FDA import alerts. Contamination &amp; sterility is the primary trigger — audit incoming raw material controls and foreign supplier verification programme.`},
     {col:'#3D5268',label:'Supplement / Nutra. Risk',
-     text:'62 enforcement actions target Supplement / Nutraceutical facilities. Labelling &amp; claims violations (49) dominate — highest risk category for VMS manufacturers.'},
+     text:`${suppCt} enforcement actions target Supplement / Nutraceutical facilities. Labelling &amp; claims violations (${labelCt}) dominate — highest risk category for VMS manufacturers.`},
     {col:'rgba(13,148,136,.75)',label:'TGA Enforcement Watch',
-     text:'10 TGA enforcement actions — lower than FDA but trend increasing. Proactive self-audit against AU GMP Code Part 3 recommended for AU-registered products.'},
+     text:`${tgaCt} TGA enforcement actions — lower than FDA but trend increasing. Proactive self-audit against AU GMP Code Part 3 recommended for AU-registered products.`},
   ];
   const el=document.getElementById('pharma-ai-body'); if(!el)return;
   el.innerHTML=insights.map(i=>
@@ -3161,6 +3487,96 @@ function renderPharmaInsights() {
       <span class="pharma-insight-label" style="color:${i.col}">${i.label}:</span>
       <span class="pharma-insight-text">${i.text}</span>
     </div>`).join('');
+  // Consultant mode overlay — top category interpretation
+  const topCat=Object.entries(
+    data.reduce((m,c)=>{const k=c.category||'Other';m[k]=(m[k]||0)+1;return m},{})
+  ).sort((a,b)=>b[1]-a[1])[0];
+  const intel=topCat&&CAT_INTEL[topCat[0]];
+  if(intel){
+    const _set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+    _set('pcl-implication', intel.implication);
+    _set('pcl-action', intel.action);
+    _set('pcl-oppty', intel.opportunity);
+    _set('pcl-client', intel.client);
+  }
+}
+
+// ── What Changed This Period ──────────────────────────────────────────
+function renderWhatChanged() {
+  const el=document.getElementById('what-changed-cols'); if(!el)return;
+  const recent=CITATIONS.filter(c=>c.date&&c.date>='2025-10-01');
+  const prior=CITATIONS.filter(c=>c.date&&c.date>='2025-04-01'&&c.date<'2025-10-01');
+  // Category changes — only show substantive shifts
+  const catR={},catP={};
+  recent.forEach(c=>{const k=c.category||'Other';catR[k]=(catR[k]||0)+1;});
+  prior.forEach(c=>{const k=c.category||'Other';catP[k]=(catP[k]||0)+1;});
+  const changes=Object.keys({...catR,...catP})
+    .map(k=>({k,r:catR[k]||0,p:catP[k]||0,d:(catR[k]||0)-(catP[k]||0)}))
+    .filter(x=>x.p>10&&Math.abs(x.d)>15)
+    .sort((a,b)=>Math.abs(b.d)-Math.abs(a.d)).slice(0,5);
+  const newCats=Object.keys(catR).filter(k=>!catP[k]&&catR[k]>=50).slice(0,3);
+  // Authority changes
+  const authR={},authP={};
+  recent.forEach(c=>{authR[c.authority]=(authR[c.authority]||0)+1;});
+  prior.forEach(c=>{authP[c.authority]=(authP[c.authority]||0)+1;});
+  const authChanges=Object.keys({...authR,...authP})
+    .map(k=>({k,r:authR[k]||0,p:authP[k]||0,d:(authR[k]||0)-(authP[k]||0)}))
+    .filter(x=>Math.abs(x.d)>5)
+    .sort((a,b)=>Math.abs(b.d)-Math.abs(a.d)).slice(0,4);
+  const upChanges=changes.filter(x=>x.d>0);
+  const dnChanges=changes.filter(x=>x.d<0);
+  const mkItem=(arrow,cls,label,delta)=>
+    `<div class="wc-item"><span class="wc-arrow ${cls}">${arrow}</span><span class="wc-label">${label}</span><span class="wc-delta">${delta>0?'+'+delta:delta}</span></div>`;
+  const col1=`<div class="wc-col-hd">Rising categories</div>`
+    +upChanges.map(x=>mkItem('▲','up',x.k,x.d)).join('')
+    +(newCats.length?newCats.map(k=>`<div class="wc-item"><span class="wc-arrow new">★</span><span class="wc-label">${k}</span><span class="wc-delta">new</span></div>`).join(''):'');
+  const col2=`<div class="wc-col-hd">Decreasing categories</div>`
+    +(dnChanges.length?dnChanges.map(x=>mkItem('▼','down',x.k,x.d)).join('')
+      :'<div class="wc-item" style="color:#2F4558;font-size:10px">No significant decreases</div>');
+  const col3=`<div class="wc-col-hd">Authority activity</div>`
+    +authChanges.map(x=>mkItem(x.d>0?'▲':'▼',x.d>0?'up':'down',x.k,x.d)).join('');
+  el.innerHTML=col1?`<div>${col1}</div><div>${col2}</div><div>${col3}</div>`
+    :'<div class="wc-item" style="color:#2F4558">Insufficient data for comparison</div>';
+}
+
+// ── Intelligence page ─────────────────────────────────────────────────
+function renderIntelligencePage() {
+  // Forward signals
+  const fsl=document.getElementById('forward-signals-list'); if(!fsl)return;
+  fsl.innerHTML=FORWARD_SIGNALS.map(f=>`
+    <div class="forward-signal-row">
+      <div class="fs-cat">${f.cat}</div>
+      <div class="fs-dir"><span class="dir-badge ${f.dir}">${f.dir}</span></div>
+      <div class="fs-conf">${f.conf} confidence</div>
+      <div class="fs-signal">${f.signal}</div>
+      <div class="fs-action">${f.action}</div>
+    </div>`).join('');
+  // Consulting cards
+  const cc=document.getElementById('consulting-cards'); if(!cc)return;
+  const data=filteredCits();
+  const catCounts={};
+  data.forEach(c=>{const k=c.category||'Other';catCounts[k]=(catCounts[k]||0)+1;});
+  const displayCats=Object.keys(CAT_INTEL).filter(k=>catCounts[k]).sort((a,b)=>(catCounts[b]||0)-(catCounts[a]||0));
+  cc.innerHTML=displayCats.map(cat=>{
+    const intel=CAT_INTEL[cat], ct=catCounts[cat]||0;
+    return `<div class="cons-card">
+      <div class="cons-card-cat">${cat} <span style="color:#2F4558;font-weight:400;font-size:10px">&mdash; ${ct} citations</span></div>
+      <div class="cons-urgency"><span class="action-tag ${intel.urgency}">${intel.urgency}</span></div>
+      <div class="cons-row">
+        <div class="cons-row-label">Implication</div>
+        <div class="cons-row-text">${intel.implication}</div>
+      </div>
+      <div class="cons-row">
+        <div class="cons-row-label">Recommended Action</div>
+        <div class="cons-row-text" style="color:rgba(13,148,136,.8)">${intel.action}</div>
+      </div>
+      <div class="cons-row">
+        <div class="cons-row-label">Likely Client Conversation</div>
+        <div class="cons-row-text" style="color:#5A7A90;font-style:italic">${intel.client}</div>
+      </div>
+      <div class="cons-opportunity">Commercial opportunity: ${intel.opportunity}</div>
+    </div>`;
+  }).join('');
 }
 
 // ── Pharma sidebar event wiring ──────────────────────────────────────
