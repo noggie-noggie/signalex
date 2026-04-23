@@ -2465,6 +2465,12 @@ $('#drawer-overlay').onclick=closeDrawer;
 $('#drawer-source-btn').onclick=()=>{if(currentSignalUrl)window.open(currentSignalUrl,'_blank')};
 
 // ─── TABS ─────────────────────────────────────────────────────────────────────
+// Charts in each tab — resized after tab becomes visible so hit-zones are correct
+const _tabCharts = {
+  overview: ['chart-sources','chart-sentiment','chart-severity','chart-events','chart-categories'],
+  trends:   ['trend-ingredients','trend-auth-sent','trend-new-sources'],
+  reports:  ['report-chart-auth','report-chart-cats'],
+};
 function showTab(tab){
   hideTip();
   $$('.nav-tab').forEach(b=>b.classList.remove('active'));
@@ -2474,6 +2480,9 @@ function showTab(tab){
   if(tab==='signals') renderSignals();
   if(tab==='entities') renderEntities();
   if(tab==='evidence') renderEvidence();
+  // Resize charts AFTER the tab is display:block so bounding rects are valid
+  const ids = _tabCharts[tab];
+  if (ids) requestAnimationFrame(()=>ids.forEach(id=>{if(_charts[id])_charts[id].resize();}));
 }
 $$('.nav-tab').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
 $$('[data-goto]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.goto)));
@@ -2548,6 +2557,13 @@ function gotoSignalsFiltered(dim, val) {
   _commit();
   showTab('signals');
 }
+function filterByAuthorityAndSev(auth, sev) {
+  hideTip();
+  filters.auth.clear(); filters.auth.add(auth);
+  filters.sev.clear();  filters.sev.add(sev);
+  activeClaimCat = null;
+  _commit(); showTab('signals');
+}
 function gotoEvidence(query, auth) {
   hideTip();
   if (auth) evFilters.auth = auth;
@@ -2599,7 +2615,9 @@ function toggleAlertConfig() {
 const PAL=['#0D9488','#3B82F6','#F97316','#8B5CF6','#F59E0B','#EF4444','#10B981','#EC4899','#06B6D4','#84CC16','#A3E635'];
 const CA='#64748B',CG='rgba(30,58,95,.5)';
 const sc={x:{ticks:{color:CA,font:{size:10}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:10}},grid:{color:CG}}};
-const mk=(id,cfg)=>{const c=document.getElementById(id);if(c)return new Chart(c,cfg)};
+// Store all chart refs so we can resize them when tabs become visible
+const _charts = {};
+const mk=(id,cfg)=>{const c=document.getElementById(id);if(c){_charts[id]=new Chart(c,cfg);return _charts[id];}};
 mk('chart-sources',{type:'bar',data:{labels:['PubMed','Europe PMC','ClinTrials','TGA Consult','Cochrane','ARTG','FDA','TGA','EFSA','SemanticScholar','Adv.Events'],datasets:[{data:[138,124,115,7,6,4,3,2,2,2,2],backgroundColor:PAL,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc}});
 mk('chart-sentiment',{type:'doughnut',data:{labels:['Positive','Neutral','Negative'],datasets:[{data:[78,311,16],backgroundColor:['#059669','#334155','#DC2626'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#94A3B8',font:{size:10},padding:10}}}}});
 mk('chart-severity',{type:'doughnut',data:{labels:['Low','Medium','High'],datasets:[{data:[373,18,14],backgroundColor:['#334155','#D97706','#DC2626'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#94A3B8',font:{size:10},padding:10}}}}});
@@ -2731,31 +2749,35 @@ function renderTrendPanels() {
 
 // ─── AI INSIGHTS RENDER ───────────────────────────────────────────────────────
 function renderAiInsights() {
-  const insights = [
-    { type:'risk', label:'TGA Enforcement',
-      html:'Safety alert on <span class="ci" onclick="filterByIngredient(\'artri ajo\')">Artri Ajo King tablets</span> &mdash; herbal supplement scrutiny rising; review similar products in portfolio immediately.',
-      onclick:"filterByAuthority('tga')" },
-    { type:'enforcement', label:'Peptide Crackdown',
-      html:'TGA formal warning on <span class="ci" onclick="filterByIngredient(\'peptide\')">BPC-157, TB-500, GHK-Cu</span> &mdash; import bans expected within 90 days. Audit peptide exposure now.',
-      onclick:"filterByAuthority('tga')" },
-    { type:'risk', label:'Allergen Risk',
-      html:'3 recalls in 60 days for undeclared allergens (FDA) &mdash; category-wide review likely. Audit contract manufacturer allergen controls.',
-      onclick:"toggleDimFilter('type','recall');showTab('signals')" },
-    { type:'neutral', label:'Claims Pressure',
-      html:'6 Cochrane reviews on <span class="ci" onclick="filterByIngredient(\'melatonin\')">melatonin</span>, <span class="ci" onclick="filterByIngredient(\'probiotic\')">probiotics</span>, <span class="ci" onclick="filterByIngredient(\'omega\')">omega-3</span> &mdash; &ldquo;inconclusive evidence&rdquo; conclusions can trigger health claim challenges.',
-      onclick:"filterByAuthority('cochrane')" },
-    { type:'opportunity', label:'Opportunity',
-      html:'115 new trial registrations + 78 positive signals available for efficacy dossiers and <span class="ci" onclick="toggleDimFilter(\'sent\',\'positive\');showTab(\'signals\')">marketing claim substantiation</span>.',
-      onclick:"toggleDimFilter('sent','positive');showTab('signals')" },
-  ];
   const el=document.getElementById('ai-insights-body'); if(!el) return;
-  el.innerHTML=insights.map(i=>
-    `<div class="insight-row insight-${i.type}" onclick="${i.onClick||i.onclick}">
-      <span class="insight-dot"></span>
-      <span class="insight-label">${i.label}:</span>
-      <span class="insight-text">${i.html}</span>
-    </div>`
-  ).join('');
+  // Each row: onclick on the whole row + more-specific ci links inside
+  // Row fn must be a named function so it works from the onclick attr
+  el.innerHTML = `
+  <div class="insight-row insight-risk" onclick="filterByAuthorityAndSev('tga','high')" title="Filter to TGA high-severity signals">
+    <span class="insight-dot"></span>
+    <span class="insight-label">TGA Enforcement:</span>
+    <span class="insight-text">Safety alert on <span class="ci" onclick="event.stopPropagation();filterByIngredient('artri ajo')">Artri Ajo King tablets</span> &mdash; herbal supplement scrutiny rising; review similar products in portfolio immediately.</span>
+  </div>
+  <div class="insight-row insight-enforcement" onclick="filterByIngredient('peptide')" title="Filter to peptide signals">
+    <span class="insight-dot"></span>
+    <span class="insight-label">Peptide Crackdown:</span>
+    <span class="insight-text">TGA formal warning on <span class="ci" onclick="event.stopPropagation();filterByIngredient('bpc-157')">BPC-157</span>, <span class="ci" onclick="event.stopPropagation();filterByIngredient('tb-500')">TB-500</span>, <span class="ci" onclick="event.stopPropagation();filterByIngredient('ghk-cu')">GHK-Cu</span> &mdash; import bans expected within 90 days. Audit peptide exposure now.</span>
+  </div>
+  <div class="insight-row insight-risk" onclick="gotoSignalsFiltered('type','recall')" title="Filter to recall signals">
+    <span class="insight-dot"></span>
+    <span class="insight-label">Allergen Risk:</span>
+    <span class="insight-text">3 recalls in 60 days for undeclared allergens (FDA) &mdash; category-wide review likely. Audit contract manufacturer allergen controls.</span>
+  </div>
+  <div class="insight-row insight-neutral" onclick="filterByAuthority('cochrane')" title="Filter to Cochrane signals">
+    <span class="insight-dot"></span>
+    <span class="insight-label">Claims Pressure:</span>
+    <span class="insight-text">6 Cochrane reviews on <span class="ci" onclick="event.stopPropagation();filterByIngredient('melatonin')">melatonin</span>, <span class="ci" onclick="event.stopPropagation();filterByIngredient('probiotic')">probiotics</span>, <span class="ci" onclick="event.stopPropagation();filterByIngredient('omega-3')">omega-3</span> &mdash; &ldquo;inconclusive evidence&rdquo; conclusions can trigger health claim challenges.</span>
+  </div>
+  <div class="insight-row insight-opportunity" onclick="gotoSignalsFiltered('sent','positive')" title="Filter to positive research signals">
+    <span class="insight-dot"></span>
+    <span class="insight-label">Opportunity:</span>
+    <span class="insight-text">115 new trial registrations + 78 positive signals available for efficacy dossiers and <span class="ci" onclick="event.stopPropagation();gotoSignalsFiltered('sent','positive')">marketing claim substantiation</span>.</span>
+  </div>`;
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
