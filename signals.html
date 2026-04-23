@@ -709,13 +709,178 @@ body { background: #070E17; }
   font-size: 11.5px;
 }
 .search-box input::placeholder { color: #2F4558; }
+
+/* ══════════════════════════════════════════════════════════════
+   PRODUCT SWITCHER  +  PHARMA TAB STYLES
+   ══════════════════════════════════════════════════════════════ */
+:root { --prod-h: 46px; }
+
+#product-switcher {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 300;
+  height: var(--prod-h);
+  background: #060D16;
+  border-bottom: 1px solid rgba(13,148,136,.2);
+  display: flex;
+  align-items: stretch;
+}
+.prod-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3A5470;
+  letter-spacing: .01em;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  transition: color .18s, border-color .18s, background .18s;
+}
+.prod-tab:first-child { border-right: 1px solid rgba(20,50,80,.5); }
+.prod-tab:hover { color: #7A97B0; background: rgba(255,255,255,.02); }
+.prod-tab.active {
+  color: var(--teal);
+  border-bottom-color: var(--teal);
+  background: rgba(13,148,136,.05);
+}
+.prod-tab .prod-icon { font-size: 15px; }
+.prod-tab .prod-badge {
+  font-size: 9px; font-weight: 700;
+  padding: 1px 7px; border-radius: 99px;
+  background: rgba(13,148,136,.1);
+  color: rgba(13,148,136,.55);
+  letter-spacing: .06em; text-transform: uppercase;
+}
+.prod-tab.active .prod-badge { background: rgba(13,148,136,.18); color: var(--teal); }
+
+/* Push everything down */
+#topnav    { top: var(--prod-h) !important; }
+#sidebar   { top: calc(var(--prod-h) + var(--topnav-h)) !important; }
+#main-layout { margin-top: calc(var(--prod-h) + var(--topnav-h)) !important; }
+#drawer         { top: var(--prod-h) !important; }
+#drawer-overlay { top: var(--prod-h) !important; }
+
+/* pharma nav — hidden by default */
+#pharma-nav { display: none; }
+#pharma-sidebar { display: none; flex-direction: column; }
+#pharma-content { display: none; }
+
+/* Pharma filter pills */
+.pf-pill {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 7px; border-radius: 4px; cursor: pointer; transition: background .1s;
+  font-size: 11px; color: #55708A;
+}
+.pf-pill:hover { background: rgba(255,255,255,.03); }
+.pf-pill.active {
+  background: rgba(13,148,136,.08);
+  border-left: 2px solid rgba(13,148,136,.5);
+  padding-left: 6px; color: var(--teal);
+}
+.pf-ct { font-size: 9px; color: #2F4558; }
+
+/* Pharma page container */
+.pharma-page { display: none; }
+.pharma-page.p-active { display: block; }
+
+/* Pharma KPI grid */
+.pharma-kpi-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(165px,1fr)); gap:10px; margin-bottom:18px; }
+
+/* Pharma section header */
+.pharma-section { margin-bottom: 22px; }
+.pharma-section-hd {
+  font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: #3D5268; margin-bottom: 12px; padding-bottom: 8px;
+  border-bottom: 1px solid rgba(20,50,85,.4);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.pharma-section-hd span { font-size: 10px; color: #2F4558; font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+/* Citation table */
+.cit-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid rgba(20,50,85,.5); }
+.cit-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.cit-table th {
+  text-align: left; padding: 8px 11px; background: #0A1726;
+  color: #3D5268; font-size: 9.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  border-bottom: 1px solid rgba(20,50,85,.5); cursor: pointer; white-space: nowrap; user-select: none;
+}
+.cit-table th:hover { color: #7A92A8; }
+.cit-table td { padding: 8px 11px; border-bottom: 1px solid rgba(20,50,85,.25); color: #7A92A8; vertical-align: top; }
+.cit-table tr:last-child td { border-bottom: none; }
+.cit-table tr:hover td { background: rgba(255,255,255,.012); }
+.cit-link { color: rgba(13,148,136,.7); font-size: 11px; }
+.cit-link:hover { color: var(--teal); text-decoration: underline; }
+
+/* Enforcement bars */
+.enf-row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 5px; cursor: pointer; transition: background .1s; margin-bottom: 2px; }
+.enf-row:hover { background: rgba(255,255,255,.02); }
+.enf-name { font-size: 12px; color: #7A92A8; flex: 0 0 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.enf-bar-wrap { flex: 1; height: 4px; background: rgba(20,50,85,.5); border-radius: 99px; overflow: hidden; }
+.enf-bar-fill { height: 100%; background: rgba(13,148,136,.45); border-radius: 99px; }
+.enf-ct { font-size: 11px; color: #3D5268; width: 32px; text-align: right; flex-shrink: 0; }
+
+/* Category grid */
+.cat-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(175px,1fr)); gap: 8px; margin-bottom: 16px; }
+.cat-cell { background: #0C1A29; border: 1px solid rgba(20,50,85,.4); border-radius: 6px; padding: 10px 12px; cursor: pointer; transition: border-color .12s; }
+.cat-cell:hover { border-color: rgba(13,148,136,.2); }
+.cat-cell.c-active { border-color: rgba(13,148,136,.35); background: rgba(13,148,136,.06); }
+.cat-cell-name { font-size: 11px; font-weight: 600; color: #90A8BC; margin-bottom: 4px; }
+.cat-cell-ct { font-size: 18px; font-weight: 800; color: #C0D0DC; }
+.cat-cell-sub { font-size: 9px; color: #3D5268; margin-top: 2px; }
+
+/* Facility cards */
+.facility-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(230px,1fr)); gap: 10px; }
+.facility-card { background: #0E1D2E; border: 1px solid rgba(20,50,85,.8); border-radius: 8px; padding: 13px 15px; cursor: pointer; transition: border-color .15s; }
+.facility-card:hover { border-color: rgba(13,148,136,.2); }
+.facility-name { font-size: 12px; font-weight: 600; color: #C0D0DC; margin-bottom: 3px; }
+.facility-type-label { font-size: 10px; color: #3D5268; margin-bottom: 8px; }
+.facility-stats { display: flex; gap: 10px; }
+.facility-stat { font-size: 10px; color: #3D5268; }
+.facility-stat.fsr { color: #C04040; }
+
+/* Pharma controls bar */
+.pharma-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.pharma-search { flex: 1; min-width: 180px; position: relative; }
+.pharma-search input { width: 100%; background: rgba(255,255,255,.02); border: 1px solid rgba(20,50,85,.6); border-radius: 6px; padding: 6px 12px 6px 30px; color: #90A8BC; font-size: 11px; outline: none; }
+.pharma-search input:focus { border-color: rgba(13,148,136,.3); }
+.pharma-search .si { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: #2F4558; font-size: 13px; }
+.pharma-count { font-size: 11px; color: #2F4558; white-space: nowrap; }
+
+/* Pharma AI panel */
+.pharma-ai-panel { background: #0C1A29; border: 1px solid rgba(20,50,85,.5); border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; }
+.pharma-ai-hd { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+.pharma-ai-icon { width: 22px; height: 22px; background: rgba(139,92,246,.1); border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+.pharma-ai-title { font-size: 10px; font-weight: 700; color: #6B8096; letter-spacing: .07em; }
+.pharma-insight-row { display: flex; align-items: flex-start; gap: 8px; padding: 4px 4px 4px 2px; border-radius: 4px; transition: background .1s; }
+.pharma-insight-row:hover { background: rgba(255,255,255,.02); }
+.pharma-insight-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.pharma-insight-label { font-size: 10px; font-weight: 700; white-space: nowrap; flex-shrink: 0; padding-top: 1px; }
+.pharma-insight-text { font-size: 11px; color: #7A92A8; line-height: 1.5; }
+
 </style>
 </head>
 <body>
 
+<div id="product-switcher">
+  <button class="prod-tab active" data-prod="vms" onclick="switchProd('vms')">
+    <span class="prod-icon">&#129514;</span>
+    VMS Intelligence
+    <span class="prod-badge">405 signals</span>
+  </button>
+  <button class="prod-tab" data-prod="pharma" onclick="switchProd('pharma')">
+    <span class="prod-icon">&#127981;</span>
+    Pharma &amp; GMP Compliance
+    <span class="prod-badge">300 citations</span>
+  </button>
+</div>
 <nav id="topnav">
   <div class="brand"><div class="brand-logo">Signal<span>ex</span></div><div class="brand-badge">Beta</div></div>
-  <div class="nav-tabs" id="nav-tabs">
+  <div id="vms-nav" class="nav-tabs">
     <button class="nav-tab active" data-tab="overview">&#9632; Overview</button>
     <button class="nav-tab" data-tab="signals">&#9888; Live Signals <span class="badge" id="unread-badge">14</span></button>
     <button class="nav-tab" data-tab="trends">&#8679; Trends</button>
@@ -724,6 +889,14 @@ body { background: #070E17; }
     <button class="nav-tab" data-tab="alerts">&#128276; Alerts</button>
     <button class="nav-tab" data-tab="reports">&#128196; Reports</button>
   </div>
+  <div id="pharma-nav" class="nav-tabs">
+    <button class="nav-tab active" data-ptab="pharma-overview">&#9632; Overview</button>
+    <button class="nav-tab" data-ptab="pharma-citations">&#128220; Citations</button>
+    <button class="nav-tab" data-ptab="pharma-enforcement">&#9888; Enforcement</button>
+    <button class="nav-tab" data-ptab="pharma-facilities">&#127981; Facilities</button>
+    <button class="nav-tab" data-ptab="pharma-alerts">&#128276; Alerts</button>
+  </div>
+
   <div class="nav-right">
     <div class="search-box"><span class="si">&#128269;</span><input type="text" id="global-search" placeholder="Search signals, entities..." autocomplete="off"></div>
     <button class="icon-btn" title="Notifications">&#128276;<span class="dot"></span></button>
@@ -732,7 +905,7 @@ body { background: #070E17; }
 </nav>
 
 <div id="main-layout">
-<aside id="sidebar">
+<aside id="sidebar" style="display:flex">
   <div>
     <div class="filter-title">Authority</div>
     <div class="filter-group" id="auth-filters">
@@ -801,8 +974,68 @@ body { background: #070E17; }
   </div>
   <button class="reset-btn" id="reset-filters">&#10227; Reset Filters</button>
 </aside>
+<div id="pharma-sidebar" style="width:var(--sidebar-w);flex-shrink:0;background:#0A1726;border-right:1px solid rgba(20,50,85,.7);position:fixed;top:calc(var(--prod-h) + var(--topnav-h));bottom:0;left:0;overflow-y:auto;padding:14px 10px;display:none;flex-direction:column;gap:14px;">
+  <div>
+    <div class="filter-title">Authority</div>
+    <div class="filter-group" id="p-auth-filters">
+      <div class="pf-pill active" data-pf="auth" data-val="all"><span class="filter-label">All Authorities</span><span class="pf-ct">300</span></div>
+      <div class="pf-pill" data-pf="auth" data-val="FDA"><span class="filter-label">FDA</span><span class="pf-ct">224</span></div>
+      <div class="pf-pill" data-pf="auth" data-val="EFSA"><span class="filter-label">EFSA</span><span class="pf-ct">59</span></div>
+      <div class="pf-pill" data-pf="auth" data-val="TGA"><span class="filter-label">TGA</span><span class="pf-ct">10</span></div>
+      <div class="pf-pill" data-pf="auth" data-val="MHRA"><span class="filter-label">MHRA</span><span class="pf-ct">6</span></div>
+      <div class="pf-pill" data-pf="auth" data-val="BfR"><span class="filter-label">BfR</span><span class="pf-ct">1</span></div>
+    </div>
+  </div>
+  <div>
+    <div class="filter-title">Facility Type</div>
+    <div class="filter-group" id="p-factype-filters">
+      <div class="pf-pill active" data-pf="factype" data-val="all"><span class="filter-label">All Types</span></div>
+      <div class="pf-pill" data-pf="factype" data-val="General Pharma"><span class="filter-label">General Pharma</span><span class="pf-ct">138</span></div>
+      <div class="pf-pill" data-pf="factype" data-val="Medical Device"><span class="filter-label">Medical Device</span><span class="pf-ct">68</span></div>
+      <div class="pf-pill" data-pf="factype" data-val="Supplement / Nutraceutical"><span class="filter-label">Supplement / Nutra.</span><span class="pf-ct">62</span></div>
+      <div class="pf-pill" data-pf="factype" data-val="Sterile / Parenteral"><span class="filter-label">Sterile / Parenteral</span><span class="pf-ct">17</span></div>
+      <div class="pf-pill" data-pf="factype" data-val="API Manufacturer"><span class="filter-label">API Manufacturer</span><span class="pf-ct">7</span></div>
+      <div class="pf-pill" data-pf="factype" data-val="Compounding"><span class="filter-label">Compounding</span><span class="pf-ct">4</span></div>
+      <div class="pf-pill" data-pf="factype" data-val="Biologics / Vaccine"><span class="filter-label">Biologics / Vaccine</span><span class="pf-ct">4</span></div>
+    </div>
+  </div>
+  <div>
+    <div class="filter-title">Source Type</div>
+    <div class="filter-group" id="p-srctype-filters">
+      <div class="pf-pill active" data-pf="srctype" data-val="all"><span class="filter-label">All Types</span></div>
+      <div class="pf-pill" data-pf="srctype" data-val="warning_letter"><span class="filter-label">Warning Letter</span><span class="pf-ct">109</span></div>
+      <div class="pf-pill" data-pf="srctype" data-val="inspection_finding"><span class="filter-label">483 / Inspection</span><span class="pf-ct">62</span></div>
+      <div class="pf-pill" data-pf="srctype" data-val="device_enforcement"><span class="filter-label">Device Enforcement</span><span class="pf-ct">58</span></div>
+      <div class="pf-pill" data-pf="srctype" data-val="drug_enforcement"><span class="filter-label">Drug Enforcement</span><span class="pf-ct">29</span></div>
+      <div class="pf-pill" data-pf="srctype" data-val="import_alert"><span class="filter-label">Import Alert</span><span class="pf-ct">26</span></div>
+      <div class="pf-pill" data-pf="srctype" data-val="recall"><span class="filter-label">Recall</span><span class="pf-ct">5</span></div>
+    </div>
+  </div>
+  <div>
+    <div class="filter-title">Severity</div>
+    <div class="filter-group" id="p-sev-filters">
+      <div class="pf-pill active" data-pf="sev" data-val="all"><span class="filter-label">All</span></div>
+      <div class="pf-pill" data-pf="sev" data-val="high"><span class="filter-label">High</span><span class="pf-ct">13</span></div>
+      <div class="pf-pill" data-pf="sev" data-val="medium"><span class="filter-label">Medium</span><span class="pf-ct">287</span></div>
+    </div>
+  </div>
+  <div>
+    <div class="filter-title">Company / Facility</div>
+    <input type="text" class="sidebar-input" id="p-company" placeholder="Search company...">
+  </div>
+  <div>
+    <div class="filter-title">Date Range</div>
+    <div class="date-row">
+      <input type="date" class="sidebar-input" id="p-date-from" value="2025-01-01">
+      <input type="date" class="sidebar-input" id="p-date-to" value="2026-04-23">
+    </div>
+  </div>
+  <button class="reset-btn" onclick="resetPharmaFilters()">&#10227; Reset</button>
+</div>
+
 
 <main id="content">
+<div id="vms-content">
 
 <!-- OVERVIEW -->
 <div class="page active" id="page-overview">
@@ -1005,14 +1238,139 @@ body { background: #070E17; }
   </div>
 </div>
 
-</main>
-</div>
+</div><!-- #vms-content -->
+
+<div id="pharma-content">
+
+<!-- ── PHARMA OVERVIEW ────────────────────────────────────── -->
+<div class="pharma-page p-active" id="pharma-page-overview">
+
+  <div class="pharma-kpi-grid">
+    <div class="kpi-card danger" id="pk-high" onclick="pFilterBySev('high');showPTab('pharma-citations')">
+      <div class="kpi-label">High Severity</div><div class="kpi-val text-red">13</div>
+      <div class="kpi-sub">Enforcement actions</div>
+    </div>
+    <div class="kpi-card warning" id="pk-wl" onclick="pFilterBySrc('warning_letter');showPTab('pharma-citations')">
+      <div class="kpi-label">Warning Letters</div><div class="kpi-val text-amber">109</div>
+      <div class="kpi-sub">FDA · TGA · MHRA</div>
+    </div>
+    <div class="kpi-card warning" id="pk-483" onclick="pFilterBySrc('inspection_finding');showPTab('pharma-citations')">
+      <div class="kpi-label">483 Observations</div><div class="kpi-val text-amber">62</div>
+      <div class="kpi-sub">EFSA + FDA findings</div>
+    </div>
+    <div class="kpi-card info" id="pk-total" onclick="resetPharmaFilters()">
+      <div class="kpi-label">Total Citations</div><div class="kpi-val text-teal">300</div>
+      <div class="kpi-sub">5 authorities tracked</div>
+    </div>
+    <div class="kpi-card info" id="pk-supp" onclick="pFilterByFacType('Supplement / Nutraceutical');showPTab('pharma-citations')">
+      <div class="kpi-label">Supplement Findings</div><div class="kpi-val">62</div>
+      <div class="kpi-sub">VMS-relevant enforcement</div>
+    </div>
+    <div class="kpi-card good" id="pk-tga" onclick="pFilterByAuth('TGA');showPTab('pharma-citations')">
+      <div class="kpi-label">TGA Actions</div><div class="kpi-val text-green">10</div>
+      <div class="kpi-sub">AU regulatory enforcement</div>
+    </div>
+  </div>
+
+  <div class="pharma-ai-panel">
+    <div class="pharma-ai-hd">
+      <div class="pharma-ai-icon">&#129302;</div>
+      <div class="pharma-ai-title">GMP ENFORCEMENT INTELLIGENCE &mdash; AI SUMMARY</div>
+    </div>
+    <div id="pharma-ai-body"></div>
+  </div>
+
+  <div class="pharma-section">
+    <div class="pharma-section-hd">Findings by Category <span id="pharma-cat-count"></span></div>
+    <div class="cat-grid" id="pharma-cat-grid"></div>
+  </div>
+
+  <div class="pharma-section">
+    <div class="pharma-section-hd">Authority Activity</div>
+    <div id="pharma-auth-bars"></div>
+  </div>
+
+  <div class="pharma-section">
+    <div class="pharma-section-hd">Recent Enforcement Actions <span id="pharma-ov-count"></span></div>
+    <div id="pharma-ov-feed"></div>
+  </div>
+
+</div><!-- /pharma-overview -->
+
+<!-- ── PHARMA CITATIONS ────────────────────────────────────── -->
+<div class="pharma-page" id="pharma-page-citations">
+  <div class="pharma-controls">
+    <div class="pharma-search">
+      <span class="si">&#128269;</span>
+      <input type="text" id="cit-search" placeholder="Search citations, company, category..." autocomplete="off">
+    </div>
+    <span class="pharma-count" id="cit-count"></span>
+  </div>
+  <div class="cit-wrap">
+    <table class="cit-table">
+      <thead>
+        <tr>
+          <th onclick="sortCit('authority')">Authority &#8597;</th>
+          <th onclick="sortCit('source_type')">Type &#8597;</th>
+          <th onclick="sortCit('facility_type')">Facility &#8597;</th>
+          <th onclick="sortCit('category')">Category &#8597;</th>
+          <th onclick="sortCit('severity')">Sev &#8597;</th>
+          <th onclick="sortCit('date')">Date &#8597;</th>
+          <th>Summary</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="cit-tbody"></tbody>
+    </table>
+  </div>
+  <div class="pagination" id="cit-pagination"></div>
+</div><!-- /pharma-citations -->
+
+<!-- ── PHARMA ENFORCEMENT ─────────────────────────────────── -->
+<div class="pharma-page" id="pharma-page-enforcement">
+
+  <div class="pharma-section">
+    <div class="pharma-section-hd">Enforcement by Authority</div>
+    <div id="enf-auth-rows"></div>
+  </div>
+
+  <div class="pharma-section">
+    <div class="pharma-section-hd">Findings by Category <span id="enf-cat-count"></span></div>
+    <div class="cat-grid" id="enf-cat-grid"></div>
+  </div>
+
+  <div class="pharma-section">
+    <div class="pharma-section-hd">By Source Type</div>
+    <div id="enf-srctype-rows"></div>
+  </div>
+
+</div><!-- /pharma-enforcement -->
+
+<!-- ── PHARMA FACILITIES ──────────────────────────────────── -->
+<div class="pharma-page" id="pharma-page-facilities">
+  <div class="pharma-controls">
+    <div class="pharma-search">
+      <span class="si">&#128269;</span>
+      <input type="text" id="fac-search" placeholder="Search facility type..." autocomplete="off">
+    </div>
+    <span class="pharma-count" id="fac-count"></span>
+  </div>
+  <div class="facility-grid" id="facility-grid"></div>
+</div><!-- /pharma-facilities -->
+
+<!-- ── PHARMA ALERTS ──────────────────────────────────────── -->
+<div class="pharma-page" id="pharma-page-alerts">
+  <div class="pharma-section">
+    <div class="pharma-section-hd">High Severity Enforcement Alerts</div>
+    <div id="pharma-alerts-feed"></div>
+  </div>
+</div><!-- /pharma-alerts -->
+
+</div><!-- #pharma-content -->
 
 </main>
-</div>
+</div><!-- #main-layout -->
 
-</main>
-</div>
 
 <!-- DRAWER -->
 <div id="drawer-overlay"></div>
@@ -1664,6 +2022,334 @@ renderTrendPanels();
 renderAiInsights();
 _syncSidebarStates();
 _syncKpiCards();
+
+// ═══════════════════════════════════════════════════════════════════
+//  PRODUCT SWITCHER  +  PHARMA GMP TAB
+// ═══════════════════════════════════════════════════════════════════
+let activeProd = sessionStorage.getItem('signalex_prod') || 'vms';
+
+function switchProd(prod) {
+  activeProd = prod;
+  sessionStorage.setItem('signalex_prod', prod);
+  // product tab buttons
+  document.querySelectorAll('.prod-tab').forEach(b => b.classList.toggle('active', b.dataset.prod === prod));
+  // secondary nav
+  const vn = document.getElementById('vms-nav');
+  const pn = document.getElementById('pharma-nav');
+  if (vn) vn.style.display = prod === 'vms' ? 'flex' : 'none';
+  if (pn) pn.style.display = prod === 'pharma' ? 'flex' : 'none';
+  // sidebars
+  const vs = document.getElementById('sidebar');
+  const ps = document.getElementById('pharma-sidebar');
+  if (vs) vs.style.display = prod === 'vms' ? 'flex' : 'none';
+  if (ps) ps.style.display = prod === 'pharma' ? 'flex' : 'none';
+  // content
+  const vc = document.getElementById('vms-content');
+  const pc = document.getElementById('pharma-content');
+  if (vc) vc.style.display = prod === 'vms' ? 'block' : 'none';
+  if (pc) pc.style.display = prod === 'pharma' ? 'block' : 'none';
+  if (prod === 'pharma') {
+    renderPharmaInsights();
+    renderPharmaOverview();
+    renderCitations();
+    renderEnfPage();
+    renderFacilities();
+    renderPharmaAlerts();
+  }
+}
+
+// ── Pharma filter state ──────────────────────────────────────────────
+let pF = { auth:'all', factype:'all', srctype:'all', sev:'all', company:'', query:'', dateFrom:'', dateTo:'' };
+let citSortState = { col:'date', dir:-1 };
+let citPg = 1;
+const CIT_PP = 25;
+let pCatFilter = null;
+
+function filteredCits() {
+  return CITATIONS.filter(c => {
+    if (pF.auth !== 'all' && c.authority !== pF.auth) return false;
+    if (pF.factype !== 'all' && (c.facility_type||'') !== pF.factype) return false;
+    if (pF.srctype !== 'all' && (c.source_type||'') !== pF.srctype) return false;
+    if (pF.sev !== 'all' && (c.severity||'').toLowerCase() !== pF.sev) return false;
+    if (pCatFilter && (c.category||'Other') !== pCatFilter) return false;
+    if (pF.company) {
+      const q=pF.company.toLowerCase();
+      if (!((c.company||'').toLowerCase().includes(q)||(c.facility_type||'').toLowerCase().includes(q))) return false;
+    }
+    if (pF.query) {
+      const q=pF.query.toLowerCase();
+      const hay=[c.summary,c.category,c.company,c.authority,c.source_type,c.facility_type,c.violation_details].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (pF.dateFrom && c.date && c.date < pF.dateFrom) return false;
+    if (pF.dateTo && c.date && c.date > pF.dateTo) return false;
+    return true;
+  }).sort((a,b)=>{
+    const va=a[citSortState.col]||'', vb=b[citSortState.col]||'';
+    return va<vb?citSortState.dir:va>vb?-citSortState.dir:0;
+  });
+}
+
+function resetPharmaFilters() {
+  pF={auth:'all',factype:'all',srctype:'all',sev:'all',company:'',query:'',dateFrom:'',dateTo:''};
+  pCatFilter=null;
+  ['cit-search','p-company'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  syncPFPills(); renderPAll();
+}
+function syncPFPills() {
+  document.querySelectorAll('.pf-pill[data-pf]').forEach(el=>{
+    const dim=el.dataset.pf, val=el.dataset.val;
+    el.classList.toggle('active', pF[dim]===val||(val==='all'&&pF[dim]==='all'));
+  });
+}
+function renderPAll() { citPg=1; renderPharmaOverview(); renderCitations(); renderEnfPage(); renderFacilities(); renderPharmaAlerts(); }
+
+function pSetFilter(dim, val) {
+  pF[dim] = pF[dim]===val ? 'all' : val;
+  syncPFPills(); renderPAll();
+}
+function pFilterBySev(v)     { pF.sev=v;     syncPFPills(); renderPAll(); }
+function pFilterBySrc(v)     { pF.srctype=v; syncPFPills(); renderPAll(); }
+function pFilterByAuth(v)    { pF.auth=v;    syncPFPills(); renderPAll(); }
+function pFilterByFacType(v) { pF.factype=v; syncPFPills(); renderPAll(); }
+function pFilterByCat(cat) {
+  pCatFilter = pCatFilter===cat ? null : cat;
+  syncPFPills(); renderPAll(); showPTab('pharma-citations');
+}
+function sortCit(col) {
+  if (citSortState.col===col) citSortState.dir=-citSortState.dir;
+  else { citSortState.col=col; citSortState.dir=-1; }
+  renderCitations();
+}
+
+// ── Pharma tab navigation ────────────────────────────────────────────
+function showPTab(tab) {
+  document.querySelectorAll('#pharma-nav .nav-tab').forEach(b=>b.classList.toggle('active',b.dataset.ptab===tab));
+  document.querySelectorAll('.pharma-page').forEach(p=>{
+    const on = p.id===tab;
+    p.classList.toggle('p-active',on);
+    p.style.display = on ? 'block' : 'none';
+  });
+}
+
+// ── Pharma Overview ──────────────────────────────────────────────────
+function renderPharmaOverview() {
+  renderCatGrid('pharma-cat-grid','pharma-cat-count');
+  renderAuthBars('pharma-auth-bars');
+  const data=filteredCits();
+  const oc=document.getElementById('pharma-ov-count'); if(oc) oc.textContent=`${data.length} total`;
+  const el=document.getElementById('pharma-ov-feed'); if(!el) return;
+  const feed=data.slice(0,8);
+  el.innerHTML=feed.length?feed.map(c=>citCard(c)).join('')
+    :'<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No citations match filters</div></div>';
+}
+
+function renderCatGrid(gridId, countId) {
+  const data=filteredCits();
+  const catCounts={};
+  data.forEach(c=>{const k=c.category||'Other';catCounts[k]=(catCounts[k]||0)+1;});
+  const cats=Object.entries(catCounts).sort((a,b)=>b[1]-a[1]);
+  const el=document.getElementById(gridId); if(!el) return;
+  el.innerHTML=cats.map(([cat,ct])=>{
+    const isAct=pCatFilter===cat;
+    const high=data.filter(c=>(c.category||'Other')===cat&&c.severity==='high').length;
+    const safe=cat.replace(/'/g,"\\'");
+    return `<div class="cat-cell${isAct?' c-active':''}" onclick="pFilterByCat('${safe}')">
+      <div class="cat-cell-name">${cat}</div>
+      <div class="cat-cell-ct">${ct}</div>
+      <div class="cat-cell-sub">${high?high+' high sev':'all medium'}</div>
+    </div>`;
+  }).join('');
+  const cc=document.getElementById(countId); if(cc) cc.textContent=`${data.length} citations`;
+}
+
+function renderAuthBars(elId) {
+  const data=filteredCits();
+  const ac={};
+  data.forEach(c=>{ac[c.authority]=(ac[c.authority]||0)+1;});
+  const mx=Math.max(...Object.values(ac),1);
+  const el=document.getElementById(elId); if(!el) return;
+  el.innerHTML=Object.entries(ac).sort((a,b)=>b[1]-a[1]).map(([auth,ct])=>
+    `<div class="enf-row" onclick="pFilterByAuth('${auth}');showPTab('pharma-citations')">
+      <span class="enf-name">${auth}</span>
+      <div class="enf-bar-wrap"><div class="enf-bar-fill" style="width:${Math.round(ct/mx*100)}%"></div></div>
+      <span class="enf-ct">${ct}</span>
+    </div>`).join('');
+}
+
+// ── Citation card ────────────────────────────────────────────────────
+function citCard(c) {
+  const sc=c.severity==='high'?'high-sev':'medium-sev';
+  const st=(c.source_type||'').replace(/_/g,' ');
+  const summ=(c.summary||c.category||'Enforcement action').slice(0,140);
+  return `<div class="signal-card ${sc}" style="margin-bottom:8px">
+    <div class="card-top"><div class="card-title">${summ}</div></div>
+    <div class="card-badges">
+      ${sevBadge(c.severity||'medium')}
+      <span class="badge badge-authority">${c.authority||'—'}</span>
+      <span class="badge badge-type">${st}</span>
+      ${c.facility_type?`<span class="badge" style="background:rgba(139,92,246,.06);color:rgba(139,92,246,.55);border:1px solid rgba(139,92,246,.1)">${c.facility_type}</span>`:''}
+    </div>
+    ${c.category?`<div class="card-summary">${c.category}</div>`:''}
+    ${c.company?`<div class="card-summary" style="color:#3D5268;font-size:10px">Company: ${c.company}</div>`:''}
+    <div class="card-footer">
+      <div class="card-meta">${c.date?c.date.slice(0,10):'—'} &middot; ${c.country||c.authority||''}</div>
+      <div class="card-actions">
+        ${c.url?`<a class="card-action card-action-primary" href="${c.url}" target="_blank" onclick="event.stopPropagation()">View &#8599;</a>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Citations table ──────────────────────────────────────────────────
+function renderCitations() {
+  const data=filteredCits();
+  const pages=Math.ceil(data.length/CIT_PP);
+  citPg=Math.min(citPg,pages||1);
+  const slice=data.slice((citPg-1)*CIT_PP,citPg*CIT_PP);
+  const tb=document.getElementById('cit-tbody'); if(!tb) return;
+  const cc=document.getElementById('cit-count'); if(cc) cc.textContent=`${data.length} citations`;
+  tb.innerHTML=slice.map(c=>{
+    const st=(c.source_type||'').replace(/_/g,' ');
+    return `<tr>
+      <td><span class="badge badge-authority">${c.authority||'—'}</span></td>
+      <td><span class="badge badge-type" style="white-space:nowrap">${st}</span></td>
+      <td style="color:#3D5268;font-size:10px;min-width:90px">${c.facility_type||'—'}</td>
+      <td style="min-width:110px">${c.category||'—'}</td>
+      <td>${sevBadge(c.severity||'medium')}</td>
+      <td style="white-space:nowrap;font-size:10px;color:#3D5268">${c.date?c.date.slice(0,10):'—'}</td>
+      <td style="max-width:280px;font-size:11px;color:#7A92A8">${(c.summary||'—').slice(0,100)}</td>
+      <td>${c.url?`<a class="cit-link" href="${c.url}" target="_blank">&#8599;</a>`:'—'}</td>
+    </tr>`;
+  }).join('');
+  const pg=document.getElementById('cit-pagination'); if(!pg) return; pg.innerHTML='';
+  if(pages>1){
+    const mkB=(l,p,a)=>{const b=document.createElement('button');b.className='page-btn'+(a?' active':'');b.textContent=l;b.onclick=()=>{citPg=p;renderCitations()};return b};
+    if(citPg>1)pg.appendChild(mkB('‹',citPg-1,false));
+    for(let i=1;i<=pages;i++){
+      if(i===1||i===pages||Math.abs(i-citPg)<=2)pg.appendChild(mkB(i,i,i===citPg));
+      else if(Math.abs(i-citPg)===3){const s=document.createElement('span');s.textContent='…';s.style.color='#2F4558';pg.appendChild(s);}
+    }
+    if(citPg<pages)pg.appendChild(mkB('›',citPg+1,false));
+  }
+}
+
+// ── Enforcement page ─────────────────────────────────────────────────
+function renderEnfPage() {
+  renderAuthBars('enf-auth-rows');
+  renderCatGrid('enf-cat-grid','enf-cat-count');
+  const data=filteredCits();
+  const el=document.getElementById('enf-srctype-rows'); if(!el) return;
+  const sc={};
+  data.forEach(c=>{const k=(c.source_type||'other').replace(/_/g,' ');sc[k]=(sc[k]||0)+1;});
+  const mx=Math.max(...Object.values(sc),1);
+  el.innerHTML=Object.entries(sc).sort((a,b)=>b[1]-a[1]).map(([st,ct])=>
+    `<div class="enf-row">
+      <span class="enf-name">${st}</span>
+      <div class="enf-bar-wrap"><div class="enf-bar-fill" style="width:${Math.round(ct/mx*100)}%"></div></div>
+      <span class="enf-ct">${ct}</span>
+    </div>`).join('');
+}
+
+// ── Facilities ───────────────────────────────────────────────────────
+function renderFacilities() {
+  const q=(document.getElementById('fac-search')||{value:''}).value.toLowerCase();
+  const data=filteredCits();
+  const map={};
+  data.forEach(c=>{
+    const ft=c.facility_type||'Unknown';
+    if(!map[ft])map[ft]={name:ft,total:0,high:0,auths:new Set()};
+    map[ft].total++;
+    if(c.severity==='high')map[ft].high++;
+    map[ft].auths.add(c.authority);
+  });
+  let items=Object.values(map).sort((a,b)=>b.total-a.total);
+  if(q)items=items.filter(i=>i.name.toLowerCase().includes(q));
+  const fc=document.getElementById('fac-count'); if(fc)fc.textContent=`${items.length} facility type${items.length!==1?'s':''}`;
+  const el=document.getElementById('facility-grid'); if(!el)return;
+  el.innerHTML=items.length?items.map(f=>{
+    const safe=f.name.replace(/'/g,"\\'");
+    return `<div class="facility-card" onclick="pFilterByFacType('${safe}');showPTab('pharma-citations')">
+      <div class="facility-name">${f.name}</div>
+      <div class="facility-type-label">${[...f.auths].join(' · ')}</div>
+      <div class="facility-stats">
+        <span class="facility-stat">${f.total} citations</span>
+        ${f.high?`<span class="facility-stat fsr">${f.high} high sev</span>`:''}
+      </div>
+    </div>`;
+  }).join(''):'<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No facilities match</div></div>';
+}
+
+// ── Pharma alerts ────────────────────────────────────────────────────
+function renderPharmaAlerts() {
+  const el=document.getElementById('pharma-alerts-feed'); if(!el)return;
+  const highs=CITATIONS.filter(c=>c.severity==='high');
+  el.innerHTML=highs.length?highs.map(c=>citCard(c)).join('')
+    :'<div class="empty"><div class="empty-icon">&#9989;</div><div class="empty-text">No high severity alerts</div></div>';
+}
+
+// ── Pharma AI insights ────────────────────────────────────────────────
+function renderPharmaInsights() {
+  const insights=[
+    {col:'#D04444',label:'FDA Warning Letters',
+     text:'109 FDA warning letters on file — GMP violations (65) and labelling &amp; claims (49) top categories. Data integrity and CAPA gaps driving most actions.'},
+    {col:'#C87020',label:'483 Observation Trend',
+     text:'62 inspection findings (EFSA + FDA). Computerised systems validation (24) and sterility assurance (17) are systemic gaps across General Pharma and Sterile facilities.'},
+    {col:'#D04444',label:'Import Alert Exposure',
+     text:'26 active FDA import alerts. Contamination &amp; sterility is the primary trigger — audit incoming raw material controls and foreign supplier verification programme.'},
+    {col:'#3D5268',label:'Supplement / Nutra. Risk',
+     text:'62 enforcement actions target Supplement / Nutraceutical facilities. Labelling &amp; claims violations (49) dominate — highest risk category for VMS manufacturers.'},
+    {col:'rgba(13,148,136,.75)',label:'TGA Enforcement Watch',
+     text:'10 TGA enforcement actions — lower than FDA but trend increasing. Proactive self-audit against AU GMP Code Part 3 recommended for AU-registered products.'},
+  ];
+  const el=document.getElementById('pharma-ai-body'); if(!el)return;
+  el.innerHTML=insights.map(i=>
+    `<div class="pharma-insight-row">
+      <div class="pharma-insight-dot" style="background:${i.col}"></div>
+      <span class="pharma-insight-label" style="color:${i.col}">${i.label}:</span>
+      <span class="pharma-insight-text">${i.text}</span>
+    </div>`).join('');
+}
+
+// ── Pharma sidebar event wiring ──────────────────────────────────────
+document.querySelectorAll('.pf-pill[data-pf]').forEach(el=>{
+  el.addEventListener('click',()=>{
+    const dim=el.dataset.pf, val=el.dataset.val;
+    pF[dim] = (val==='all'||pF[dim]===val) ? 'all' : val;
+    syncPFPills(); renderPAll();
+  });
+});
+document.querySelectorAll('#pharma-nav .nav-tab[data-ptab]').forEach(btn=>{
+  btn.addEventListener('click',()=>showPTab(btn.dataset.ptab));
+});
+const pComp=document.getElementById('p-company');
+if(pComp)pComp.addEventListener('input',()=>{pF.company=pComp.value;renderPAll();});
+const citSrch=document.getElementById('cit-search');
+if(citSrch)citSrch.addEventListener('input',()=>{pF.query=citSrch.value;renderCitations();});
+const facSrch=document.getElementById('fac-search');
+if(facSrch)facSrch.addEventListener('input',()=>renderFacilities());
+const pdf=document.getElementById('p-date-from');
+if(pdf)pdf.addEventListener('change',()=>{pF.dateFrom=pdf.value;renderPAll();});
+const pdt=document.getElementById('p-date-to');
+if(pdt)pdt.addEventListener('change',()=>{pF.dateTo=pdt.value;renderPAll();});
+
+// ── Init ─────────────────────────────────────────────────────────────
+(function initProd(){
+  // ensure pharma pages are all hidden except first
+  document.querySelectorAll('.pharma-page').forEach((p,i)=>{
+    p.style.display = (i===0)?'block':'none';
+  });
+  // restore saved product
+  if(activeProd==='pharma'){
+    switchProd('pharma');
+  } else {
+    // ensure vms state is correct
+    document.getElementById('pharma-nav').style.display='none';
+    document.getElementById('pharma-sidebar').style.display='none';
+    document.getElementById('pharma-content').style.display='none';
+  }
+})();
+
 </script>
 </body>
 </html>
