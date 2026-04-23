@@ -911,7 +911,6 @@ body { background: #070E17; }
   border: 1px solid #2A4A6B !important;
   border-radius: 10px !important;
   padding: 18px 20px !important;
-  max-width: 860px;
   box-shadow: 0 2px 6px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.03) !important;
   transition: transform .15s, box-shadow .15s, border-color .15s !important;
 }
@@ -1235,6 +1234,188 @@ body { background: #070E17; }
 
 /* Topnav brand */
 .brand-logo { color: #F0F0F0 !important; }
+
+/* ── Interactive: Alert items ─────────────────────────────────────── */
+.alert-item {
+  cursor: pointer;
+  transition: background .18s, border-color .18s !important;
+}
+.alert-item:hover {
+  background: rgba(13,148,136,.06) !important;
+  border-color: rgba(13,148,136,.25) !important;
+}
+
+/* ── Interactive: Source cards (Reports) ───────────────────────────── */
+.source-card {
+  cursor: pointer;
+  transition: all .18s;
+}
+.source-card:hover {
+  background: #173554 !important;
+  border-color: rgba(13,148,136,.35) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,.3);
+}
+
+/* ── Interactive: Risk items (Trends) ──────────────────────────────── */
+.risk-item {
+  cursor: pointer;
+  transition: background .15s, border-color .15s !important;
+}
+.risk-item:hover {
+  background: rgba(255,255,255,.04) !important;
+  border-color: rgba(13,148,136,.2) !important;
+}
+
+/* ── Interactive: Chart canvases get pointer cursor ────────────────── */
+canvas { cursor: default; }
+canvas.chart-clickable { cursor: pointer; }
+
+/* ── Interactive: Heatmap rows ─────────────────────────────────────── */
+.heatmap-row {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background .12s;
+  padding: 1px 0;
+}
+.heatmap-row:hover { background: rgba(13,148,136,.08); }
+
+/* ── Alert Configuration expandable ────────────────────────────────── */
+#alert-rules-body {
+  display: none;
+  margin-top: 12px;
+  border-top: 1px solid #2A4A6B;
+  padding-top: 12px;
+}
+#alert-rules-body.open { display: block; }
+#alert-config-card { cursor: pointer; transition: background .18s; }
+#alert-config-card:hover { background: rgba(13,148,136,.06) !important; border-color: rgba(13,148,136,.2) !important; }
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Hamburger button — hidden on desktop */
+#mob-sidebar-btn {
+  display: none;
+  width: 36px; height: 36px;
+  border-radius: 6px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid #2A4A6B;
+  color: #9CA3AF;
+  font-size: 18px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+/* Sidebar overlay (mobile) */
+#sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  z-index: 149;
+}
+#sidebar-overlay.open { display: block; }
+
+@media (max-width: 768px) {
+  :root { --sidebar-w: 0px; }
+
+  #mob-sidebar-btn { display: flex; }
+
+  /* Sidebar: off-screen until opened */
+  #sidebar {
+    position: fixed !important;
+    top: calc(var(--prod-h) + var(--topnav-h)) !important;
+    left: -280px !important;
+    width: 280px !important;
+    z-index: 150 !important;
+    transition: left .25s ease !important;
+  }
+  #sidebar.mob-open { left: 0 !important; }
+
+  #content { margin-left: 0 !important; padding: 14px 12px 24px !important; }
+  #main-layout { margin-top: calc(var(--prod-h) + var(--topnav-h)) !important; }
+
+  /* Top nav: scrollable tabs */
+  .nav-tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  .nav-tabs::-webkit-scrollbar { display: none; }
+  .nav-tab { padding: 0 11px; font-size: 11px; flex-shrink: 0; }
+
+  /* Search box: collapse */
+  .search-box input { width: 140px; }
+
+  /* KPI grid: 2 columns */
+  .kpi-grid { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+
+  /* Trend panels: stack vertically */
+  .trend-panels { grid-template-columns: 1fr !important; }
+
+  /* Source grid: 2 columns */
+  .source-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* Chart grid: single column */
+  .chart-grid { grid-template-columns: 1fr !important; }
+  .chart-grid-3 { grid-template-columns: 1fr !important; }
+  .chart-card.wide { grid-column: span 1 !important; }
+
+  /* Entity grid */
+  .entity-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* Signal cards: full width */
+  .signal-card { width: 100% !important; }
+
+  /* Drawer: full width on mobile */
+  #drawer { width: 100% !important; right: -100% !important; }
+  #drawer.open { right: 0 !important; }
+
+  /* Charts: reduce height */
+  .chart-wrap { height: 130px !important; }
+  .chart-wrap.tall { height: 180px !important; }
+
+  /* Feed search: full width */
+  .feed-search { min-width: unset !important; }
+
+  /* AI panel */
+  .ai-panel { padding: 10px 12px !important; }
+
+  /* Category grid */
+  .cat-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* Facility grid */
+  .facility-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* Pharma KPI grid */
+  .pharma-kpi-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* Evidence table: allow scroll */
+  .ev-table-wrap { overflow-x: auto !important; }
+
+  /* Min font size */
+  body { font-size: 13px !important; }
+  .card-title { font-size: 13px !important; }
+  .card-summary { font-size: 11.5px !important; }
+}
+
+@media (max-width: 480px) {
+  .kpi-grid { grid-template-columns: 1fr !important; }
+  .entity-grid { grid-template-columns: 1fr !important; }
+  .source-grid { grid-template-columns: 1fr 1fr !important; }
+  .cat-grid { grid-template-columns: 1fr !important; }
+  .facility-grid { grid-template-columns: 1fr !important; }
+  .pharma-kpi-grid { grid-template-columns: 1fr !important; }
+
+  .signal-card { padding: 13px 14px !important; }
+
+  .trend-panel { padding: 10px 12px !important; }
+
+  .search-box input { width: 110px; font-size: 11px; }
+
+  .nav-tab { padding: 0 9px; font-size: 10.5px; }
+
+  #content { padding: 10px 10px 20px !important; }
+}
 </style>
 </head>
 <body>
@@ -1251,7 +1432,9 @@ body { background: #070E17; }
     <span class="prod-badge">300 citations</span>
   </button>
 </div>
+<div id="sidebar-overlay" onclick="closeMobSidebar()"></div>
 <nav id="topnav">
+  <button id="mob-sidebar-btn" onclick="toggleMobSidebar()" title="Filters">&#9776;</button>
   <div class="brand"><div class="brand-logo">Signal<span>ex</span></div><div class="brand-badge">Beta</div></div>
   <div id="vms-nav" class="nav-tabs">
     <button class="nav-tab active" data-tab="overview">&#9632; Overview</button>
@@ -1532,10 +1715,10 @@ body { background: #070E17; }
   <div class="risk-panel">
     <div class="section-head" style="margin-bottom:0"><div><div class="section-title">&#9888; Emerging Risks — AI Detected</div><div style="font-size:11px;color:var(--slate-dim);margin-top:2px">Pattern analysis across 405 signals + 2,869 citations</div></div></div>
     <div class="risk-items">
-      <div class="risk-item"><div class="risk-icon red">&#9888;</div><div class="risk-body"><div class="risk-title">Peptide Product Crackdown Accelerating</div><div class="risk-desc">TGA issued formal warning on unapproved peptides. Pattern matches 2019 SARMs enforcement — expect import bans within 90 days. 115 clinical trials show ongoing research interest despite regulatory pressure.</div></div></div>
-      <div class="risk-item"><div class="risk-icon red">&#9888;</div><div class="risk-body"><div class="risk-title">Allergen Labelling — Systemic Industry Risk</div><div class="risk-desc">3rd supplement recall in 60 days for undeclared allergens. FDA enforcement signals category-wide review. Audit allergen controls at all contract manufacturers immediately.</div></div></div>
-      <div class="risk-item"><div class="risk-icon amber">&#9651;</div><div class="risk-body"><div class="risk-title">Cochrane Reviews — Claims Under Pressure</div><div class="risk-desc">6 new Cochrane reviews published on VMS ingredients. Any "inconclusive" or "insufficient evidence" conclusion can be cited in regulatory challenges to health claims. Monitor outcomes.</div></div></div>
-      <div class="risk-item"><div class="risk-icon amber">&#9651;</div><div class="risk-body"><div class="risk-title">GMP Enforcement Intensity High</div><div class="risk-desc">744 of 2,869 regulatory citations (26%) are GMP violations. FDA + TGA both increasing inspection frequency. Supplement facilities should expect unannounced audits.</div></div></div>
+      <div class="risk-item" onclick="hideTip();filterByIngredient('peptide')" title="View peptide signals in Live Signals"><div class="risk-icon red">&#9888;</div><div class="risk-body"><div class="risk-title">Peptide Product Crackdown Accelerating</div><div class="risk-desc">TGA issued formal warning on unapproved peptides. Pattern matches 2019 SARMs enforcement — expect import bans within 90 days. 115 clinical trials show ongoing research interest despite regulatory pressure.</div></div></div>
+      <div class="risk-item" onclick="hideTip();toggleDimFilter('type','recall');showTab('signals')" title="View recall signals"><div class="risk-icon red">&#9888;</div><div class="risk-body"><div class="risk-title">Allergen Labelling — Systemic Industry Risk</div><div class="risk-desc">3rd supplement recall in 60 days for undeclared allergens. FDA enforcement signals category-wide review. Audit allergen controls at all contract manufacturers immediately.</div></div></div>
+      <div class="risk-item" onclick="hideTip();filterByAuthority('cochrane')" title="View Cochrane signals"><div class="risk-icon amber">&#9651;</div><div class="risk-body"><div class="risk-title">Cochrane Reviews — Claims Under Pressure</div><div class="risk-desc">6 new Cochrane reviews published on VMS ingredients. Any "inconclusive" or "insufficient evidence" conclusion can be cited in regulatory challenges to health claims. Monitor outcomes.</div></div></div>
+      <div class="risk-item" onclick="gotoEvidence('GMP violations','all')" title="View GMP citations in Evidence database"><div class="risk-icon amber">&#9651;</div><div class="risk-body"><div class="risk-title">GMP Enforcement Intensity High</div><div class="risk-desc">744 of 2,869 regulatory citations (26%) are GMP violations. FDA + TGA both increasing inspection frequency. Supplement facilities should expect unannounced audits.</div></div></div>
     </div>
   </div>
 </div>
@@ -1571,35 +1754,76 @@ body { background: #070E17; }
 
 <!-- ALERTS -->
 <div class="page" id="page-alerts">
-  <div class="ai-panel" style="margin-bottom:16px"><div class="ai-header"><div class="ai-icon">&#128276;</div><div><div class="ai-title">Alert Configuration</div><div class="ai-sub">5 active alert rules — next delivery: daily digest at 07:00 AEST</div></div></div></div>
+  <div class="ai-panel" id="alert-config-card" style="margin-bottom:16px" onclick="toggleAlertConfig()" title="Click to expand alert rules">
+    <div class="ai-header">
+      <div class="ai-icon">&#128276;</div>
+      <div style="flex:1">
+        <div class="ai-title">Alert Configuration <span style="font-size:10px;color:#6B7F90;font-weight:400;margin-left:8px">click to expand &#9660;</span></div>
+        <div class="ai-sub">5 active alert rules — next delivery: daily digest at 07:00 AEST</div>
+      </div>
+    </div>
+    <div id="alert-rules-body">
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:#CBD5E1">
+        <div style="padding:8px 10px;background:#0E1F33;border-radius:6px;border-left:2px solid #F87171"><b style="color:#FCA5A5">HIGH SEV</b> — Any signal with severity=high from TGA, FDA, EFSA · Instant email</div>
+        <div style="padding:8px 10px;background:#0E1F33;border-radius:6px;border-left:2px solid #FCD34D"><b style="color:#FCD34D">RECALL</b> — Event type = recall from any authority · Instant SMS + email</div>
+        <div style="padding:8px 10px;background:#0E1F33;border-radius:6px;border-left:2px solid #60A5FA"><b style="color:#93C5FD">NEW SOURCE</b> — New signals from ClinicalTrials.gov, Cochrane · Daily digest</div>
+        <div style="padding:8px 10px;background:#0E1F33;border-radius:6px;border-left:2px solid #6EE7B7"><b style="color:#6EE7B7">POSITIVE</b> — sentiment=positive, PubMed or Europe PMC · Weekly summary</div>
+        <div style="padding:8px 10px;background:#0E1F33;border-radius:6px;border-left:2px solid #A78BFA"><b style="color:#A78BFA">INGREDIENT WATCH</b> — omega-3, vitamin D, collagen, NMN · Daily digest</div>
+      </div>
+    </div>
+  </div>
   <div id="alerts-list">
-    <div class="alert-item"><div class="alert-icon" style="background:var(--red-bg)">&#9888;</div><div class="alert-body"><div class="alert-title">HIGH: TGA Safety Alert — Artri Ajo King Tablets</div><div class="alert-desc">TGA warns consumers against use. Monitor for category-wide herbal supplement scrutiny.</div><div class="alert-time">20 Apr 2026, 07:58 UTC · TGA · <span class="text-red">High Severity</span></div></div></div>
-    <div class="alert-item"><div class="alert-icon" style="background:var(--red-bg)">&#9888;</div><div class="alert-body"><div class="alert-title">HIGH: TGA Peptide Product Warning — Broad Enforcement Signal</div><div class="alert-desc">Unapproved peptides now subject to formal TGA scrutiny. Review your product portfolio for BPC-157, TB-500, GHK-Cu exposure.</div><div class="alert-time">20 Apr 2026 · TGA · <span class="text-red">High Severity</span></div></div></div>
-    <div class="alert-item"><div class="alert-icon" style="background:var(--red-bg)">&#9644;</div><div class="alert-body"><div class="alert-title">RECALL: FDA — Vital Nutrients Aller-C (Undeclared Allergens)</div><div class="alert-desc">Blueroot Health voluntarily recalls Aller-C. Undeclared egg, hazelnut, soy. Review allergen controls with contract manufacturers.</div><div class="alert-time">20 Apr 2026 · FDA · <span class="text-red">High Severity</span></div></div></div>
-    <div class="alert-item"><div class="alert-icon" style="background:var(--blue)" style="background:rgba(59,130,246,.12)">&#128203;</div><div class="alert-body"><div class="alert-title">NEW: 115 ClinicalTrials.gov Registrations Detected</div><div class="alert-desc">115 new VMS-related trials registered in the last 90 days. NMN, omega-3, beta-sitosterol, magnesium featured. Review for competitive intelligence.</div><div class="alert-time">22 Apr 2026 · ClinicalTrials.gov · New Source</div></div></div>
-    <div class="alert-item"><div class="alert-icon" style="background:var(--green-bg)">&#9650;</div><div class="alert-body"><div class="alert-title">POSITIVE: 78 Research Signals Supporting Supplement Efficacy</div><div class="alert-desc">Strong positive signal week for biotin, omega-3, collagen, vitamin D. Available for regulatory substantiation and marketing claims.</div><div class="alert-time">20 Apr 2026 · PubMed · <span class="text-green">Positive</span></div></div></div>
+    <div class="alert-item" onclick="openAlertByKeyword('artri ajo')" title="Open signal detail">
+      <div class="alert-icon" style="background:var(--red-bg)">&#9888;</div>
+      <div class="alert-body"><div class="alert-title">HIGH: TGA Safety Alert — Artri Ajo King Tablets</div><div class="alert-desc">TGA warns consumers against use. Monitor for category-wide herbal supplement scrutiny.</div><div class="alert-time">20 Apr 2026, 07:58 UTC · TGA · <span class="text-red">High Severity</span></div></div>
+    </div>
+    <div class="alert-item" onclick="openAlertByKeyword('peptide')" title="Open signal detail">
+      <div class="alert-icon" style="background:var(--red-bg)">&#9888;</div>
+      <div class="alert-body"><div class="alert-title">HIGH: TGA Peptide Product Warning — Broad Enforcement Signal</div><div class="alert-desc">Unapproved peptides now subject to formal TGA scrutiny. Review your product portfolio for BPC-157, TB-500, GHK-Cu exposure.</div><div class="alert-time">20 Apr 2026 · TGA · <span class="text-red">High Severity</span></div></div>
+    </div>
+    <div class="alert-item" onclick="openAlertByKeyword('aller-c')" title="Open signal detail">
+      <div class="alert-icon" style="background:var(--red-bg)">&#9644;</div>
+      <div class="alert-body"><div class="alert-title">RECALL: FDA — Vital Nutrients Aller-C (Undeclared Allergens)</div><div class="alert-desc">Blueroot Health voluntarily recalls Aller-C. Undeclared egg, hazelnut, soy. Review allergen controls with contract manufacturers.</div><div class="alert-time">20 Apr 2026 · FDA · <span class="text-red">High Severity</span></div></div>
+    </div>
+    <div class="alert-item" onclick="gotoSignalsFiltered('auth','clinical_trials')" title="View ClinicalTrials.gov signals">
+      <div class="alert-icon" style="background:rgba(59,130,246,.12)">&#128203;</div>
+      <div class="alert-body"><div class="alert-title">NEW: 115 ClinicalTrials.gov Registrations Detected</div><div class="alert-desc">115 new VMS-related trials registered in the last 90 days. NMN, omega-3, beta-sitosterol, magnesium featured. Review for competitive intelligence.</div><div class="alert-time">22 Apr 2026 · ClinicalTrials.gov · New Source</div></div>
+    </div>
+    <div class="alert-item" onclick="gotoSignalsFiltered('sent','positive')" title="View positive research signals">
+      <div class="alert-icon" style="background:var(--green-bg)">&#9650;</div>
+      <div class="alert-body"><div class="alert-title">POSITIVE: 78 Research Signals Supporting Supplement Efficacy</div><div class="alert-desc">Strong positive signal week for biotin, omega-3, collagen, vitamin D. Available for regulatory substantiation and marketing claims.</div><div class="alert-time">20 Apr 2026 · PubMed · <span class="text-green">Positive</span></div></div>
+    </div>
   </div>
 </div>
 
 <!-- REPORTS -->
 <div class="page" id="page-reports">
   <div class="kpi-grid" style="margin-bottom:20px">
-    <div class="kpi-card info"><div class="kpi-label">Sources Active</div><div class="kpi-val">11</div><div class="kpi-sub">TGA, FDA, PubMed, Europe PMC, ClinTrials, Cochrane, EFSA, ARTG, Adv.Events, SemanticScholar, WHO ICTRP</div></div>
-    <div class="kpi-card info"><div class="kpi-label">Total Signals</div><div class="kpi-val">405</div><div class="kpi-sub">+249 added this cycle</div></div>
-    <div class="kpi-card info"><div class="kpi-label">Evidence Citations</div><div class="kpi-val">2,869</div><div class="kpi-sub">FDA, EFSA, TGA, BfR, MHRA</div></div>
+    <div class="kpi-card info" style="cursor:pointer" onclick="clearAllFilters();showTab('signals')" title="View all signals">
+      <div class="kpi-label">Sources Active</div><div class="kpi-val">11</div>
+      <div class="kpi-sub">TGA, FDA, PubMed, Europe PMC, ClinTrials, Cochrane, EFSA, ARTG, Adv.Events, SemanticScholar, WHO ICTRP</div>
+    </div>
+    <div class="kpi-card info" style="cursor:pointer" onclick="clearAllFilters();showTab('signals')" title="View all signals">
+      <div class="kpi-label">Total Signals</div><div class="kpi-val">405</div>
+      <div class="kpi-sub">+249 added this cycle</div>
+    </div>
+    <div class="kpi-card info" style="cursor:pointer" onclick="showTab('evidence')" title="View evidence database">
+      <div class="kpi-label">Evidence Citations</div><div class="kpi-val">2,869</div>
+      <div class="kpi-sub">FDA, EFSA, TGA, BfR, MHRA</div>
+    </div>
   </div>
   <div class="source-grid" id="source-grid">
-    <div class="source-card"><div class="source-name">PubMed</div><div class="source-count">138</div><div class="source-sub">Research articles</div></div>
-    <div class="source-card"><div class="source-name">Europe PMC</div><div class="source-count">124</div><div class="source-sub">European research + preprints</div></div>
-    <div class="source-card"><div class="source-name">ClinicalTrials.gov</div><div class="source-count">115</div><div class="source-sub">Trial registrations</div></div>
-    <div class="source-card"><div class="source-name">TGA Consult.</div><div class="source-count">7</div><div class="source-sub">AU regulatory consultations</div></div>
-    <div class="source-card"><div class="source-name">Cochrane</div><div class="source-count">6</div><div class="source-sub">Systematic reviews</div></div>
-    <div class="source-card"><div class="source-name">ARTG</div><div class="source-count">4</div><div class="source-sub">AU product listings</div></div>
-    <div class="source-card"><div class="source-name">FDA</div><div class="source-count">3</div><div class="source-sub">Recalls + safety alerts</div></div>
-    <div class="source-card"><div class="source-name">TGA</div><div class="source-count">2</div><div class="source-sub">Safety alerts</div></div>
-    <div class="source-card"><div class="source-name">EFSA</div><div class="source-count">2</div><div class="source-sub">EU regulatory opinions</div></div>
-    <div class="source-card"><div class="source-name">Semantic Scholar</div><div class="source-count">2</div><div class="source-sub">Cited academic papers</div></div>
-    <div class="source-card"><div class="source-name">Adverse Events</div><div class="source-count">2</div><div class="source-sub">Pharmacovigilance</div></div>
+    <div class="source-card" onclick="filterByAuthority('pubmed')" title="Filter signals to PubMed"><div class="source-name">PubMed</div><div class="source-count">138</div><div class="source-sub">Research articles</div></div>
+    <div class="source-card" onclick="filterByAuthority('europe_pmc')" title="Filter signals to Europe PMC"><div class="source-name">Europe PMC</div><div class="source-count">124</div><div class="source-sub">European research + preprints</div></div>
+    <div class="source-card" onclick="filterByAuthority('clinical_trials')" title="Filter signals to ClinicalTrials.gov"><div class="source-name">ClinicalTrials.gov</div><div class="source-count">115</div><div class="source-sub">Trial registrations</div></div>
+    <div class="source-card" onclick="filterByAuthority('tga_consultations')" title="Filter signals to TGA Consultations"><div class="source-name">TGA Consult.</div><div class="source-count">7</div><div class="source-sub">AU regulatory consultations</div></div>
+    <div class="source-card" onclick="filterByAuthority('cochrane')" title="Filter signals to Cochrane"><div class="source-name">Cochrane</div><div class="source-count">6</div><div class="source-sub">Systematic reviews</div></div>
+    <div class="source-card" onclick="filterByAuthority('artg')" title="Filter signals to ARTG"><div class="source-name">ARTG</div><div class="source-count">4</div><div class="source-sub">AU product listings</div></div>
+    <div class="source-card" onclick="filterByAuthority('fda')" title="Filter signals to FDA"><div class="source-name">FDA</div><div class="source-count">3</div><div class="source-sub">Recalls + safety alerts</div></div>
+    <div class="source-card" onclick="filterByAuthority('tga')" title="Filter signals to TGA"><div class="source-name">TGA</div><div class="source-count">2</div><div class="source-sub">Safety alerts</div></div>
+    <div class="source-card" onclick="filterByAuthority('efsa')" title="Filter signals to EFSA"><div class="source-name">EFSA</div><div class="source-count">2</div><div class="source-sub">EU regulatory opinions</div></div>
+    <div class="source-card" onclick="filterByAuthority('semantic_scholar')" title="Filter signals to Semantic Scholar"><div class="source-name">Semantic Scholar</div><div class="source-count">2</div><div class="source-sub">Cited academic papers</div></div>
+    <div class="source-card" onclick="filterByAuthority('adverse_events')" title="Filter signals to Adverse Events"><div class="source-name">Adverse Events</div><div class="source-count">2</div><div class="source-sub">Pharmacovigilance</div></div>
   </div>
   <div class="chart-card" style="margin-bottom:12px">
     <div class="chart-header"><div><div class="chart-title">Evidence Database — Authority Distribution</div></div></div>
@@ -1820,6 +2044,20 @@ function _ingMatch(hay, q) {
   const terms = ql.split(/[\s\/\-]+/).filter(t=>t.length>2);
   return terms.length > 0 && terms.some(t => hay.includes(t));
 }
+// Strict word-boundary matcher for entity tab — prevents "vitamin d" matching "vitamin b"
+function _entityIngMatch(signal, name) {
+  const nameL = name.toLowerCase().trim();
+  // 1. Exact ingredient_name field match
+  if ((signal.ingredient_name || '').toLowerCase().trim() === nameL) return true;
+  const hay = _sigText(signal);
+  // 2. Exact substring match (catches "vitamin d3" when query is "vitamin d")
+  //    followed by word-boundary OR digit (for D3, D2 etc.) but NOT a letter
+  //    that would form a different compound (e.g. "vitamin b")
+  const escaped = nameL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Match name preceded by start/space/punct and followed by end/space/punct/digit
+  const re = new RegExp('(?:^|[\\s,.(\\/\\-])' + escaped + '(?:[\\s,.)\\/\\-\\d]|$)', 'i');
+  return re.test(hay);
+}
 function filteredSignals() {
   const result = SIGNALS.filter(s => {
     if (filters.auth.size > 0 && !filters.auth.has(s.authority)) return false;
@@ -1887,17 +2125,20 @@ function toggleMarket(m) {
   _commit();
 }
 function filterByIngredient(name) {
+  hideTip();
   filters.ingredient = name;
   const el = $('#ingredient-filter'); if (el) el.value = name;
   activeClaimCat = null;
   _commit(); showTab('signals');
 }
 function filterByAuthority(auth) {
+  hideTip();
   filters.auth.clear(); filters.auth.add(auth);
   activeClaimCat = null;
   _commit(); showTab('signals');
 }
 function filterByClaim(cat) {
+  hideTip();
   activeClaimCat = (activeClaimCat === cat) ? null : cat;
   _commit(); showTab('signals');
 }
@@ -1981,6 +2222,47 @@ function _syncKpiCards() {
   ].forEach(([id,active]) => { const el=document.getElementById(id); if(el) el.classList.toggle('kpi-active',active); });
 }
 
+// ─── UNIQUE AI SUMMARIES ──────────────────────────────────────────────────────
+// Detect generic/duplicate AI summaries and replace with signal-specific ones
+const _GENERIC_PATTERNS = [
+  'clinical trial on vitamin b',
+  'positive results could substantiate efficacy claims for premium',
+  'efficacy claims for premium vms',
+  'positive signal for vms',
+  'monitor for regulatory implications',
+];
+function _isGenericWhy(text) {
+  if (!text) return true;
+  const t = text.toLowerCase();
+  return _GENERIC_PATTERNS.some(p => t.includes(p));
+}
+function _uniqueWhy(s) {
+  const raw = s.ai_summary || s.sentiment_reasoning || '';
+  if (!_isGenericWhy(raw)) return raw;
+  // Generate a unique summary from signal properties
+  const src = authLabel(s.authority);
+  const ing = s.ingredient_name && s.ingredient_name !== 'unknown' ? s.ingredient_name : '';
+  const evType = s.event_type && s.event_type !== 'other' ? s.event_type.replace(/_/g,' ') : 'research signal';
+  const sent = (s.sentiment || '').toLowerCase();
+  const sev = (s.severity || '').toLowerCase();
+  if (sev === 'high') {
+    const action = sent === 'negative' ? 'Immediate portfolio review required' : 'Monitor for compliance impact';
+    return `${src}: ${evType}${ing ? ' on ' + ing : ''} — ${action}`;
+  }
+  if (ing) {
+    const action = sent === 'positive' ? 'Supports efficacy dossiers and marketing claims'
+      : sent === 'negative' ? 'Flag for regulatory risk assessment'
+      : 'Track for market and formulation implications';
+    return `${src}: ${evType} on ${ing} — ${action}`;
+  }
+  // Fallback: derive something unique from title prefix
+  const titleSnip = (s.title || evType).slice(0, 55).replace(/\s+\S*$/, '');
+  const impact = sent === 'positive' ? 'Positive evidence for claims substantiation'
+    : sent === 'negative' ? 'Adverse signal requiring compliance monitoring'
+    : 'Track for VMS regulatory implications';
+  return `${src}: ${titleSnip} — ${impact}`;
+}
+
 // ─── SIGNAL CARD ──────────────────────────────────────────────────────────────
 function toggleSave(btn) {
   const saved = btn.dataset.saved==='1';
@@ -1990,7 +2272,7 @@ function toggleSave(btn) {
 }
 function signalCard(s) {
   const sevClass = s.severity==='high'?'high-sev':s.severity==='medium'?'medium-sev':'low-sev';
-  const why = s.ai_summary||s.sentiment_reasoning||'';
+  const why = _uniqueWhy(s);
   const ing = s.ingredient_name&&s.ingredient_name!=='unknown'?s.ingredient_name:'';
   const pp = isPreprint(s.authority);
   const ingSafe = ing.replace(/'/g,"\\'");
@@ -2107,7 +2389,8 @@ function renderEntities() {
 }
 function showEntitySignals(name) {
   const el = document.getElementById('entity-signals'); if(!el) return;
-  const matched = SIGNALS.filter(s => _ingMatch(_sigText(s), name))
+  // Use strict entity matching to avoid "vitamin d" matching "vitamin b"
+  const matched = SIGNALS.filter(s => _entityIngMatch(s, name))
     .sort((a,b) => new Date(b.scraped_at)-new Date(a.scraped_at));
   // Group by authority
   const byAuth = {};
@@ -2183,6 +2466,7 @@ $('#drawer-source-btn').onclick=()=>{if(currentSignalUrl)window.open(currentSign
 
 // ─── TABS ─────────────────────────────────────────────────────────────────────
 function showTab(tab){
+  hideTip();
   $$('.nav-tab').forEach(b=>b.classList.remove('active'));
   $$('.page').forEach(p=>p.classList.remove('active'));
   const btn=$(`.nav-tab[data-tab="${tab}"]`);if(btn)btn.classList.add('active');
@@ -2249,6 +2533,68 @@ function showClaimTip(e, cat, total, high, auths) {
 }
 function hideTip() { TIP.classList.remove('tip-on'); }
 
+// Dismiss tooltip on click-outside and scroll
+document.addEventListener('click', hideTip);
+document.addEventListener('scroll', hideTip, true);
+
+// ─── ONCLICK HELPER FUNCTIONS (called from inline HTML onclick attributes) ────
+// These wrap let-scoped variables so they're callable from HTML onclick attrs
+function gotoSignalsFiltered(dim, val) {
+  hideTip();
+  if (dim === 'auth') { filters.auth.clear(); filters.auth.add(val); }
+  else if (dim === 'sent') { filters.sent.clear(); filters.sent.add(val); }
+  else if (dim === 'type') { filters.type.clear(); filters.type.add(val); }
+  activeClaimCat = null;
+  _commit();
+  showTab('signals');
+}
+function gotoEvidence(query, auth) {
+  hideTip();
+  if (auth) evFilters.auth = auth;
+  if (query !== undefined) evFilters.query = query;
+  evPage = 1;
+  renderEvidence();
+  showTab('evidence');
+}
+
+// ─── MOBILE SIDEBAR ───────────────────────────────────────────────────────────
+function toggleMobSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebar-overlay');
+  if (sb) sb.classList.toggle('mob-open');
+  if (ov) ov.classList.toggle('open');
+}
+function closeMobSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebar-overlay');
+  if (sb) sb.classList.remove('mob-open');
+  if (ov) ov.classList.remove('open');
+}
+
+// ─── ALERT HELPERS ────────────────────────────────────────────────────────────
+function openAlertByKeyword(keyword) {
+  hideTip();
+  const kl = keyword.toLowerCase();
+  // Try to find a signal whose title contains the keyword
+  const s = SIGNALS.find(x => (x.title||'').toLowerCase().includes(kl))
+         || SIGNALS.find(x => (x.ingredient_name||'').toLowerCase().includes(kl))
+         || SIGNALS.find(x => (x.summary||'').toLowerCase().includes(kl));
+  if (s) { openDrawer(s.id); }
+  else {
+    // fallback: filter signals and switch to live signals tab
+    filterByIngredient(keyword);
+  }
+}
+function toggleAlertConfig() {
+  const body = document.getElementById('alert-rules-body');
+  if (body) body.classList.toggle('open');
+  const card = document.getElementById('alert-config-card');
+  if (card) {
+    const arrow = card.querySelector('.ai-title span');
+    if (arrow) arrow.textContent = body && body.classList.contains('open') ? ' click to collapse ▲' : ' click to expand ▼';
+  }
+}
+
 // ─── CHARTS ───────────────────────────────────────────────────────────────────
 const PAL=['#0D9488','#3B82F6','#F97316','#8B5CF6','#F59E0B','#EF4444','#10B981','#EC4899','#06B6D4','#84CC16','#A3E635'];
 const CA='#64748B',CG='rgba(30,58,95,.5)';
@@ -2261,14 +2607,37 @@ mk('chart-events',{type:'bar',data:{labels:['Research/Other','Safety Alert','War
 mk('chart-categories',{type:'bar',data:{labels:['GMP violations','Labelling & claims','Equipment','Contamination','Sterility','Ingredient safety','CSV','Other'],datasets:[{data:[744,462,251,210,198,195,147,121],backgroundColor:'#0D9488',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:CA,font:{size:10}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:9}},grid:{display:false}}}}});
 const ingMap={};SIGNALS.forEach(s=>{const i=(s.ingredient_name||'').trim();if(!i||i==='unknown')return;ingMap[i]=(ingMap[i]||0)+1});
 const sortedIngs=Object.entries(ingMap).sort((a,b)=>b[1]-a[1]).slice(0,15);
-mk('trend-ingredients',{type:'bar',data:{labels:sortedIngs.map(x=>x[0]),datasets:[{data:sortedIngs.map(x=>x[1]),backgroundColor:'#0D9488',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:CA,font:{size:10}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:10}},grid:{display:false}}}}});
+mk('trend-ingredients',{type:'bar',data:{labels:sortedIngs.map(x=>x[0]),datasets:[{data:sortedIngs.map(x=>x[1]),backgroundColor:'#0D9488',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.parsed.x} signals`}}},scales:{x:{ticks:{color:CA,font:{size:10}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:10}},grid:{display:false}}},onClick:(evt,els)=>{if(els.length){const name=sortedIngs[els[0].index][0];hideTip();filterByIngredient(name);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
 const auths2=['tga','tga_consultations','fda','artg','pubmed','europe_pmc','clinical_trials','cochrane'];
 const aLbls=['TGA','TGA Consult.','FDA','ARTG','PubMed','Europe PMC','ClinTrials','Cochrane'];
-mk('trend-auth-sent',{type:'bar',data:{labels:aLbls,datasets:[{label:'Positive',data:auths2.map(a=>SIGNALS.filter(s=>s.authority===a&&s.sentiment==='positive').length),backgroundColor:'#059669'},{label:'Neutral',data:auths2.map(a=>SIGNALS.filter(s=>s.authority===a&&s.sentiment==='neutral').length),backgroundColor:'#334155'},{label:'Negative',data:auths2.map(a=>SIGNALS.filter(s=>s.authority===a&&s.sentiment==='negative').length),backgroundColor:'#DC2626'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#94A3B8',font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:CA,font:{size:10}},grid:{display:false}},y:{stacked:true,ticks:{color:CA,font:{size:10}},grid:{color:CG}}}}});
-mk('trend-new-sources',{type:'bar',data:{labels:['Europe PMC','ClinTrials','Cochrane','EFSA','Semantic Scholar'],datasets:[{data:[124,115,6,2,2],backgroundColor:PAL,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc}});
-(()=>{const cats={GMP:744,'Labelling':462,'Equipment':251,'Contamination':210,'Sterility':198,'Ingredient safety':195,'CSV':147,'Other':121,'Container closure':119,'Batch release':98};const auths3=['FDA','EFSA','TGA','BfR','MHRA'];const max=744;let html=`<div class="heatmap-col-labels">${auths3.map(a=>`<div class="heatmap-col-label">${a}</div>`).join('')}</div>`;Object.entries(cats).forEach(([cat,base])=>{const vals=auths3.map((a,i)=>Math.round(base*[.87,.08,.01,.02,.02][i]+Math.random()*20));html+=`<div class="heatmap-row"><div class="heatmap-label">${cat}</div><div class="heatmap-cells">${vals.map(v=>`<div class="heatmap-cell" style="background:rgba(13,148,136,${(.08+v/max*.85).toFixed(2)})" title="${Math.round(v)}"></div>`).join('')}</div></div>`;});document.getElementById('heatmap-container').innerHTML=html;})();
-mk('report-chart-auth',{type:'bar',data:{labels:['FDA','EFSA','TGA','BfR','MHRA'],datasets:[{data:[2569,233,24,23,20],backgroundColor:PAL,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc}});
-mk('report-chart-cats',{type:'bar',data:{labels:['GMP violations','Labelling & claims','Equipment & facilities','Contamination','Sterility assurance','Ingredient safety','Computerised systems','Other','Container closure','Batch release'],datasets:[{data:[744,462,251,210,198,195,147,121,119,98],backgroundColor:PAL,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:CA,font:{size:10}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:10}},grid:{display:false}}}}});
+mk('trend-auth-sent',{type:'bar',data:{labels:aLbls,datasets:[{label:'Positive',data:auths2.map(a=>SIGNALS.filter(s=>s.authority===a&&s.sentiment==='positive').length),backgroundColor:'#059669'},{label:'Neutral',data:auths2.map(a=>SIGNALS.filter(s=>s.authority===a&&s.sentiment==='neutral').length),backgroundColor:'#334155'},{label:'Negative',data:auths2.map(a=>SIGNALS.filter(s=>s.authority===a&&s.sentiment==='negative').length),backgroundColor:'#DC2626'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#94A3B8',font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:CA,font:{size:10}},grid:{display:false}},y:{stacked:true,ticks:{color:CA,font:{size:10}},grid:{color:CG}}},onClick:(evt,els)=>{if(els.length){const auth=auths2[els[0].index];hideTip();filterByAuthority(auth);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
+const _newSrcAuths=['europe_pmc','clinical_trials','cochrane','efsa','semantic_scholar'];
+mk('trend-new-sources',{type:'bar',data:{labels:['Europe PMC','ClinTrials','Cochrane','EFSA','Semantic Scholar'],datasets:[{data:[124,115,6,2,2],backgroundColor:PAL,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc,onClick:(evt,els)=>{if(els.length){const auth=_newSrcAuths[els[0].index];hideTip();filterByAuthority(auth);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
+(()=>{
+  const cats={GMP:744,'Labelling':462,'Equipment':251,'Contamination':210,'Sterility':198,'Ingredient safety':195,'CSV':147,'Other':121,'Container closure':119,'Batch release':98};
+  const auths3=['FDA','EFSA','TGA','BfR','MHRA'];
+  const max=744;
+  // Map heatmap category labels to CLAIM_KW categories for filtering
+  const _hmCatMap={'GMP':'GMP & manufacturing','Labelling':'Labelling & claims','Ingredient safety':'Ingredient safety','Contamination':'Contamination risk','Sterility':'Sterility'};
+  let html=`<div class="heatmap-col-labels">${auths3.map(a=>`<div class="heatmap-col-label">${a}</div>`).join('')}</div>`;
+  Object.entries(cats).forEach(([cat,base])=>{
+    const vals=auths3.map((a,i)=>Math.round(base*[.87,.08,.01,.02,.02][i]+Math.random()*20));
+    const safe=cat.replace(/'/g,"\\'");
+    const claimCat=_hmCatMap[cat]||null;
+    const clickFn=claimCat
+      ? `filterByClaim('${claimCat.replace(/'/g,"\\'")}')`
+      : `gotoEvidence('${safe}')`;
+    html+=`<div class="heatmap-row" onclick="${clickFn}" title="Click to filter: ${cat}">
+      <div class="heatmap-label">${cat}</div>
+      <div class="heatmap-cells">${vals.map(v=>`<div class="heatmap-cell" style="background:rgba(13,148,136,${(.08+v/max*.85).toFixed(2)})" title="${Math.round(v)}"></div>`).join('')}
+      </div></div>`;
+  });
+  document.getElementById('heatmap-container').innerHTML=html;
+})();
+const _rptAuthKeys=['FDA','EFSA','TGA','BfR','MHRA'];
+mk('report-chart-auth',{type:'bar',data:{labels:_rptAuthKeys,datasets:[{data:[2569,233,24,23,20],backgroundColor:PAL,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc,onClick:(evt,els)=>{if(els.length){gotoEvidence(undefined,_rptAuthKeys[els[0].index]);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
+const _rptCatLabels=['GMP violations','Labelling & claims','Equipment & facilities','Contamination','Sterility assurance','Ingredient safety','Computerised systems','Other','Container closure','Batch release'];
+mk('report-chart-cats',{type:'bar',data:{labels:_rptCatLabels,datasets:[{data:[744,462,251,210,198,195,147,121,119,98],backgroundColor:PAL,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:CA,font:{size:10}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:10}},grid:{display:false}}},onClick:(evt,els)=>{if(els.length){gotoEvidence(_rptCatLabels[els[0].index]);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
 
 // ─── TREND COMPUTATIONS ───────────────────────────────────────────────────────
 function computeIngredientTrends() {
