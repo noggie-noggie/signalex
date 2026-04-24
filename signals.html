@@ -2093,6 +2093,15 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
 /* KPI card pointer cursor */
 .kpi-card { cursor: pointer; transition: border-color .15s, box-shadow .15s; }
 .kpi-card:hover { box-shadow: 0 0 0 1px rgba(13,148,136,.25); }
+/* Authority bar active state */
+.enf-row.er-active { background: rgba(13,148,136,.07) !important; border-left: 2px solid rgba(13,148,136,.45); padding-left: 9px; }
+.enf-row.er-active .enf-name { color: rgba(13,148,136,.85) !important; }
+/* Facility card active state */
+.facility-card.fc-active { border-color: rgba(13,148,136,.45) !important; box-shadow: 0 0 0 1px rgba(13,148,136,.18); }
+.facility-card.fc-active .facility-name { color: rgba(13,148,136,.85) !important; }
+/* Clear-all chip button */
+.pharma-chip-clear-all { font-size: 11px; color: rgba(13,148,136,.55); background: none; border: 1px solid rgba(13,148,136,.18); border-radius: 99px; padding: 2px 9px; cursor: pointer; transition: color .1s; }
+.pharma-chip-clear-all:hover { color: rgba(13,148,136,.85); border-color: rgba(13,148,136,.4); }
 </style>
 </head>
 <body>
@@ -2615,6 +2624,7 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
 <!-- ── PHARMA CITATIONS ────────────────────────────────────── -->
 <div class="pharma-page" id="pharma-page-citations">
   <div id="cit-insight-strip"></div>
+  <div id="cit-chip-bar" class="pharma-chip-bar"></div>
   <div class="pharma-controls">
     <div class="pharma-search">
       <span class="si">&#128269;</span>
@@ -2646,6 +2656,7 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
 <div class="pharma-page" id="pharma-page-enforcement">
 
   <div id="enf-insight-strip"></div>
+  <div id="enf-chip-bar" class="pharma-chip-bar"></div>
 
   <div class="pharma-section">
     <div class="pharma-section-hd">Enforcement by Authority</div>
@@ -2672,6 +2683,7 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
 <!-- ── PHARMA FACILITIES ──────────────────────────────────── -->
 <div class="pharma-page" id="pharma-page-facilities">
   <div id="fac-risk-strip"></div>
+  <div id="fac-chip-bar" class="pharma-chip-bar"></div>
   <div class="pharma-controls" style="margin-top:14px">
     <div class="pharma-search">
       <span class="si">&#128269;</span>
@@ -4229,10 +4241,11 @@ function pSetFilter(dim, val) {
   pF[dim] = pF[dim]===val ? 'all' : val;
   syncPFPills(); renderPAll();
 }
-function pFilterBySev(v)     { pF.sev=v;     syncPFPills(); renderPAll(); }
-function pFilterBySrc(v)     { pF.srctype=v; syncPFPills(); renderPAll(); }
-function pFilterByAuth(v)    { pF.auth=v;    syncPFPills(); renderPAll(); }
-function pFilterByFacType(v) { pF.factype=v; syncPFPills(); renderPAll(); }
+// All filter functions toggle: clicking the same value again clears the filter
+function pFilterBySev(v)     { pF.sev     = pF.sev===v     ? 'all' : v; syncPFPills(); renderPAll(); }
+function pFilterBySrc(v)     { pF.srctype = pF.srctype===v  ? 'all' : v; syncPFPills(); renderPAll(); }
+function pFilterByAuth(v)    { pF.auth    = pF.auth===v     ? 'all' : v; syncPFPills(); renderPAll(); }
+function pFilterByFacType(v) { pF.factype = pF.factype===v  ? 'all' : v; syncPFPills(); renderPAll(); }
 function pFilterByCat(cat) {
   pCatFilter = pCatFilter===cat ? null : cat;
   syncPFPills();
@@ -4243,9 +4256,24 @@ function pFilterByCat(cat) {
     const feed=document.getElementById('pharma-ov-feed');
     if(feed) feed.scrollIntoView({behavior:'smooth',block:'start'});
   } else {
-    renderPAll();
-    showPTab('pharma-citations');
+    renderPAll(); // stays on current tab — no tab switch
   }
+}
+
+// ── Shared chip bar renderer ─────────────────────────────────────────
+function buildChipBar(elId) {
+  const el=document.getElementById(elId); if(!el) return;
+  const chips=[];
+  if(pF.sev!=='all')     chips.push({label:`Severity: ${pF.sev}`,                    fn:`pF.sev='all';_setPActiveKpi(null);syncPFPills();renderPAll()`});
+  if(pF.srctype!=='all') chips.push({label:`Type: ${pF.srctype.replace(/_/g,' ')}`,  fn:`pF.srctype='all';_setPActiveKpi(null);syncPFPills();renderPAll()`});
+  if(pF.auth!=='all')    chips.push({label:`Authority: ${pF.auth}`,                  fn:`pF.auth='all';syncPFPills();renderPAll()`});
+  if(pF.factype!=='all') chips.push({label:`Facility: ${pF.factype}`,                fn:`pF.factype='all';syncPFPills();renderPAll()`});
+  if(pF.dicapa)          chips.push({label:'DI / CAPA / CSV',                        fn:`pF.dicapa=false;_setPActiveKpi(null);syncPFPills();renderPAll()`});
+  if(pCatFilter)         chips.push({label:`Category: ${pCatFilter}`,                fn:`pCatFilter=null;renderPAll()`});
+  if(!chips.length){el.innerHTML='';return;}
+  el.innerHTML=chips.map(ch=>
+    `<span class="pharma-chip">${ch.label}<button class="pharma-chip-x" onclick="${ch.fn}">&#10005;</button></span>`
+  ).join('')+`<button class="pharma-chip-clear-all" onclick="resetPharmaFilters()">&#10005; Clear all</button>`;
 }
 function sortCit(col) {
   if (citSortState.col===col) citSortState.dir=-citSortState.dir;
@@ -4279,19 +4307,7 @@ function renderPharmaOverview() {
   const data=filteredCits();
   const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.sev!=='all' || pF.dicapa;
   const oc=document.getElementById('pharma-ov-count'); if(oc) oc.textContent=`${data.length} total`;
-  // Chip bar
-  const cb=document.getElementById('pharma-ov-chip-bar');
-  if(cb) {
-    const chips=[];
-    if(pF.sev!=='all') chips.push({label:`Severity: ${pF.sev}`,fn:`pF.sev='all';_setPActiveKpi(null);syncPFPills();renderPharmaOverview()`});
-    if(pF.srctype!=='all') chips.push({label:`Type: ${pF.srctype.replace(/_/g,' ')}`,fn:`pF.srctype='all';_setPActiveKpi(null);syncPFPills();renderPharmaOverview()`});
-    if(pF.auth!=='all') chips.push({label:`Authority: ${pF.auth}`,fn:`pF.auth='all';_setPActiveKpi(null);syncPFPills();renderPharmaOverview()`});
-    if(pF.dicapa) chips.push({label:'DI / CAPA / CSV',fn:`pF.dicapa=false;_setPActiveKpi(null);syncPFPills();renderPharmaOverview()`});
-    if(pCatFilter) chips.push({label:`Category: ${pCatFilter}`,fn:`pCatFilter=null;renderPharmaOverview()`});
-    cb.innerHTML=chips.map(ch=>
-      `<span class="pharma-chip">${ch.label}<button class="pharma-chip-x" onclick="${ch.fn}">&#10005;</button></span>`
-    ).join('');
-  }
+  buildChipBar('pharma-ov-chip-bar');
   const el=document.getElementById('pharma-ov-feed'); if(!el) return;
   const limit = isFiltered ? 15 : 8;
   const feed=data.slice(0,limit);
@@ -4358,8 +4374,9 @@ function renderAuthBars(elId) {
   const el=document.getElementById(elId); if(!el) return;
   el.innerHTML=Object.entries(ac).sort((a,b)=>b[1]-a[1]).map(([auth,ct])=>{
     const topCats=Object.entries(catByAuth[auth]||{}).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>`${k} (${v})`).join(', ');
-    const tip=`${auth}: ${ct} citations. Top categories: ${topCats}`;
-    return `<div class="enf-row" onclick="pFilterByAuth('${auth}');showPTab('pharma-citations')" title="${tip}">
+    const tip=`${auth}: ${ct} citation${ct!==1?'s':''}. Top: ${topCats}. Click to filter — click again to clear.`;
+    const isActive=pF.auth===auth;
+    return `<div class="enf-row${isActive?' er-active':''}" onclick="pFilterByAuth('${auth}')" title="${tip}">
       <span class="enf-name">${auth}</span>
       <div class="enf-bar-wrap"><div class="enf-bar-fill" style="width:${Math.round(ct/mx*100)}%"></div></div>
       <span class="enf-ct">${ct}</span>
@@ -4419,6 +4436,7 @@ function renderCitationsInsightStrip() {
 
 // ── Citations table ──────────────────────────────────────────────────
 function renderCitations() {
+  buildChipBar('cit-chip-bar');
   renderCitationsInsightStrip();
   const data=filteredCits();
   const pages=Math.ceil(data.length/CIT_PP);
@@ -4499,6 +4517,7 @@ function renderEnfInsightStrip() {
 
 // ── Enforcement page ─────────────────────────────────────────────────
 function renderEnfPage() {
+  buildChipBar('enf-chip-bar');
   renderEnfInsightStrip();
   renderAuthBars('enf-auth-rows');
   renderCatGrid('enf-cat-grid','enf-cat-count');
@@ -4619,6 +4638,7 @@ function renderFacilityRiskStrip() {
 
 // ── Facilities ───────────────────────────────────────────────────────
 function renderFacilities() {
+  buildChipBar('fac-chip-bar');
   renderFacilityRiskStrip();
   const q=(document.getElementById('fac-search')||{value:''}).value.toLowerCase();
   const data=filteredCits();
@@ -4641,7 +4661,7 @@ function renderFacilities() {
     const safe=f.name.replace(/'/g,"\\'");
     const topCats=Object.entries(f.cats).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
     const exCos=[...f.cos].slice(0,3).join(', ');
-    return `<div class="facility-card" onclick="pFilterByFacType('${safe}');showPTab('pharma-citations')">
+    return `<div class="facility-card${pF.factype===f.name?' fc-active':''}" onclick="pFilterByFacType('${safe}')" title="Click to filter — click again to clear">
       <div class="facility-name">${f.name}</div>
       <div class="facility-type-label">${[...f.auths].join(' · ')}</div>
       <div class="facility-stats">
