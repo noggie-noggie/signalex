@@ -1816,6 +1816,185 @@ body.cmode .pharma-consulting-layer { display: block; }
 .wc-vms-rising{color:rgba(190,75,75,.7) !important}
 .wc-vms-falling{color:rgba(13,148,136,.55) !important}
 .wc-vms-new{color:rgba(170,130,40,.65) !important}
+
+/* ═══ ANALYTICS INSIGHT PANELS ═════════════════════════════════════════════ */
+.analytics-insight { margin-top: 4px; }
+/* "What matters" panel */
+.aim-panel {
+  background: #0C1A29;
+  border: 1px solid rgba(20,50,85,.4);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.aim-panel-hd {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: #2A3E52;
+  margin-bottom: 10px;
+}
+.aim-bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background .1s;
+  margin-bottom: 1px;
+}
+.aim-bullet:hover { background: rgba(255,255,255,.03); }
+.aim-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+.aim-dot-risk  { background: var(--red); }
+.aim-dot-warn  { background: var(--amber); }
+.aim-dot-info  { background: var(--teal); }
+.aim-dot-ok    { background: var(--green); }
+.aim-text { font-size: 12px; color: #6A8A9C; line-height: 1.5; }
+.aim-text b { color: #A8C0CC; font-weight: 600; }
+
+/* Two-column: source relevance + risk rank */
+.ai-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media(max-width:680px){ .ai-two-col { grid-template-columns: 1fr; } }
+.ai-col-block {
+  background: #0C1A29;
+  border: 1px solid rgba(20,50,85,.4);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.acb-hd {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: #2A3E52;
+  margin-bottom: 10px;
+}
+/* Source rows */
+.src-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 5px;
+  border-bottom: 1px solid rgba(20,50,85,.2);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background .1s;
+  margin: 0 -5px;
+}
+.src-row:last-child { border-bottom: none; }
+.src-row:hover { background: rgba(255,255,255,.03); }
+.src-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ABBC8;
+  min-width: 84px;
+  flex-shrink: 0;
+}
+.src-desc {
+  font-size: 11px;
+  color: #3A5570;
+  line-height: 1.4;
+}
+.src-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 99px;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+.src-tag-high { background: rgba(200,40,40,.1);  color: rgba(200,85,85,.8); }
+.src-tag-med  { background: rgba(200,140,20,.08); color: rgba(185,135,40,.75); }
+.src-tag-low  { background: rgba(20,50,80,.15);   color: #2F4558; }
+/* Risk rank rows */
+.rr-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 5px;
+  border-bottom: 1px solid rgba(20,50,85,.2);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background .1s;
+  margin: 0 -5px;
+}
+.rr-row:last-child { border-bottom: none; }
+.rr-row:hover { background: rgba(255,255,255,.03); }
+.rr-num  { font-size: 11px; font-weight: 700; color: #1E3248; width: 16px; flex-shrink: 0; }
+.rr-name { font-size: 12px; font-weight: 600; color: #9ABBC8; flex: 1; min-width: 0; }
+.rr-trend { font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.rr-trend-up     { color: rgba(200,80,80,.7); }
+.rr-trend-stable { color: #2A3E52; }
+.rr-ct { font-size: 11px; color: #4A6070; font-weight: 600; flex-shrink: 0; min-width: 34px; text-align: right; }
+.rr-impact {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: .04em;
+  padding: 1px 6px;
+  border-radius: 99px;
+  flex-shrink: 0;
+}
+.rr-impact-high { background: rgba(200,40,40,.1);  color: rgba(200,85,85,.8); }
+.rr-impact-med  { background: rgba(200,140,20,.08); color: rgba(185,135,40,.75); }
+
+/* ═══ TREND PANEL READABILITY FIX ══════════════════════════════════════════ */
+/* Override the over-darkened values from the visual polish pass */
+.trend-rname {
+  font-size: 12px !important;
+  color: #B4CAD6 !important;
+  font-weight: 500 !important;
+}
+.trend-row-why {
+  color: #445E6E !important;
+  font-size: 10px !important;
+}
+.t-up {
+  font-size: 11px !important;
+  color: #3DB87A !important;
+  font-weight: 700 !important;
+}
+.t-dn {
+  font-size: 11px !important;
+  color: #CC5555 !important;
+  font-weight: 700 !important;
+}
+.t-flat {
+  font-size: 10px !important;
+  color: #344E60 !important;
+}
+.t-ct {
+  font-size: 11px !important;
+  color: #7A9AAA !important;
+  font-weight: 600 !important;
+}
+.trend-row {
+  padding: 6px 7px !important;
+  margin: 0 -5px !important;
+}
+.trend-row:hover { background: rgba(255,255,255,.055) !important; }
+.trend-row.tr-active { background: rgba(13,148,136,.1) !important; }
+.tph-title { font-size: 10px !important; color: #3D5268 !important; }
+.tph-icon  { color: #2A3E52 !important; }
+/* rbadge contrast improvements */
+.rbadge-H { background: rgba(200,40,40,.12) !important;  color: #D46060 !important; border: 1px solid rgba(200,40,40,.22) !important; }
+.rbadge-M { background: rgba(200,140,20,.1) !important;  color: #C8A830 !important; border: 1px solid rgba(200,140,20,.2) !important; }
+.rbadge-L { background: rgba(13,148,136,.09) !important; color: rgba(13,148,136,.75) !important; border: 1px solid rgba(13,148,136,.18) !important; }
+/* Confidence badge tweak */
+.t-conf-high   { color: rgba(13,148,136,.65) !important; }
+.t-conf-medium { color: #2F4558 !important; }
+.t-conf-low    { color: #1E3248 !important; }
 </style>
 </head>
 <body>
@@ -2070,30 +2249,33 @@ body.cmode .pharma-consulting-layer { display: block; }
     <div class="signals-list" id="overview-signals"></div>
   </div>
 
-  <!-- Charts — supporting role -->
+  <!-- Analytics — insight driven -->
   <div class="charts-sep"></div>
-  <div class="charts-hd">Signal Analytics</div>
-  <div class="chart-grid">
-    <div class="chart-card wide">
-      <div class="chart-header"><div><div class="chart-title">Signal Volume by Source</div><div class="chart-sub">405 signals &middot; 11 sources</div></div></div>
-      <div class="chart-wrap"><canvas id="chart-sources"></canvas></div>
+  <div class="analytics-insight">
+    <!-- What matters in this data -->
+    <div class="aim-panel">
+      <div class="aim-panel-hd">What matters in this data</div>
+      <div id="aim-bullets"></div>
     </div>
-    <div class="chart-card">
-      <div class="chart-header"><div class="chart-title">Sentiment Distribution</div></div>
-      <div class="chart-wrap"><canvas id="chart-sentiment"></canvas></div>
+    <!-- Source relevance + Top risk areas -->
+    <div class="ai-two-col">
+      <div class="ai-col-block">
+        <div class="acb-hd">Source signal relevance</div>
+        <div id="acb-sources"></div>
+      </div>
+      <div class="ai-col-block">
+        <div class="acb-hd">Top risk areas</div>
+        <div id="acb-risks"></div>
+      </div>
     </div>
-    <div class="chart-card">
-      <div class="chart-header"><div class="chart-title">Severity Breakdown</div></div>
-      <div class="chart-wrap"><canvas id="chart-severity"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-header"><div class="chart-title">Event Type Mix</div></div>
-      <div class="chart-wrap"><canvas id="chart-events"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-header"><div class="chart-title">Top Violation Categories</div></div>
-      <div class="chart-wrap"><canvas id="chart-categories"></canvas></div>
-    </div>
+  </div>
+  <!-- Chart canvases — hidden, kept for JS chart init compatibility -->
+  <div style="display:none;position:absolute;pointer-events:none">
+    <canvas id="chart-sources"></canvas>
+    <canvas id="chart-sentiment"></canvas>
+    <canvas id="chart-severity"></canvas>
+    <canvas id="chart-events"></canvas>
+    <canvas id="chart-categories"></canvas>
   </div>
 
 </div>
@@ -3288,6 +3470,66 @@ function renderAiInsights() {
   </div>`;
 }
 
+// ─── ANALYTICS INSIGHTS ───────────────────────────────────────────────────────
+function renderAnalyticsInsights() {
+  const aimEl = document.getElementById('aim-bullets');
+  if(aimEl) {
+    const bullets = [
+      {type:'risk', text:'<b>GMP violations</b> dominate at 26% of all citations — baseline compliance risk across every authority in scope', fn:"gotoEvidence('GMP violations','all')"},
+      {type:'warn', text:'<b>Labelling & claims</b> remain second-highest — strong commercial and regulatory overlap for all VMS brands', fn:"gotoEvidence('Labelling & claims','all')"},
+      {type:'warn', text:'<b>Data Integrity / CSV</b> signals are increasing — regulatory focus shifting toward execution quality, not just product formulation', fn:"gotoEvidence('CSV','all')"},
+      {type:'info', text:'<b>Peptide enforcement</b> trajectory mirrors 2019 SARMs crackdown — 90-day window before TGA import restrictions likely', fn:"filterByIngredient('peptide')"},
+      {type:'ok',   text:'<b>115 trials + 78 positive signals</b> available for efficacy dossiers and claim substantiation work', fn:"gotoSignalsFiltered('sent','positive')"},
+    ];
+    aimEl.innerHTML = bullets.map(b=>
+      `<div class="aim-bullet" onclick="${b.fn}">
+        <span class="aim-dot aim-dot-${b.type}"></span>
+        <span class="aim-text">${b.text}</span>
+      </div>`
+    ).join('');
+  }
+  const srcEl = document.getElementById('acb-sources');
+  if(srcEl) {
+    const sources = [
+      {name:'PubMed',    desc:'High volume research base — low direct regulatory impact',              tag:'research',    cls:'src-tag-low',  auth:'pubmed'},
+      {name:'ClinTrials',desc:'115 active trials — substantiation pipeline for future claims',          tag:'pipeline',    cls:'src-tag-low',  auth:'clinical_trials'},
+      {name:'FDA',       desc:'Lower volume, high enforcement relevance — recall and safety alert source',tag:'enforcement',cls:'src-tag-high', auth:'fda'},
+      {name:'TGA',       desc:'Moderate volume, increasing activity — Australian regulatory focal point', tag:'enforcement',cls:'src-tag-high', auth:'tga'},
+      {name:'Cochrane',  desc:'6 reviews — "inconclusive" conclusions can trigger claims challenges',     tag:'risk',        cls:'src-tag-med',  auth:'cochrane'},
+      {name:'EFSA',      desc:'Research-driven signals with indirect EU enforcement impact',              tag:'evidence',    cls:'src-tag-med',  auth:'efsa'},
+    ];
+    srcEl.innerHTML = sources.map(s=>
+      `<div class="src-row" onclick="filterByAuthority('${s.auth}')" title="Filter to ${s.name} signals">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+            <span class="src-name">${s.name}</span><span class="src-tag ${s.cls}">${s.tag}</span>
+          </div>
+          <div class="src-desc">${s.desc}</div>
+        </div>
+      </div>`
+    ).join('');
+  }
+  const rkEl = document.getElementById('acb-risks');
+  if(rkEl) {
+    const risks = [
+      {name:'GMP Violations',      ct:744, trend:'↑', impact:'high', fn:"gotoEvidence('GMP violations','all')"},
+      {name:'Labelling & Claims',  ct:462, trend:'↑', impact:'high', fn:"gotoEvidence('Labelling & claims','all')"},
+      {name:'Equipment',           ct:251, trend:'→', impact:'med',  fn:"gotoEvidence('Equipment','all')"},
+      {name:'Contamination',       ct:210, trend:'→', impact:'high', fn:"gotoEvidence('Contamination','all')"},
+      {name:'CSV / Data Integrity',ct:147, trend:'↑', impact:'med',  fn:"gotoEvidence('CSV','all')"},
+    ];
+    rkEl.innerHTML = risks.map((r,i)=>
+      `<div class="rr-row" onclick="${r.fn}">
+        <span class="rr-num">${i+1}</span>
+        <span class="rr-name">${r.name}</span>
+        <span class="rr-trend ${r.trend==='↑'?'rr-trend-up':'rr-trend-stable'}">${r.trend}</span>
+        <span class="rr-ct">${r.ct.toLocaleString()}</span>
+        <span class="rr-impact rr-impact-${r.impact}">${r.impact==='high'?'HIGH':'MED'}</span>
+      </div>`
+    ).join('');
+  }
+}
+
 // ─── WATCHLIST ────────────────────────────────────────────────────────────────
 function getWatchlist() { try{return JSON.parse(localStorage.getItem('sx_wl')||'[]')}catch(e){return []} }
 function saveWatchlist(wl) { localStorage.setItem('sx_wl',JSON.stringify(wl)); _syncWlBtn(); }
@@ -3534,6 +3776,7 @@ renderOverviewSignals();
 renderTrendPanels();
 renderAiInsights();
 renderVmsWhatChanged();
+renderAnalyticsInsights();
 _syncWlBtn();
 _syncSidebarStates();
 _syncKpiCards();
