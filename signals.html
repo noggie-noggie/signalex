@@ -1817,6 +1817,63 @@ body.cmode .pharma-consulting-layer { display: block; }
 .wc-vms-falling{color:rgba(13,148,136,.55) !important}
 .wc-vms-new{color:rgba(170,130,40,.65) !important}
 
+/* ═══ PHARMA TAB ENHANCEMENTS ════════════════════════════════════════════════ */
+/* Intelligence card expand animation — override display:none with max-height */
+.icard-detail {
+  display: block !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-top-width: 0px !important;
+  transition: max-height .3s ease, padding .28s ease, border-top-width .28s ease !important;
+}
+.icard.expanded .icard-detail {
+  max-height: 900px !important;
+  padding-top: 12px !important;
+  padding-bottom: 14px !important;
+  border-top-width: 1px !important;
+}
+/* Consultant mode show/hide */
+.cmode-only { display: none !important; }
+body.cmode .cmode-only { display: block !important; }
+/* KPI active state */
+.kpi-card.pk-active { box-shadow: 0 0 0 2px rgba(13,148,136,.55) !important; border-color: rgba(13,148,136,.4) !important; }
+/* Pharma insight row — pointer cursor (already hover bg exists) */
+.pharma-insight-row { cursor: pointer !important; }
+/* Citations table row hover */
+.cit-table tbody tr { cursor: pointer; transition: background .1s; }
+.cit-table tbody tr:hover td { background: rgba(255,255,255,.022); }
+/* Active filter chip in overview */
+.pharma-chip-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; min-height: 0; }
+.pharma-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 10px; border-radius: 99px; background: rgba(13,148,136,.1); border: 1px solid rgba(13,148,136,.25); color: rgba(13,148,136,.85); font-size: 11px; font-weight: 500; }
+.pharma-chip-x { cursor: pointer; color: rgba(13,148,136,.5); font-size: 11px; padding: 0 2px; background: none; border: none; transition: color .1s; }
+.pharma-chip-x:hover { color: var(--teal); }
+/* Enforcement grouped sections */
+.enf-group { border: 1px solid rgba(20,50,85,.4); border-radius: 7px; margin-bottom: 6px; overflow: hidden; }
+.enf-group-hd { display: flex; align-items: center; gap: 10px; padding: 9px 13px; background: rgba(255,255,255,.015); cursor: pointer; user-select: none; list-style: none; transition: background .12s; }
+.enf-group-hd:hover { background: rgba(255,255,255,.035); }
+.enf-group-hd::-webkit-details-marker { display: none; }
+.enf-group-name { font-size: 12px; font-weight: 600; color: #9ABBC8; flex: 1; min-width: 0; }
+.enf-group-ct { font-size: 10px; color: #2A3E52; background: rgba(20,50,85,.25); padding: 1px 7px; border-radius: 99px; flex-shrink: 0; }
+.enf-group-trend { font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.enf-group-trend-up     { color: rgba(200,80,80,.65); }
+.enf-group-trend-stable { color: #2A3E52; }
+.enf-group-arrow { font-size: 10px; color: #1E3248; transition: transform .22s; flex-shrink: 0; }
+details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
+.enf-group-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; border-top: 1px solid rgba(20,50,85,.25); }
+.enf-view-all-btn { font-size: 11px; color: #2A3E52; background: none; border: 1px solid rgba(20,50,85,.3); border-radius: 4px; padding: 4px 10px; cursor: pointer; transition: all .12s; align-self: flex-start; margin-top: 2px; }
+.enf-view-all-btn:hover { border-color: rgba(13,148,136,.25); color: rgba(13,148,136,.7); }
+/* Enhanced facility cards */
+.facility-cats  { font-size: 10px; color: #2A3E52; margin-top: 4px; line-height: 1.45; }
+.facility-cos   { font-size: 10px; color: #3A5070; margin-top: 3px; font-style: italic; }
+/* Auth bar hover */
+.enf-row { cursor: pointer; border-radius: 4px; transition: background .1s; }
+.enf-row:hover { background: rgba(255,255,255,.03); }
+/* Overview feed view-all link */
+.ov-feed-view-all { display: inline-block; font-size: 11px; color: rgba(13,148,136,.7); margin-top: 8px; cursor: pointer; padding: 3px 0; border: none; background: none; }
+.ov-feed-view-all:hover { color: var(--teal); }
+
 /* ═══ ANALYTICS INSIGHT PANELS ═════════════════════════════════════════════ */
 .analytics-insight { margin-top: 4px; }
 /* "What matters" panel */
@@ -2435,27 +2492,27 @@ body.cmode .pharma-consulting-layer { display: block; }
 <div class="pharma-page p-active" id="pharma-page-overview">
 
   <div class="pharma-kpi-grid">
-    <div class="kpi-card danger" id="pk-high" onclick="pFilterBySev('high');showPTab('pharma-citations')">
+    <div class="kpi-card danger" id="pk-high" onclick="pKpiClick('pk-high','sev','high')" title="Filter to high severity enforcement actions">
       <div class="kpi-label">High Severity</div><div class="kpi-val text-red">13</div>
       <div class="kpi-sub">Enforcement actions</div>
     </div>
-    <div class="kpi-card warning" id="pk-wl" onclick="pFilterBySrc('warning_letter');showPTab('pharma-citations')">
+    <div class="kpi-card warning" id="pk-wl" onclick="pKpiClick('pk-wl','srctype','warning_letter')" title="Filter to warning letters">
       <div class="kpi-label">Warning Letters</div><div class="kpi-val text-amber">109</div>
       <div class="kpi-sub">FDA · TGA · MHRA</div>
     </div>
-    <div class="kpi-card warning" id="pk-483" onclick="pFilterBySrc('inspection_finding');showPTab('pharma-citations')">
+    <div class="kpi-card warning" id="pk-483" onclick="pKpiClick('pk-483','srctype','inspection_finding')" title="Filter to 483 inspection findings">
       <div class="kpi-label">483 Observations</div><div class="kpi-val text-amber">62</div>
       <div class="kpi-sub">EFSA + FDA findings</div>
     </div>
-    <div class="kpi-card info" id="pk-total" onclick="resetPharmaFilters()">
+    <div class="kpi-card info" id="pk-total" onclick="pKpiClick('pk-total',null,null)" title="Show all citations">
       <div class="kpi-label">Total Citations</div><div class="kpi-val text-teal">300</div>
       <div class="kpi-sub">5 authorities tracked</div>
     </div>
-    <div class="kpi-card warning" id="pk-diCapa" onclick="showPTab('pharma-intelligence')" title="View data integrity and CAPA intelligence">
+    <div class="kpi-card warning" id="pk-diCapa" onclick="pKpiClick('pk-diCapa','dicapa',true)" title="Filter to DI, CAPA, CSV, deviation categories">
       <div class="kpi-label">DI &amp; CAPA Signals</div><div class="kpi-val text-amber">—</div>
       <div class="kpi-sub">CSV · deviation · audit trail</div>
     </div>
-    <div class="kpi-card good" id="pk-tga" onclick="pFilterByAuth('TGA');showPTab('pharma-citations')">
+    <div class="kpi-card good" id="pk-tga" onclick="pKpiClick('pk-tga','auth','TGA')" title="Filter to TGA enforcement actions">
       <div class="kpi-label">TGA Actions</div><div class="kpi-val text-green">10</div>
       <div class="kpi-sub">AU regulatory enforcement</div>
     </div>
@@ -2508,6 +2565,7 @@ body.cmode .pharma-consulting-layer { display: block; }
 
   <div class="pharma-section">
     <div class="pharma-section-hd">Recent Enforcement Actions <span id="pharma-ov-count"></span></div>
+    <div id="pharma-ov-chip-bar" class="pharma-chip-bar"></div>
     <div id="pharma-ov-feed"></div>
   </div>
 
@@ -2558,6 +2616,11 @@ body.cmode .pharma-consulting-layer { display: block; }
   <div class="pharma-section">
     <div class="pharma-section-hd">By Source Type</div>
     <div id="enf-srctype-rows"></div>
+  </div>
+
+  <div class="pharma-section">
+    <div class="pharma-section-hd">Actions by Category</div>
+    <div id="enf-grouped-feed"></div>
   </div>
 
 </div><!-- /pharma-enforcement -->
@@ -4045,11 +4108,13 @@ let intelFilters = { priority:'all', trend:'all', confidence:'all', impact:'all'
 let intelExpanded = new Set();
 
 // ── Pharma filter state ──────────────────────────────────────────────
-let pF = { auth:'all', factype:'all', srctype:'all', sev:'all', company:'', query:'', dateFrom:'', dateTo:'' };
+let pF = { auth:'all', factype:'all', srctype:'all', sev:'all', company:'', query:'', dateFrom:'', dateTo:'', dicapa:false };
+let pActiveKpi = null;
 let citSortState = { col:'date', dir:-1 };
 let citPg = 1;
 const CIT_PP = 25;
 let pCatFilter = null;
+const DI_CAPA_KWS = ['computerised systems validation','data integrity','deviation management','audit trail','capa','csv'];
 
 function filteredCits() {
   return CITATIONS.filter(c => {
@@ -4058,6 +4123,10 @@ function filteredCits() {
     if (pF.srctype !== 'all' && (c.source_type||'') !== pF.srctype) return false;
     if (pF.sev !== 'all' && (c.severity||'').toLowerCase() !== pF.sev) return false;
     if (pCatFilter && (c.category||'Other') !== pCatFilter) return false;
+    if (pF.dicapa) {
+      const hay = [(c.category||''),(c.summary||''),(c.violation_details||'')].join(' ').toLowerCase();
+      if (!DI_CAPA_KWS.some(kw => hay.includes(kw))) return false;
+    }
     if (pF.company) {
       const q=pF.company.toLowerCase();
       if (!((c.company||'').toLowerCase().includes(q)||(c.facility_type||'').toLowerCase().includes(q))) return false;
@@ -4077,10 +4146,32 @@ function filteredCits() {
 }
 
 function resetPharmaFilters() {
-  pF={auth:'all',factype:'all',srctype:'all',sev:'all',company:'',query:'',dateFrom:'',dateTo:''};
+  pF={auth:'all',factype:'all',srctype:'all',sev:'all',company:'',query:'',dateFrom:'',dateTo:'',dicapa:false};
   pCatFilter=null;
   ['cit-search','p-company'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  _setPActiveKpi(null);
   syncPFPills(); renderPAll();
+}
+function _setPActiveKpi(id) {
+  if(pActiveKpi) { const prev=document.getElementById(pActiveKpi); if(prev) prev.classList.remove('pk-active'); }
+  pActiveKpi=id;
+  if(id) { const el=document.getElementById(id); if(el) el.classList.add('pk-active'); }
+}
+function pKpiClick(kpiId, dim, val) {
+  pCatFilter=null;
+  const toggling = pActiveKpi===kpiId;
+  pF={auth:'all',factype:'all',srctype:'all',sev:'all',company:'',query:'',dateFrom:'',dateTo:'',dicapa:false};
+  if(!toggling) {
+    if(dim==='dicapa') pF.dicapa=true;
+    else if(dim) pF[dim]=val;
+    _setPActiveKpi(kpiId);
+  } else {
+    _setPActiveKpi(null);
+  }
+  syncPFPills();
+  renderPharmaOverview();
+  const feed=document.getElementById('pharma-ov-feed');
+  if(feed) feed.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function syncPFPills() {
   document.querySelectorAll('.pf-pill[data-pf]').forEach(el=>{
@@ -4100,7 +4191,17 @@ function pFilterByAuth(v)    { pF.auth=v;    syncPFPills(); renderPAll(); }
 function pFilterByFacType(v) { pF.factype=v; syncPFPills(); renderPAll(); }
 function pFilterByCat(cat) {
   pCatFilter = pCatFilter===cat ? null : cat;
-  syncPFPills(); renderPAll(); showPTab('pharma-citations');
+  syncPFPills();
+  const activeTab = document.querySelector('#pharma-nav .nav-tab.active');
+  const tab = activeTab ? activeTab.dataset.ptab : 'pharma-overview';
+  if(tab==='pharma-overview') {
+    renderPharmaOverview();
+    const feed=document.getElementById('pharma-ov-feed');
+    if(feed) feed.scrollIntoView({behavior:'smooth',block:'start'});
+  } else {
+    renderPAll();
+    showPTab('pharma-citations');
+  }
 }
 function sortCit(col) {
   if (citSortState.col===col) citSortState.dir=-citSortState.dir;
@@ -4117,7 +4218,7 @@ function showPTab(tab) {
     p.classList.toggle('p-active',on);
     p.style.display = on ? 'block' : 'none';
   });
-  if(tab==='pharma-overview'){ resetPharmaFilters(); renderPharmaInsights(); }
+  if(tab==='pharma-overview'){ renderPharmaOverview(); renderPharmaInsights(); }
   else if(tab==='pharma-citations') renderCitations();
   else if(tab==='pharma-enforcement') renderEnfPage();
   else if(tab==='pharma-facilities') renderFacilities();
@@ -4131,23 +4232,43 @@ function renderPharmaOverview() {
   renderAuthBars('pharma-auth-bars');
   renderWhatChanged();
   const data=filteredCits();
+  const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.sev!=='all' || pF.dicapa;
   const oc=document.getElementById('pharma-ov-count'); if(oc) oc.textContent=`${data.length} total`;
+  // Chip bar
+  const cb=document.getElementById('pharma-ov-chip-bar');
+  if(cb) {
+    const chips=[];
+    if(pF.sev!=='all') chips.push({label:`Severity: ${pF.sev}`,fn:`pF.sev='all';_setPActiveKpi(null);syncPFPills();renderPharmaOverview()`});
+    if(pF.srctype!=='all') chips.push({label:`Type: ${pF.srctype.replace(/_/g,' ')}`,fn:`pF.srctype='all';_setPActiveKpi(null);syncPFPills();renderPharmaOverview()`});
+    if(pF.auth!=='all') chips.push({label:`Authority: ${pF.auth}`,fn:`pF.auth='all';_setPActiveKpi(null);syncPFPills();renderPharmaOverview()`});
+    if(pF.dicapa) chips.push({label:'DI / CAPA / CSV',fn:`pF.dicapa=false;_setPActiveKpi(null);syncPFPills();renderPharmaOverview()`});
+    if(pCatFilter) chips.push({label:`Category: ${pCatFilter}`,fn:`pCatFilter=null;renderPharmaOverview()`});
+    cb.innerHTML=chips.map(ch=>
+      `<span class="pharma-chip">${ch.label}<button class="pharma-chip-x" onclick="${ch.fn}">&#10005;</button></span>`
+    ).join('');
+  }
   const el=document.getElementById('pharma-ov-feed'); if(!el) return;
-  const feed=data.slice(0,8);
-  el.innerHTML=feed.length?feed.map(c=>citCard(c)).join('')
+  const limit = isFiltered ? 15 : 8;
+  const feed=data.slice(0,limit);
+  const viewAllBtn = data.length>limit
+    ? `<button class="ov-feed-view-all" onclick="showPTab('pharma-citations')">View all ${data.length} citations &rarr;</button>`
+    : '';
+  el.innerHTML=feed.length
+    ? feed.map(c=>citCard(c)).join('')+viewAllBtn
     :'<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No citations match filters</div></div>';
-  // Update KPI cards with live data
-  const high=data.filter(c=>c.severity==='high').length;
-  const wl=data.filter(c=>c.source_type==='warning_letter').length;
-  const insp=data.filter(c=>c.source_type==='inspection_finding').length;
-  const diCapa=data.filter(c=>c.category==='Computerised systems validation'||c.category==='Deviation management').length;
-  const tga=data.filter(c=>c.authority==='TGA').length;
+  // Update KPI cards with live data (always use all CITATIONS for totals, not filtered)
+  const all=CITATIONS;
+  const high=all.filter(c=>c.severity==='high').length;
+  const wl=all.filter(c=>c.source_type==='warning_letter').length;
+  const insp=all.filter(c=>c.source_type==='inspection_finding').length;
+  const diCapaAll=all.filter(c=>{const h=[(c.category||''),(c.summary||''),(c.violation_details||'')].join(' ').toLowerCase();return DI_CAPA_KWS.some(kw=>h.includes(kw));}).length;
+  const tga=all.filter(c=>c.authority==='TGA').length;
   const _setKpi=(id,val)=>{const e=document.getElementById(id);if(e){const v=e.querySelector('.kpi-val');if(v){v.textContent=val;v.classList.add('kpi-updated');setTimeout(()=>v.classList.remove('kpi-updated'),600);}}};
   _setKpi('pk-high', high);
   _setKpi('pk-wl', wl);
   _setKpi('pk-483', insp);
-  _setKpi('pk-total', data.length);
-  _setKpi('pk-diCapa', diCapa);
+  _setKpi('pk-total', all.length);
+  _setKpi('pk-diCapa', diCapaAll);
   _setKpi('pk-tga', tga);
 }
 
@@ -4182,16 +4303,24 @@ function renderCatGrid(gridId, countId) {
 
 function renderAuthBars(elId) {
   const data=filteredCits();
-  const ac={};
-  data.forEach(c=>{ac[c.authority]=(ac[c.authority]||0)+1;});
+  const ac={}, catByAuth={};
+  data.forEach(c=>{
+    ac[c.authority]=(ac[c.authority]||0)+1;
+    if(!catByAuth[c.authority]) catByAuth[c.authority]={};
+    const k=c.category||'Other';
+    catByAuth[c.authority][k]=(catByAuth[c.authority][k]||0)+1;
+  });
   const mx=Math.max(...Object.values(ac),1);
   const el=document.getElementById(elId); if(!el) return;
-  el.innerHTML=Object.entries(ac).sort((a,b)=>b[1]-a[1]).map(([auth,ct])=>
-    `<div class="enf-row" onclick="pFilterByAuth('${auth}');showPTab('pharma-citations')">
+  el.innerHTML=Object.entries(ac).sort((a,b)=>b[1]-a[1]).map(([auth,ct])=>{
+    const topCats=Object.entries(catByAuth[auth]||{}).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>`${k} (${v})`).join(', ');
+    const tip=`${auth}: ${ct} citations. Top categories: ${topCats}`;
+    return `<div class="enf-row" onclick="pFilterByAuth('${auth}');showPTab('pharma-citations')" title="${tip}">
       <span class="enf-name">${auth}</span>
       <div class="enf-bar-wrap"><div class="enf-bar-fill" style="width:${Math.round(ct/mx*100)}%"></div></div>
       <span class="enf-ct">${ct}</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 // ── Citation card ────────────────────────────────────────────────────
@@ -4226,9 +4355,17 @@ function renderCitations() {
   const slice=data.slice((citPg-1)*CIT_PP,citPg*CIT_PP);
   const tb=document.getElementById('cit-tbody'); if(!tb) return;
   const cc=document.getElementById('cit-count'); if(cc) cc.textContent=`${data.length} citations`;
+  if(!slice.length) {
+    tb.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:24px 0;color:#2A3E52;font-size:12px">
+      <div style="font-size:22px;margin-bottom:6px">&#128270;</div>No citations match the current filters.
+      <button class="btn-secondary" style="display:block;margin:10px auto 0" onclick="resetPharmaFilters()">Clear filters</button>
+    </td></tr>`;
+    document.getElementById('cit-pagination').innerHTML='';
+    return;
+  }
   tb.innerHTML=slice.map(c=>{
     const st=(c.source_type||'').replace(/_/g,' ');
-    return `<tr>
+    return `<tr onclick="pFilterByCat('${(c.category||'Other').replace(/'/g,"\\'")}')" title="Filter by ${c.category||'this category'}">
       <td><span class="badge badge-authority">${c.authority||'—'}</span></td>
       <td><span class="badge badge-type" style="white-space:nowrap">${st}</span></td>
       <td style="color:#3D5268;font-size:10px;min-width:90px">${c.facility_type||'—'}</td>
@@ -4236,7 +4373,7 @@ function renderCitations() {
       <td>${sevBadge(c.severity||'medium')}</td>
       <td style="white-space:nowrap;font-size:10px;color:#3D5268">${c.date?c.date.slice(0,10):'—'}</td>
       <td style="max-width:280px;font-size:11px;color:#7A92A8">${(c.summary||'—').slice(0,100)}</td>
-      <td>${c.url?`<a class="cit-link" href="${c.url}" target="_blank">&#8599;</a>`:'—'}</td>
+      <td>${c.url?`<a class="cit-link" href="${c.url}" target="_blank" onclick="event.stopPropagation()">&#8599;</a>`:'—'}</td>
     </tr>`;
   }).join('');
   const pg=document.getElementById('cit-pagination'); if(!pg) return; pg.innerHTML='';
@@ -4266,6 +4403,42 @@ function renderEnfPage() {
       <div class="enf-bar-wrap"><div class="enf-bar-fill" style="width:${Math.round(ct/mx*100)}%"></div></div>
       <span class="enf-ct">${ct}</span>
     </div>`).join('');
+  renderGroupedEnforcement('enf-grouped-feed');
+}
+
+function renderGroupedEnforcement(elId) {
+  const el=document.getElementById(elId); if(!el) return;
+  const data=filteredCits();
+  const recent=CITATIONS.filter(c=>c.date&&c.date>='2025-07-01');
+  const prior=CITATIONS.filter(c=>c.date&&c.date>='2025-01-01'&&c.date<'2025-07-01');
+  const catR={},catP={};
+  recent.forEach(c=>{const k=c.category||'Other';catR[k]=(catR[k]||0)+1;});
+  prior.forEach(c=>{const k=c.category||'Other';catP[k]=(catP[k]||0)+1;});
+  const groups={};
+  data.forEach(c=>{const k=c.category||'Other';if(!groups[k])groups[k]=[];groups[k].push(c);});
+  const sorted=Object.entries(groups).sort((a,b)=>b[1].length-a[1].length);
+  if(!sorted.length){el.innerHTML='<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No enforcement actions match filters</div></div>';return;}
+  el.innerHTML=sorted.map(([cat,items])=>{
+    const rCt=catR[cat]||0, pCt=catP[cat]||0;
+    const trending = rCt>pCt*1.1 ? 'up' : 'stable';
+    const trendHtml = trending==='up'
+      ? `<span class="enf-group-trend-up">&#9650; ${rCt>0?'+'+Math.round((rCt-pCt)/Math.max(pCt,1)*100)+'%':''}</span>`
+      : `<span class="enf-group-trend-stable">&#9472;</span>`;
+    const topItems=items.slice(0,4);
+    const safe=cat.replace(/'/g,"\\'");
+    return `<details class="enf-group">
+      <summary class="enf-group-hd">
+        <span class="enf-group-name">${cat}</span>
+        <span class="enf-group-ct">${items.length}</span>
+        ${trendHtml}
+        <span class="enf-group-arrow">&#9660;</span>
+      </summary>
+      <div class="enf-group-body">
+        ${topItems.map(c=>citCard(c)).join('')}
+        ${items.length>4?`<button class="enf-view-all-btn" onclick="pFilterByCat('${safe}');showPTab('pharma-citations')">View all ${items.length} &rarr;</button>`:''}
+      </div>
+    </details>`;
+  }).join('');
 }
 
 // ── Facilities ───────────────────────────────────────────────────────
@@ -4275,10 +4448,13 @@ function renderFacilities() {
   const map={};
   data.forEach(c=>{
     const ft=c.facility_type||'Unknown';
-    if(!map[ft])map[ft]={name:ft,total:0,high:0,auths:new Set()};
+    if(!map[ft])map[ft]={name:ft,total:0,high:0,auths:new Set(),cats:{},cos:new Set()};
     map[ft].total++;
     if(c.severity==='high')map[ft].high++;
     map[ft].auths.add(c.authority);
+    const k=c.category||'Other';
+    map[ft].cats[k]=(map[ft].cats[k]||0)+1;
+    if(c.company)map[ft].cos.add(c.company);
   });
   let items=Object.values(map).sort((a,b)=>b.total-a.total);
   if(q)items=items.filter(i=>i.name.toLowerCase().includes(q));
@@ -4286,6 +4462,8 @@ function renderFacilities() {
   const el=document.getElementById('facility-grid'); if(!el)return;
   el.innerHTML=items.length?items.map(f=>{
     const safe=f.name.replace(/'/g,"\\'");
+    const topCats=Object.entries(f.cats).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
+    const exCos=[...f.cos].slice(0,3).join(', ');
     return `<div class="facility-card" onclick="pFilterByFacType('${safe}');showPTab('pharma-citations')">
       <div class="facility-name">${f.name}</div>
       <div class="facility-type-label">${[...f.auths].join(' · ')}</div>
@@ -4293,6 +4471,8 @@ function renderFacilities() {
         <span class="facility-stat">${f.total} citations</span>
         ${f.high?`<span class="facility-stat fsr">${f.high} high sev</span>`:''}
       </div>
+      ${topCats?`<div class="facility-cats">Top: ${topCats}</div>`:''}
+      ${exCos?`<div class="facility-cos">${exCos}</div>`:''}
     </div>`;
   }).join(''):'<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No facilities match</div></div>';
 }
@@ -4329,12 +4509,20 @@ function renderPharmaInsights() {
      text:`${tgaCt} TGA enforcement actions — lower than FDA but trend increasing. Proactive self-audit against AU GMP Code Part 3 recommended for AU-registered products.`},
   ];
   const el=document.getElementById('pharma-ai-body'); if(!el)return;
-  el.innerHTML=insights.map(i=>
-    `<div class="pharma-insight-row">
+  el.innerHTML=insights.map((i,idx)=>{
+    const actions=[
+      `pF.srctype='warning_letter';syncPFPills();renderPharmaOverview();document.getElementById('pharma-ov-feed').scrollIntoView({behavior:'smooth',block:'start'})`,
+      `pF.srctype='inspection_finding';syncPFPills();renderPharmaOverview();document.getElementById('pharma-ov-feed').scrollIntoView({behavior:'smooth',block:'start'})`,
+      `pF.srctype='import_alert';syncPFPills();renderPharmaOverview();document.getElementById('pharma-ov-feed').scrollIntoView({behavior:'smooth',block:'start'})`,
+      `pF.factype='Supplement / Nutraceutical';syncPFPills();renderPharmaOverview();document.getElementById('pharma-ov-feed').scrollIntoView({behavior:'smooth',block:'start'})`,
+      `pF.auth='TGA';syncPFPills();renderPharmaOverview();document.getElementById('pharma-ov-feed').scrollIntoView({behavior:'smooth',block:'start'})`,
+    ];
+    return `<div class="pharma-insight-row" onclick="${actions[idx]}" title="Click to filter">
       <div class="pharma-insight-dot" style="background:${i.col}"></div>
       <span class="pharma-insight-label" style="color:${i.col}">${i.label}:</span>
       <span class="pharma-insight-text">${i.text}</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   // Consultant mode overlay — top category interpretation
   const topCat=Object.entries(
     data.reduce((m,c)=>{const k=c.category||'Other';m[k]=(m[k]||0)+1;return m},{})
@@ -4496,12 +4684,12 @@ function renderIntelligencePage() {
               <div class="icard-detail-lbl">Recommended action</div>
               <div class="icard-detail-action">${item.recommendedAction}</div>
             </div>
-            <div class="icard-detail-row">
+            <div class="icard-detail-row cmode-only">
               <div class="icard-detail-lbl">Likely client conversation</div>
               <div class="icard-detail-client">${item.likelyClientConversation}</div>
             </div>
             <div class="icard-detail-footer">
-              <div class="icard-detail-opp">Commercial opportunity: ${item.commercialOpportunity}</div>
+              <div class="icard-detail-opp cmode-only">Commercial opportunity: ${item.commercialOpportunity}</div>
               <div class="icard-detail-evid">Evidence: ${item.evidenceSummary}</div>
             </div>
           </div>
