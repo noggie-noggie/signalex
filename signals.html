@@ -2052,6 +2052,47 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
 .t-conf-high   { color: rgba(13,148,136,.65) !important; }
 .t-conf-medium { color: #2F4558 !important; }
 .t-conf-low    { color: #1E3248 !important; }
+
+/* ═══ INSIGHT STRIPS (Citations / Enforcement / Facilities) ══════════════ */
+.insight-strip { background: #0B1825; border: 1px solid rgba(20,50,85,.5); border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; }
+.insight-strip-hd { font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #1E3650; margin-bottom: 9px; }
+.insight-strip-bullets { display: flex; flex-direction: column; gap: 5px; }
+.isb { display: flex; align-items: baseline; gap: 8px; }
+.isb-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; background: rgba(13,148,136,.5); margin-top: 5px; }
+.isb-dot-red  { background: rgba(200,60,60,.6); }
+.isb-dot-amber{ background: rgba(200,140,20,.55); }
+.isb-dot-teal { background: rgba(13,148,136,.5); }
+.isb-text { font-size: 12px; color: #7A9AAA; line-height: 1.5; }
+.isb-text b { color: #AABFCC; font-weight: 600; }
+/* Action line inside enforcement grouped sections */
+.enf-cat-action { font-size: 11px; color: rgba(13,148,136,.7); padding: 6px 10px 2px; margin: 0 -10px; border-top: 1px solid rgba(20,50,85,.25); }
+.enf-cat-action b { font-weight: 600; }
+/* Facility risk card layout */
+.fac-risk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.fac-risk-card { background: #0B1825; border: 1px solid rgba(20,50,85,.5); border-radius: 8px; padding: 13px 15px; }
+.fac-risk-name { font-size: 12px; font-weight: 700; color: #9ABBC8; margin-bottom: 6px; }
+.fac-risk-row { display: flex; gap: 6px; margin-bottom: 4px; align-items: flex-start; }
+.fac-risk-lbl { font-size: 9px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #1E3650; flex-shrink: 0; min-width: 68px; padding-top: 2px; }
+.fac-risk-val { font-size: 11px; color: #5A7A8A; line-height: 1.4; }
+.fac-risk-action { font-size: 11px; color: rgba(13,148,136,.7); margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(20,50,85,.3); line-height: 1.45; }
+/* Alert card compact */
+.alert-card { background: #0E1D2E; border: 1px solid rgba(20,50,85,.6); border-left: 3px solid rgba(200,60,60,.4); border-radius: 6px; padding: 10px 13px; margin-bottom: 6px; }
+.alert-card.ac-high { border-left-color: #C84040; }
+.alert-card.ac-medium { border-left-color: rgba(200,130,20,.5); }
+.alert-card-title { font-size: 12px; font-weight: 600; color: #B8C8D4; line-height: 1.4; margin-bottom: 5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.alert-card-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; align-items: center; }
+.alert-card-action { font-size: 11px; color: rgba(13,148,136,.65); line-height: 1.4; padding-top: 6px; border-top: 1px solid rgba(20,50,85,.3); }
+.alert-card-action b { font-weight: 600; color: rgba(13,148,136,.8); }
+.alert-card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 5px; }
+.alert-card-date { font-size: 10px; color: #2A3E52; }
+/* Enforcement trend label */
+.enf-trend-new    { font-size: 10px; font-weight: 700; color: rgba(200,80,60,.7); background: rgba(200,60,60,.07); border-radius: 3px; padding: 1px 5px; }
+.enf-trend-up     { font-size: 10px; font-weight: 700; color: rgba(200,130,20,.7); background: rgba(200,130,20,.06); border-radius: 3px; padding: 1px 5px; }
+.enf-trend-stable { font-size: 10px; color: #2A3E52; }
+.enf-trend-down   { font-size: 10px; color: #2A3E52; }
+/* KPI card pointer cursor */
+.kpi-card { cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.kpi-card:hover { box-shadow: 0 0 0 1px rgba(13,148,136,.25); }
 </style>
 </head>
 <body>
@@ -2573,6 +2614,7 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
 
 <!-- ── PHARMA CITATIONS ────────────────────────────────────── -->
 <div class="pharma-page" id="pharma-page-citations">
+  <div id="cit-insight-strip"></div>
   <div class="pharma-controls">
     <div class="pharma-search">
       <span class="si">&#128269;</span>
@@ -2603,6 +2645,8 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
 <!-- ── PHARMA ENFORCEMENT ─────────────────────────────────── -->
 <div class="pharma-page" id="pharma-page-enforcement">
 
+  <div id="enf-insight-strip"></div>
+
   <div class="pharma-section">
     <div class="pharma-section-hd">Enforcement by Authority</div>
     <div id="enf-auth-rows"></div>
@@ -2627,7 +2671,8 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
 
 <!-- ── PHARMA FACILITIES ──────────────────────────────────── -->
 <div class="pharma-page" id="pharma-page-facilities">
-  <div class="pharma-controls">
+  <div id="fac-risk-strip"></div>
+  <div class="pharma-controls" style="margin-top:14px">
     <div class="pharma-search">
       <span class="si">&#128269;</span>
       <input type="text" id="fac-search" placeholder="Search facility type..." autocomplete="off">
@@ -3882,7 +3927,6 @@ function toggleCMode() {
   const t = document.getElementById('cmode-toggle');
   if(t) t.classList.toggle('active', cMode);
   renderPharmaOverview();
-  renderPharmaInsights();
 }
 
 // ── Consulting intelligence data per category ────────────────────────
@@ -4218,7 +4262,7 @@ function showPTab(tab) {
     p.classList.toggle('p-active',on);
     p.style.display = on ? 'block' : 'none';
   });
-  if(tab==='pharma-overview'){ renderPharmaOverview(); renderPharmaInsights(); }
+  if(tab==='pharma-overview'){ renderPharmaOverview(); }
   else if(tab==='pharma-citations') renderCitations();
   else if(tab==='pharma-enforcement') renderEnfPage();
   else if(tab==='pharma-facilities') renderFacilities();
@@ -4231,6 +4275,7 @@ function renderPharmaOverview() {
   renderCatGrid('pharma-cat-grid','pharma-cat-count');
   renderAuthBars('pharma-auth-bars');
   renderWhatChanged();
+  renderPharmaInsights();
   const data=filteredCits();
   const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.sev!=='all' || pF.dicapa;
   const oc=document.getElementById('pharma-ov-count'); if(oc) oc.textContent=`${data.length} total`;
@@ -4256,19 +4301,18 @@ function renderPharmaOverview() {
   el.innerHTML=feed.length
     ? feed.map(c=>citCard(c)).join('')+viewAllBtn
     :'<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No citations match filters</div></div>';
-  // Update KPI cards with live data (always use all CITATIONS for totals, not filtered)
-  const all=CITATIONS;
-  const high=all.filter(c=>c.severity==='high').length;
-  const wl=all.filter(c=>c.source_type==='warning_letter').length;
-  const insp=all.filter(c=>c.source_type==='inspection_finding').length;
-  const diCapaAll=all.filter(c=>{const h=[(c.category||''),(c.summary||''),(c.violation_details||'')].join(' ').toLowerCase();return DI_CAPA_KWS.some(kw=>h.includes(kw));}).length;
-  const tga=all.filter(c=>c.authority==='TGA').length;
+  // KPI counts use same filtered dataset as overview feed — consistent with summary text
+  const high=data.filter(c=>c.severity==='high').length;
+  const wl=data.filter(c=>c.source_type==='warning_letter').length;
+  const insp=data.filter(c=>c.source_type==='inspection_finding').length;
+  const diCapaFilt=data.filter(c=>{const h=[(c.category||''),(c.summary||''),(c.violation_details||'')].join(' ').toLowerCase();return DI_CAPA_KWS.some(kw=>h.includes(kw));}).length;
+  const tga=data.filter(c=>c.authority==='TGA').length;
   const _setKpi=(id,val)=>{const e=document.getElementById(id);if(e){const v=e.querySelector('.kpi-val');if(v){v.textContent=val;v.classList.add('kpi-updated');setTimeout(()=>v.classList.remove('kpi-updated'),600);}}};
   _setKpi('pk-high', high);
   _setKpi('pk-wl', wl);
   _setKpi('pk-483', insp);
-  _setKpi('pk-total', all.length);
-  _setKpi('pk-diCapa', diCapaAll);
+  _setKpi('pk-total', data.length);
+  _setKpi('pk-diCapa', diCapaFilt);
   _setKpi('pk-tga', tga);
 }
 
@@ -4347,8 +4391,35 @@ function citCard(c) {
   </div>`;
 }
 
+// ── Citations insight strip ──────────────────────────────────────────
+function renderCitationsInsightStrip() {
+  const el=document.getElementById('cit-insight-strip'); if(!el) return;
+  const data=filteredCits();
+  if(!data.length){el.innerHTML='';return;}
+  const catCounts={},authCounts={},srcCounts={};
+  data.forEach(c=>{
+    const k=c.category||'Other'; catCounts[k]=(catCounts[k]||0)+1;
+    authCounts[c.authority]=(authCounts[c.authority]||0)+1;
+    const s=(c.source_type||'other').replace(/_/g,' '); srcCounts[s]=(srcCounts[s]||0)+1;
+  });
+  const topCat=Object.entries(catCounts).sort((a,b)=>b[1]-a[1])[0];
+  const topAuth=Object.entries(authCounts).sort((a,b)=>b[1]-a[1])[0];
+  const topSrc=Object.entries(srcCounts).sort((a,b)=>b[1]-a[1])[0];
+  const high=data.filter(c=>c.severity==='high').length;
+  const action=topCat&&CAT_INTEL[topCat[0]]?CAT_INTEL[topCat[0]].action:'Review enforcement actions relevant to your site profile.';
+  el.innerHTML=`<div class="insight-strip">
+    <div class="insight-strip-hd">What this table shows</div>
+    <div class="insight-strip-bullets">
+      <div class="isb"><div class="isb-dot${high>0?' isb-dot-red':''}"></div><div class="isb-text"><b>${data.length} citation${data.length!==1?'s':''}</b> match current filters${high>0?` — <b>${high} high severity</b>`:''}.${data.length===CITATIONS.length?' Full dataset — use sidebar or KPI cards to filter.':''}</div></div>
+      ${topCat?`<div class="isb"><div class="isb-dot isb-dot-amber"></div><div class="isb-text"><b>${topCat[0]}</b> is the dominant category (${topCat[1]} citations). ${action}</div></div>`:''}
+      ${topAuth?`<div class="isb"><div class="isb-dot"></div><div class="isb-text"><b>${topAuth[0]}</b> leads by authority (${topAuth[1]} actions). Primary source type: <b>${topSrc?topSrc[0]:'—'}</b>.</div></div>`:''}
+    </div>
+  </div>`;
+}
+
 // ── Citations table ──────────────────────────────────────────────────
 function renderCitations() {
+  renderCitationsInsightStrip();
   const data=filteredCits();
   const pages=Math.ceil(data.length/CIT_PP);
   citPg=Math.min(citPg,pages||1);
@@ -4388,8 +4459,47 @@ function renderCitations() {
   }
 }
 
+// ── Trend movement label (avoids silly percentages on low counts) ────
+function formatTrendMovement(cur, prev) {
+  if(cur===0 && prev===0) return '';
+  if(prev===0 && cur>0) return `<span class="enf-trend-new">new this period</span>`;
+  if(cur===0) return `<span class="enf-trend-down">no recent activity</span>`;
+  const diff=cur-prev;
+  if(Math.abs(diff)<=2) return `<span class="enf-trend-stable">stable</span>`;
+  if(diff>0) {
+    if(prev<4) return `<span class="enf-trend-up">+${diff} vs prior</span>`;
+    return `<span class="enf-trend-up">+${diff} vs prior</span>`;
+  }
+  return `<span class="enf-trend-down">${diff} vs prior</span>`;
+}
+
+// ── Enforcement insight strip ─────────────────────────────────────────
+function renderEnfInsightStrip() {
+  const el=document.getElementById('enf-insight-strip'); if(!el) return;
+  const data=filteredCits();
+  if(!data.length){el.innerHTML='';return;}
+  const srcCounts={},catCounts={};
+  data.forEach(c=>{
+    const s=(c.source_type||'other').replace(/_/g,' ');srcCounts[s]=(srcCounts[s]||0)+1;
+    const k=c.category||'Other';catCounts[k]=(catCounts[k]||0)+1;
+  });
+  const topSrc=Object.entries(srcCounts).sort((a,b)=>b[1]-a[1])[0];
+  const topCat=Object.entries(catCounts).sort((a,b)=>b[1]-a[1])[0];
+  const importCt=data.filter(c=>c.source_type==='import_alert').length;
+  const action=topCat&&CAT_INTEL[topCat[0]]?CAT_INTEL[topCat[0]].action:'Review enforcement actions and prioritise based on your site profile.';
+  el.innerHTML=`<div class="insight-strip">
+    <div class="insight-strip-hd">Enforcement movement</div>
+    <div class="insight-strip-bullets">
+      ${topSrc?`<div class="isb"><div class="isb-dot isb-dot-amber"></div><div class="isb-text"><b>${topSrc[0]}</b> is the dominant enforcement source (${topSrc[1]} of ${data.length} actions).</div></div>`:''}
+      ${topCat?`<div class="isb"><div class="isb-dot isb-dot-red"></div><div class="isb-text"><b>${topCat[0]}</b> is the primary category. Action: ${action}</div></div>`:''}
+      ${importCt>0?`<div class="isb"><div class="isb-dot"></div><div class="isb-text"><b>${importCt} import alert${importCt!==1?'s':''}</b> — low in count but high in operational impact. Review foreign supplier verification and incoming material controls.</div></div>`:''}
+    </div>
+  </div>`;
+}
+
 // ── Enforcement page ─────────────────────────────────────────────────
 function renderEnfPage() {
+  renderEnfInsightStrip();
   renderAuthBars('enf-auth-rows');
   renderCatGrid('enf-cat-grid','enf-cat-count');
   const data=filteredCits();
@@ -4420,11 +4530,10 @@ function renderGroupedEnforcement(elId) {
   if(!sorted.length){el.innerHTML='<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No enforcement actions match filters</div></div>';return;}
   el.innerHTML=sorted.map(([cat,items])=>{
     const rCt=catR[cat]||0, pCt=catP[cat]||0;
-    const trending = rCt>pCt*1.1 ? 'up' : 'stable';
-    const trendHtml = trending==='up'
-      ? `<span class="enf-group-trend-up">&#9650; ${rCt>0?'+'+Math.round((rCt-pCt)/Math.max(pCt,1)*100)+'%':''}</span>`
-      : `<span class="enf-group-trend-stable">&#9472;</span>`;
-    const topItems=items.slice(0,4);
+    const trendHtml=formatTrendMovement(rCt,pCt);
+    const intel=CAT_INTEL[cat];
+    const actionLine=intel?`<div class="enf-cat-action"><b>Action:</b> ${intel.action}</div>`:'';
+    const topItems=items.slice(0,3);
     const safe=cat.replace(/'/g,"\\'");
     return `<details class="enf-group">
       <summary class="enf-group-hd">
@@ -4434,15 +4543,83 @@ function renderGroupedEnforcement(elId) {
         <span class="enf-group-arrow">&#9660;</span>
       </summary>
       <div class="enf-group-body">
+        ${actionLine}
         ${topItems.map(c=>citCard(c)).join('')}
-        ${items.length>4?`<button class="enf-view-all-btn" onclick="pFilterByCat('${safe}');showPTab('pharma-citations')">View all ${items.length} &rarr;</button>`:''}
+        ${items.length>3?`<button class="enf-view-all-btn" onclick="pFilterByCat('${safe}');showPTab('pharma-citations')">View all ${items.length} &rarr;</button>`:''}
       </div>
     </details>`;
   }).join('');
 }
 
+// ── Facility risk profiles ───────────────────────────────────────────
+const FAC_PROFILES = {
+  'General Pharma': {
+    exposure: 'GMP violations, labelling non-conformances, contamination controls',
+    focus: 'Documentation discipline, batch record completeness, cleaning validation',
+    action: 'Review SOP compliance programme, cleaning validation, and self-inspection schedule against current findings.',
+  },
+  'Sterile / Parenteral': {
+    exposure: 'Sterility assurance, contamination & sterility, container closure integrity',
+    focus: 'Aseptic technique, contamination control strategy completeness, CCI testing',
+    action: 'Audit CCS ownership, EM trending programme, and aseptic behaviour qualification status.',
+  },
+  'Biological / Biotech': {
+    exposure: 'Computerised systems validation, sterility assurance, data integrity',
+    focus: 'Process validation, analytical method validation, CSV documentation',
+    action: 'Review CSV documentation currency for critical systems and analytical method validation lifecycle.',
+  },
+  'Medical Device': {
+    exposure: 'Computerised systems, supplier control, post-market surveillance',
+    focus: 'Validation evidence, alarm behaviour, complaint linkage to CAPA',
+    action: 'Review validation package, risk file, and post-market issue handling process for each device category.',
+  },
+  'Supplement / Nutraceutical': {
+    exposure: 'Labelling & claims, ingredient safety, supply chain & procurement',
+    focus: 'Claims substantiation, identity testing, supplier qualification',
+    action: 'Audit labelling substantiation packages across all jurisdictions. Strengthen incoming raw material identity testing.',
+  },
+  'API / Active Pharmaceutical Ingredient': {
+    exposure: 'GMP violations, contamination, supply chain & procurement',
+    focus: 'Impurity profiling, process validation, foreign supplier verification',
+    action: 'Review FSVP programme and supplier qualification audit status. Assess impurity profiling completeness.',
+  },
+};
+function getFacilityRiskProfile(name) {
+  return FAC_PROFILES[name] || null;
+}
+
+function renderFacilityRiskStrip() {
+  const el=document.getElementById('fac-risk-strip'); if(!el) return;
+  const data=filteredCits();
+  const map={};
+  data.forEach(c=>{
+    const ft=c.facility_type||'Unknown';
+    if(!map[ft])map[ft]={total:0,cats:{}};
+    map[ft].total++;
+    const k=c.category||'Other';map[ft].cats[k]=(map[ft].cats[k]||0)+1;
+  });
+  const items=Object.entries(map).sort((a,b)=>b[1].total-a[1].total);
+  if(!items.length){el.innerHTML='';return;}
+  const cards=items.map(([name,d])=>{
+    const profile=getFacilityRiskProfile(name);
+    const topCat=Object.entries(d.cats).sort((a,b)=>b[1]-a[1])[0];
+    return `<div class="fac-risk-card">
+      <div class="fac-risk-name">${name} <span style="font-size:10px;color:#2A3E52;font-weight:400">(${d.total} citation${d.total!==1?'s':''})</span></div>
+      ${topCat?`<div class="fac-risk-row"><div class="fac-risk-lbl">Top finding</div><div class="fac-risk-val">${topCat[0]}</div></div>`:''}
+      ${profile?`<div class="fac-risk-row"><div class="fac-risk-lbl">Exposure</div><div class="fac-risk-val">${profile.exposure}</div></div>`:''}
+      ${profile?`<div class="fac-risk-row"><div class="fac-risk-lbl">Insp. focus</div><div class="fac-risk-val">${profile.focus}</div></div>`:''}
+      ${profile?`<div class="fac-risk-action">Action: ${profile.action}</div>`:''}
+    </div>`;
+  }).join('');
+  el.innerHTML=`<div class="insight-strip" style="padding-bottom:4px">
+    <div class="insight-strip-hd">Facility risk exposure</div>
+  </div>
+  <div class="fac-risk-grid">${cards}</div>`;
+}
+
 // ── Facilities ───────────────────────────────────────────────────────
 function renderFacilities() {
+  renderFacilityRiskStrip();
   const q=(document.getElementById('fac-search')||{value:''}).value.toLowerCase();
   const data=filteredCits();
   const map={};
@@ -4477,17 +4654,44 @@ function renderFacilities() {
   }).join(''):'<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No facilities match</div></div>';
 }
 
+// ── Alert card (compact, action-oriented) ────────────────────────────
+function alertCard(c) {
+  const isHigh=c.severity==='high';
+  const st=(c.source_type||'').replace(/_/g,' ');
+  const summ=(c.summary||c.category||'Enforcement action').slice(0,160);
+  const cat=c.category||'Other';
+  const intel=CAT_INTEL[cat];
+  const action=intel?intel.action:`Review exposure for ${cat} and monitor for similar enforcement patterns across your site types.`;
+  return `<div class="alert-card${isHigh?' ac-high':' ac-medium'}">
+    <div class="alert-card-title">${summ}</div>
+    <div class="alert-card-meta">
+      ${sevBadge(c.severity||'medium')}
+      <span class="badge badge-authority">${c.authority||'—'}</span>
+      <span class="badge badge-type">${st}</span>
+      ${c.facility_type?`<span class="badge" style="background:rgba(139,92,246,.06);color:rgba(139,92,246,.5);border:1px solid rgba(139,92,246,.1)">${c.facility_type}</span>`:''}
+      ${c.category?`<span class="badge" style="background:rgba(20,50,80,.2);color:#3A5570;border:1px solid rgba(20,50,80,.3)">${c.category}</span>`:''}
+    </div>
+    <div class="alert-card-action"><b>Action:</b> ${action}</div>
+    <div class="alert-card-footer">
+      <div class="alert-card-date">${c.date?c.date.slice(0,10):'—'}${c.company?' · '+c.company:''}</div>
+      ${c.url?`<a class="card-action card-action-primary" href="${c.url}" target="_blank" style="font-size:10px">View &#8599;</a>`:''}
+    </div>
+  </div>`;
+}
+
 // ── Pharma alerts ────────────────────────────────────────────────────
 function renderPharmaAlerts() {
   const el=document.getElementById('pharma-alerts-feed'); if(!el)return;
-  const highs=CITATIONS.filter(c=>c.severity==='high');
-  el.innerHTML=highs.length?highs.map(c=>citCard(c)).join('')
+  const highs=CITATIONS.filter(c=>c.severity==='high').sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  el.innerHTML=highs.length?highs.map(c=>alertCard(c)).join('')
     :'<div class="empty"><div class="empty-icon">&#9989;</div><div class="empty-text">No high severity alerts</div></div>';
 }
 
 // ── Pharma AI insights ────────────────────────────────────────────────
 function renderPharmaInsights() {
   const data=filteredCits();
+  const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.sev!=='all' || pF.factype!=='all' || pF.dicapa;
+  const n = (ct, noun) => ct===0 ? `No ${noun} match current filters` : `${ct} ${noun}`;
   const wlCt=data.filter(c=>c.source_type==='warning_letter').length;
   const inspCt=data.filter(c=>c.source_type==='inspection_finding').length;
   const importCt=data.filter(c=>c.source_type==='import_alert').length;
@@ -4496,17 +4700,28 @@ function renderPharmaInsights() {
   const csvCt=data.filter(c=>c.category==='Computerised systems validation').length;
   const sterCt=data.filter(c=>c.category==='Sterility assurance').length;
   const labelCt=data.filter(c=>c.category==='Labelling & claims').length;
+  const sc = isFiltered ? 'in current view' : 'on file';
   const insights=[
-    {col:'#D04444',label:'FDA Warning Letters',
-     text:`${wlCt} warning letters on file — GMP violations and labelling &amp; claims top categories. Data integrity and CAPA gaps are driving most actions.`},
-    {col:'#C87020',label:'483 Observation Trend',
-     text:`${inspCt} inspection findings across FDA and EFSA. Computerised systems validation (${csvCt}) and sterility assurance (${sterCt}) are systemic gaps across General Pharma and Sterile facilities.`},
-    {col:'#D04444',label:'Import Alert Exposure',
-     text:`${importCt} active FDA import alerts. Contamination &amp; sterility is the primary trigger — audit incoming raw material controls and foreign supplier verification programme.`},
+    {col:'#D04444',label:'Warning Letters',
+     text:wlCt===0&&isFiltered
+       ? `No warning letters match the current filters.`
+       : `<b>${wlCt} warning letter${wlCt!==1?'s':''}</b> ${sc}. GMP violations and labelling &amp; claims lead by volume. Action: Review repeat citation patterns against your site's enforcement risk profile.`},
+    {col:'#C87020',label:'483 / Inspection Findings',
+     text:inspCt===0&&isFiltered
+       ? `No inspection findings match the current filters.`
+       : `<b>${inspCt} inspection finding${inspCt!==1?'s':''}</b> ${sc}. CSV (${csvCt}) and sterility assurance (${sterCt}) are systemic gaps across General Pharma and Sterile facilities. Action: Prioritise CSV remediation and CCS completeness.`},
+    {col:'#C87020',label:'Import Alert Exposure',
+     text:importCt===0&&isFiltered
+       ? `No import alerts match the current filters.`
+       : `<b>${importCt} import alert${importCt!==1?'s':''}</b> ${sc}. Contamination &amp; sterility is the primary trigger. Action: Audit incoming raw material controls and foreign supplier verification programme.`},
     {col:'#3D5268',label:'Supplement / Nutra. Risk',
-     text:`${suppCt} enforcement actions target Supplement / Nutraceutical facilities. Labelling &amp; claims violations (${labelCt}) dominate — highest risk category for VMS manufacturers.`},
+     text:suppCt===0&&isFiltered
+       ? `No Supplement / Nutraceutical actions match the current filters.`
+       : `<b>${suppCt} enforcement action${suppCt!==1?'s':''}</b> targeting Supplement / Nutraceutical facilities. Labelling &amp; claims (${labelCt}) is the dominant category. Action: Audit labelling substantiation packages against applicable jurisdiction standards.`},
     {col:'rgba(13,148,136,.75)',label:'TGA Enforcement Watch',
-     text:`${tgaCt} TGA enforcement actions — lower than FDA but trend increasing. Proactive self-audit against AU GMP Code Part 3 recommended for AU-registered products.`},
+     text:tgaCt===0&&isFiltered
+       ? `No TGA actions match the current filters.`
+       : `<b>${tgaCt} TGA enforcement action${tgaCt!==1?'s':''}</b> ${sc}. Trend is increasing. Action: Run proactive self-audit against AU GMP Code Part 3 for all AU-registered products.`},
   ];
   const el=document.getElementById('pharma-ai-body'); if(!el)return;
   el.innerHTML=insights.map((i,idx)=>{
@@ -4517,7 +4732,7 @@ function renderPharmaInsights() {
       `pF.factype='Supplement / Nutraceutical';syncPFPills();renderPharmaOverview();document.getElementById('pharma-ov-feed').scrollIntoView({behavior:'smooth',block:'start'})`,
       `pF.auth='TGA';syncPFPills();renderPharmaOverview();document.getElementById('pharma-ov-feed').scrollIntoView({behavior:'smooth',block:'start'})`,
     ];
-    return `<div class="pharma-insight-row" onclick="${actions[idx]}" title="Click to filter">
+    return `<div class="pharma-insight-row" onclick="${actions[idx]}" title="Click to filter to this signal">
       <div class="pharma-insight-dot" style="background:${i.col}"></div>
       <span class="pharma-insight-label" style="color:${i.col}">${i.label}:</span>
       <span class="pharma-insight-text">${i.text}</span>
