@@ -2102,15 +2102,6 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
 /* Clear-all chip button */
 .pharma-chip-clear-all { font-size: 11px; color: rgba(13,148,136,.55); background: none; border: 1px solid rgba(13,148,136,.18); border-radius: 99px; padding: 2px 9px; cursor: pointer; transition: color .1s; }
 .pharma-chip-clear-all:hover { color: rgba(13,148,136,.85); border-color: rgba(13,148,136,.4); }
-/* Inline citation panel */
-.icp { background: #081420; border: 1px solid rgba(13,148,136,.22); border-radius: 8px; margin-top: 10px; animation: icp-in .16s ease; overflow: hidden; }
-@keyframes icp-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
-.icp-hd { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border-bottom: 1px solid rgba(20,50,85,.4); background: rgba(13,148,136,.04); }
-.icp-count { font-size: 12px; color: #5A7A8A; }
-.icp-count b { color: rgba(13,148,136,.8); font-weight: 700; }
-.icp-close { font-size: 11px; color: #3A5570; background: none; border: 1px solid rgba(20,50,85,.4); border-radius: 4px; padding: 2px 9px; cursor: pointer; transition: color .1s, border-color .1s; }
-.icp-close:hover { color: #8AACBC; border-color: rgba(20,50,85,.8); }
-.icp-feed { padding: 10px; max-height: 640px; overflow-y: auto; }
 </style>
 </head>
 <body>
@@ -2615,13 +2606,11 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
   <div class="pharma-section">
     <div class="pharma-section-hd">Findings by Category <span id="pharma-cat-count"></span></div>
     <div class="cat-grid" id="pharma-cat-grid"></div>
-    <div id="ov-cat-inline-panel"></div>
   </div>
 
   <div class="pharma-section">
     <div class="pharma-section-hd">Authority Activity</div>
     <div id="pharma-auth-bars"></div>
-    <div id="ov-auth-inline-panel"></div>
   </div>
 
   <div class="pharma-section">
@@ -2672,19 +2661,16 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
   <div class="pharma-section">
     <div class="pharma-section-hd">Enforcement by Authority</div>
     <div id="enf-auth-rows"></div>
-    <div id="enf-auth-inline-panel"></div>
   </div>
 
   <div class="pharma-section">
     <div class="pharma-section-hd">Findings by Category <span id="enf-cat-count"></span></div>
     <div class="cat-grid" id="enf-cat-grid"></div>
-    <div id="enf-cat-inline-panel"></div>
   </div>
 
   <div class="pharma-section">
     <div class="pharma-section-hd">By Source Type</div>
     <div id="enf-srctype-rows"></div>
-    <div id="enf-src-inline-panel"></div>
   </div>
 
   <div class="pharma-section">
@@ -2706,7 +2692,6 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
     <span class="pharma-count" id="fac-count"></span>
   </div>
   <div class="facility-grid" id="facility-grid"></div>
-  <div id="fac-inline-panel"></div>
 </div><!-- /pharma-facilities -->
 
 <!-- ── PHARMA ALERTS ──────────────────────────────────────── -->
@@ -4219,7 +4204,6 @@ function filteredCits() {
 function resetPharmaFilters() {
   pF={auth:'all',factype:'all',srctype:'all',sev:'all',company:'',query:'',dateFrom:'',dateTo:'',dicapa:false};
   pCatFilter=null;
-  closeInlineCit(inlinePanel.elId);
   ['cit-search','p-company'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   _setPActiveKpi(null);
   syncPFPills(); renderPAll();
@@ -4231,7 +4215,6 @@ function _setPActiveKpi(id) {
 }
 function pKpiClick(kpiId, dim, val) {
   pCatFilter=null;
-  closeInlineCit(inlinePanel.elId);
   const toggling = pActiveKpi===kpiId;
   pF={auth:'all',factype:'all',srctype:'all',sev:'all',company:'',query:'',dateFrom:'',dateTo:'',dicapa:false};
   if(!toggling) {
@@ -4278,82 +4261,6 @@ function pFilterByCat(cat) {
 }
 
 // ── Shared chip bar renderer ─────────────────────────────────────────
-// ── Inline citation panel ────────────────────────────────────────────
-let inlinePanel = { elId: null, dim: null, val: null };
-
-function showInlineCits(dim, val, label, panelId) {
-  // Toggle: same panel + same filter → close
-  if (inlinePanel.elId===panelId && inlinePanel.dim===dim && inlinePanel.val===val) {
-    closeInlineCit(panelId); return;
-  }
-  // Close any different open panel first
-  if (inlinePanel.elId && inlinePanel.elId!==panelId) {
-    const prev=document.getElementById(inlinePanel.elId);
-    if (prev) prev.innerHTML='';
-  }
-  inlinePanel={elId:panelId, dim, val};
-
-  // Filter from full CITATIONS (ignores global pF — shows raw matches)
-  const data=CITATIONS.filter(c=>{
-    if (dim==='cat')     return (c.category||'Other')===val;
-    if (dim==='auth')    return c.authority===val;
-    if (dim==='src')     return (c.source_type||'').replace(/_/g,' ')===val;
-    if (dim==='factype') return (c.facility_type||'')===val;
-    return true;
-  }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-
-  const el=document.getElementById(panelId); if(!el) return;
-  const safeVal=val.replace(/'/g,"\\'");
-  const viewAllFns={
-    cat:     `pCatFilter='${safeVal}';citPg=1;renderCitations();showPTab('pharma-citations')`,
-    auth:    `pF.auth='${safeVal}';syncPFPills();citPg=1;renderCitations();showPTab('pharma-citations')`,
-    src:     `pF.srctype='${val.replace(/ /g,'_')}';syncPFPills();citPg=1;renderCitations();showPTab('pharma-citations')`,
-    factype: `pF.factype='${safeVal}';syncPFPills();citPg=1;renderCitations();showPTab('pharma-citations')`,
-  };
-  const viewAllFn=viewAllFns[dim]||`showPTab('pharma-citations')`;
-  const viewAllBtn=data.length>12
-    ? `<button class="ov-feed-view-all" onclick="${viewAllFn}">View all ${data.length} in Citations tab &rarr;</button>`:'';
-
-  el.innerHTML=`<div class="icp">
-    <div class="icp-hd">
-      <span class="icp-count"><b>${data.length} citation${data.length!==1?'s':''}</b> matching <b>${label}</b></span>
-      <button class="icp-close" onclick="closeInlineCit('${panelId}')">&#10005; Close</button>
-    </div>
-    <div class="icp-feed">
-      ${data.length
-        ? data.slice(0,12).map(c=>citCard(c)).join('')+viewAllBtn
-        : '<div class="empty" style="padding:20px 0"><div class="empty-icon">&#128270;</div><div class="empty-text">No citations for this filter</div></div>'}
-    </div>
-  </div>`;
-  el.scrollIntoView({behavior:'smooth', block:'nearest'});
-  _refreshInlineActiveStates();
-}
-
-function closeInlineCit(panelId) {
-  if (panelId) { const el=document.getElementById(panelId); if(el) el.innerHTML=''; }
-  inlinePanel={elId:null, dim:null, val:null};
-  _refreshInlineActiveStates();
-}
-
-function _refreshInlineActiveStates() {
-  document.querySelectorAll('.cat-cell[data-cat]').forEach(el=>{
-    el.classList.toggle('c-active',
-      (inlinePanel.dim==='cat' && inlinePanel.val===el.dataset.cat) || pCatFilter===el.dataset.cat);
-  });
-  document.querySelectorAll('.enf-row[data-auth]').forEach(el=>{
-    el.classList.toggle('er-active',
-      (inlinePanel.dim==='auth' && inlinePanel.val===el.dataset.auth) || pF.auth===el.dataset.auth);
-  });
-  document.querySelectorAll('.enf-row[data-src]').forEach(el=>{
-    el.classList.toggle('er-active',
-      inlinePanel.dim==='src' && inlinePanel.val===el.dataset.src);
-  });
-  document.querySelectorAll('.facility-card[data-factype]').forEach(el=>{
-    el.classList.toggle('fc-active',
-      (inlinePanel.dim==='factype' && inlinePanel.val===el.dataset.factype) || pF.factype===el.dataset.factype);
-  });
-}
-
 function buildChipBar(elId) {
   const el=document.getElementById(elId); if(!el) return;
   const chips=[];
@@ -4393,8 +4300,8 @@ function showPTab(tab) {
 
 // ── Pharma Overview ──────────────────────────────────────────────────
 function renderPharmaOverview() {
-  renderCatGrid('pharma-cat-grid','pharma-cat-count','ov-cat-inline-panel');
-  renderAuthBars('pharma-auth-bars','ov-auth-inline-panel');
+  renderCatGrid('pharma-cat-grid','pharma-cat-count');
+  renderAuthBars('pharma-auth-bars');
   renderWhatChanged();
   renderPharmaInsights();
   const data=filteredCits();
@@ -4425,14 +4332,14 @@ function renderPharmaOverview() {
   _setKpi('pk-tga', tga);
 }
 
-function renderCatGrid(gridId, countId, panelId) {
+function renderCatGrid(gridId, countId) {
   const data=filteredCits();
   const catCounts={};
   data.forEach(c=>{const k=c.category||'Other';catCounts[k]=(catCounts[k]||0)+1;});
   const cats=Object.entries(catCounts).sort((a,b)=>b[1]-a[1]);
   const el=document.getElementById(gridId); if(!el) return;
   el.innerHTML=cats.map(([cat,ct])=>{
-    const isAct=(inlinePanel.dim==='cat'&&inlinePanel.val===cat&&inlinePanel.elId===panelId)||pCatFilter===cat;
+    const isAct=pCatFilter===cat;
     const high=data.filter(c=>(c.category||'Other')===cat&&c.severity==='high').length;
     const safe=cat.replace(/'/g,"\\'");
     const intel = CAT_INTEL[cat];
@@ -4441,8 +4348,7 @@ function renderCatGrid(gridId, countId, panelId) {
       <div class="cat-implication">${intel.implication}</div>
       <div class="cat-action">${intel.action}</div>
     </div>` : '';
-    const pid=panelId||'';
-    return `<div class="cat-cell${isAct?' c-active':''}" data-cat="${cat}" onclick="showInlineCits('cat','${safe}','${safe}','${pid}')">
+    return `<div class="cat-cell${isAct?' c-active':''}" onclick="pFilterByCat('${safe}')">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px">
         <div class="cat-cell-name">${cat}</div>
         <button class="ing-ep-btn" onclick="event.stopPropagation();openEntityPanel('${safe}','category')" title="Open ${cat} detail" style="font-size:12px;margin-top:1px;flex-shrink:0">&#9432;</button>
@@ -4455,7 +4361,7 @@ function renderCatGrid(gridId, countId, panelId) {
   const cc=document.getElementById(countId); if(cc) cc.textContent=`${data.length} citations`;
 }
 
-function renderAuthBars(elId, panelId) {
+function renderAuthBars(elId) {
   const data=filteredCits();
   const ac={}, catByAuth={};
   data.forEach(c=>{
@@ -4466,13 +4372,11 @@ function renderAuthBars(elId, panelId) {
   });
   const mx=Math.max(...Object.values(ac),1);
   const el=document.getElementById(elId); if(!el) return;
-  const pid=panelId||'';
   el.innerHTML=Object.entries(ac).sort((a,b)=>b[1]-a[1]).map(([auth,ct])=>{
     const topCats=Object.entries(catByAuth[auth]||{}).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>`${k} (${v})`).join(', ');
-    const tip=`${auth}: ${ct} citation${ct!==1?'s':''}. Top: ${topCats}. Click to see citations.`;
-    const isActive=(inlinePanel.dim==='auth'&&inlinePanel.val===auth&&inlinePanel.elId===pid)||pF.auth===auth;
-    const safeAuth=auth.replace(/'/g,"\\'");
-    return `<div class="enf-row${isActive?' er-active':''}" data-auth="${auth}" onclick="showInlineCits('auth','${safeAuth}','${safeAuth}','${pid}')" title="${tip}">
+    const tip=`${auth}: ${ct} citation${ct!==1?'s':''}. Top: ${topCats}. Click to filter — click again to clear.`;
+    const isActive=pF.auth===auth;
+    return `<div class="enf-row${isActive?' er-active':''}" onclick="pFilterByAuth('${auth}')" title="${tip}">
       <span class="enf-name">${auth}</span>
       <div class="enf-bar-wrap"><div class="enf-bar-fill" style="width:${Math.round(ct/mx*100)}%"></div></div>
       <span class="enf-ct">${ct}</span>
@@ -4615,22 +4519,19 @@ function renderEnfInsightStrip() {
 function renderEnfPage() {
   buildChipBar('enf-chip-bar');
   renderEnfInsightStrip();
-  renderAuthBars('enf-auth-rows','enf-auth-inline-panel');
-  renderCatGrid('enf-cat-grid','enf-cat-count','enf-cat-inline-panel');
+  renderAuthBars('enf-auth-rows');
+  renderCatGrid('enf-cat-grid','enf-cat-count');
   const data=filteredCits();
   const el=document.getElementById('enf-srctype-rows'); if(!el) return;
   const sc={};
   data.forEach(c=>{const k=(c.source_type||'other').replace(/_/g,' ');sc[k]=(sc[k]||0)+1;});
   const mx=Math.max(...Object.values(sc),1);
-  el.innerHTML=Object.entries(sc).sort((a,b)=>b[1]-a[1]).map(([st,ct])=>{
-    const isActive=inlinePanel.dim==='src'&&inlinePanel.val===st&&inlinePanel.elId==='enf-src-inline-panel';
-    const safeSt=st.replace(/'/g,"\\'");
-    return `<div class="enf-row${isActive?' er-active':''}" data-src="${st}" onclick="showInlineCits('src','${safeSt}','${safeSt}','enf-src-inline-panel')" title="Click to see citations — click again to close">
+  el.innerHTML=Object.entries(sc).sort((a,b)=>b[1]-a[1]).map(([st,ct])=>
+    `<div class="enf-row">
       <span class="enf-name">${st}</span>
       <div class="enf-bar-wrap"><div class="enf-bar-fill" style="width:${Math.round(ct/mx*100)}%"></div></div>
       <span class="enf-ct">${ct}</span>
-    </div>`;
-  }).join('');
+    </div>`).join('');
   renderGroupedEnforcement('enf-grouped-feed');
 }
 
@@ -4760,8 +4661,7 @@ function renderFacilities() {
     const safe=f.name.replace(/'/g,"\\'");
     const topCats=Object.entries(f.cats).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
     const exCos=[...f.cos].slice(0,3).join(', ');
-    const facIsActive=(inlinePanel.dim==='factype'&&inlinePanel.val===f.name)||pF.factype===f.name;
-    return `<div class="facility-card${facIsActive?' fc-active':''}" data-factype="${f.name}" onclick="showInlineCits('factype','${safe}','${safe}','fac-inline-panel')" title="Click to see citations — click again to close">
+    return `<div class="facility-card${pF.factype===f.name?' fc-active':''}" onclick="pFilterByFacType('${safe}')" title="Click to filter — click again to clear">
       <div class="facility-name">${f.name}</div>
       <div class="facility-type-label">${[...f.auths].join(' · ')}</div>
       <div class="facility-stats">
