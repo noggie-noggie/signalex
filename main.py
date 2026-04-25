@@ -8,6 +8,9 @@ Run modes:
   python main.py --pipeline       — run full integrated pipeline: scrape + classify
                                     + store in SQLite + sentiment + trends + custom
                                     alerts + digest, then print summary and exit
+  python main.py --refresh        — safe data refresh: all scrapers → classify →
+                                    sentiment → trends → alerts → patch data blob
+                                    in signals.html (layout/CSS/JS untouched)
   python main.py --trends         — run trend detection and print report
   python main.py --sentiment      — run sentiment analysis on unsent signals
   python main.py --feedback       — open the interactive classification review CLI
@@ -33,6 +36,7 @@ def main() -> None:
     parser.add_argument("--scrape-now",  action="store_true", help="Run scrapers immediately and exit")
     parser.add_argument("--digest-now",  action="store_true", help="Send digest immediately and exit")
     parser.add_argument("--pipeline",    action="store_true", help="Run full integrated pipeline and exit")
+    parser.add_argument("--refresh",     action="store_true", help="Safe refresh: scrape+classify+analytics then patch signals.html data blob only")
     parser.add_argument("--trends",      action="store_true", help="Run trend detection and print report")
     parser.add_argument("--sentiment",   action="store_true", help="Run sentiment analysis on pending signals")
     parser.add_argument("--feedback",    action="store_true", help="Open interactive classification review CLI")
@@ -54,6 +58,10 @@ def main() -> None:
         from scheduler.jobs import run_full_pipeline
         logger.info("Running full integrated pipeline…")
         run_full_pipeline()
+        return
+
+    if args.refresh:
+        _run_refresh()
         return
 
     if args.trends:
@@ -81,6 +89,34 @@ def main() -> None:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
         logger.info("Scheduler stopped.")
+
+
+def _run_refresh() -> None:
+    """
+    Safe pipeline refresh: scrape → classify → sentiment → trends → alerts →
+    patch the signalex-data blob in signals.html.  Layout/CSS/JS untouched.
+    """
+    from scheduler.jobs import run_full_pipeline
+    from generate_signals import update_data_blob
+
+    logger.info("Running full pipeline (scrape + classify + analytics)…")
+    summary = run_full_pipeline()
+
+    logger.info("Patching signals.html data blob…")
+    result = update_data_blob()
+
+    print("\n" + "=" * 65)
+    print("  SAFE REFRESH COMPLETE")
+    print("=" * 65)
+    print(f"\n  New signals: {summary['total_new']}")
+    for src, ct in summary["source_counts"].items():
+        if ct:
+            print(f"    {src:30s}  {ct:4d} new")
+    print(f"\n  signals.html data blob updated")
+    print(f"    Signals:      {result['signals']}")
+    print(f"    Citations:    {result['citations']}")
+    print(f"    Last updated: {result['last_updated']}")
+    print("=" * 65 + "\n")
 
 
 def _print_trend_report(report) -> None:
