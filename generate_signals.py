@@ -82,7 +82,7 @@ def update_data_blob(html_path: Path | None = None, days: int = 30) -> dict:
         )
 
     new_block = build_data_block(days=days)
-    patched   = _DATA_BLOCK_RE.sub(new_block, original, count=1)
+    patched   = _DATA_BLOCK_RE.sub(lambda _: new_block, original, count=1)
 
     if patched == original:
         logger.warning("Data block unchanged — signals.html not rewritten")
