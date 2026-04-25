@@ -2137,6 +2137,23 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
   letter-spacing: .01em;
 }
 /* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Pattern badge (alert cards) ────────────────────────────────────── */
+.pattern-badge{font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:rgba(249,115,22,.09);color:rgba(249,115,22,.8);border:1px solid rgba(249,115,22,.18)}
+
+/* ── Category card "why" micro-context ──────────────────────────────── */
+.cat-why-line{font-size:10px;color:#3D5268;line-height:1.4;margin-top:5px}
+
+/* ── Intelligence card brief context in collapsed state ─────────────── */
+.icard-why-brief{font-size:10px;color:#3D5268;line-height:1.4;margin:2px 0 4px}
+
+/* ── Alert cards — compressed + brighter action line ───────────────── */
+.alert-card{padding:7px 11px !important;margin-bottom:4px !important}
+.alert-card-meta{gap:4px !important;margin-bottom:4px !important}
+.alert-card-action{color:rgba(13,148,136,.92) !important;padding-top:4px !important}
+.alert-card-action b{color:#0D9488 !important;font-weight:700 !important}
+.alert-card-footer{margin-top:3px !important}
+.alert-card-date{font-size:9px !important;color:#1E3048 !important}
 </style>
 </head>
 <body>
@@ -2811,6 +2828,8 @@ const SIGNALEX_META = {"lastUpdated":"2026-04-25T06:45:07Z","signalCount":616,"c
     var d=new Date(SIGNALEX_META.lastUpdated);
     var opts={day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Australia/Sydney'};
     el.textContent='Last refreshed: '+d.toLocaleString('en-AU',opts)+' AEST';
+    var ageH=(Date.now()-d.getTime())/3600000;
+    if(ageH>24){el.textContent+=' (stale)';el.style.color='#F97316';}
   } catch(e){}
 })();
 // ─── STATE ────────────────────────────────────────────────────────────────────
@@ -3441,22 +3460,22 @@ function toggleAlertConfig() {
 
 // ─── CHARTS ───────────────────────────────────────────────────────────────────
 const PAL=['#0D9488','#3B82F6','#F97316','#8B5CF6','#F59E0B','#EF4444','#10B981','#EC4899','#06B6D4','#84CC16','#A3E635'];
-const CA='#64748B',CG='rgba(30,58,95,.5)';
-const sc={x:{ticks:{color:CA,font:{size:10}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:10}},grid:{color:CG}}};
+const CA='#8FA5BC',CG='rgba(40,90,150,.25)';
+const sc={x:{ticks:{color:CA,font:{size:11}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:11}},grid:{color:CG}}};
 // Store all chart refs so we can resize them when tabs become visible
 const _charts = {};
 const mk=(id,cfg)=>{const c=document.getElementById(id);if(c){_charts[id]=new Chart(c,cfg);return _charts[id];}};
 mk('chart-sources',{type:'bar',data:{labels:['PubMed','Europe PMC','ClinTrials','TGA Consult','Cochrane','ARTG','FDA','TGA','EFSA','SemanticScholar','Adv.Events'],datasets:[{data:[138,124,115,7,6,4,3,2,2,2,2],backgroundColor:PAL,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc}});
-mk('chart-sentiment',{type:'doughnut',data:{labels:['Positive','Neutral','Negative'],datasets:[{data:[78,311,16],backgroundColor:['#059669','#334155','#DC2626'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#94A3B8',font:{size:10},padding:10}}}}});
-mk('chart-severity',{type:'doughnut',data:{labels:['Low','Medium','High'],datasets:[{data:[373,18,14],backgroundColor:['#334155','#D97706','#DC2626'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#94A3B8',font:{size:10},padding:10}}}}});
+mk('chart-sentiment',{type:'doughnut',data:{labels:['Positive','Neutral','Negative'],datasets:[{data:[78,311,16],backgroundColor:['#059669','#334155','#DC2626'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#B4C8D8',font:{size:11},padding:10}}}}});
+mk('chart-severity',{type:'doughnut',data:{labels:['Low','Medium','High'],datasets:[{data:[373,18,14],backgroundColor:['#334155','#D97706','#DC2626'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#B4C8D8',font:{size:11},padding:10}}}}});
 mk('chart-events',{type:'bar',data:{labels:['Research/Other','Safety Alert','Warning','New Listing','Recall'],datasets:[{data:[383,11,4,4,3],backgroundColor:['#1E3A5F','#F59E0B','#D97706','#3B82F6','#EF4444'],borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc}});
-mk('chart-categories',{type:'bar',data:{labels:['GMP violations','Labelling & claims','Equipment','Contamination','Sterility','Ingredient safety','CSV','Other'],datasets:[{data:[744,462,251,210,198,195,147,121],backgroundColor:'#0D9488',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:CA,font:{size:10}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:9}},grid:{display:false}}}}});
+mk('chart-categories',{type:'bar',data:{labels:['GMP violations','Labelling & claims','Equipment','Contamination','Sterility','Ingredient safety','CSV','Other'],datasets:[{data:[744,462,251,210,198,195,147,121],backgroundColor:'#0D9488',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:CA,font:{size:11}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:11}},grid:{display:false}}}}});
 const ingMap={};SIGNALS.forEach(s=>{const i=(s.ingredient_name||'').trim();if(!i||i==='unknown')return;ingMap[i]=(ingMap[i]||0)+1});
 const sortedIngs=Object.entries(ingMap).sort((a,b)=>b[1]-a[1]).slice(0,15);
-mk('trend-ingredients',{type:'bar',data:{labels:sortedIngs.map(x=>x[0]),datasets:[{data:sortedIngs.map(x=>x[1]),backgroundColor:'#0D9488',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.parsed.x} signals`}}},scales:{x:{ticks:{color:CA,font:{size:10}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:10}},grid:{display:false}}},onClick:(evt,els)=>{if(els.length){const name=sortedIngs[els[0].index][0];hideTip();filterByIngredient(name);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
+mk('trend-ingredients',{type:'bar',data:{labels:sortedIngs.map(x=>x[0]),datasets:[{data:sortedIngs.map(x=>x[1]),backgroundColor:'#0D9488',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.parsed.x} signals`}}},scales:{x:{ticks:{color:CA,font:{size:11}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:11}},grid:{display:false}}},onClick:(evt,els)=>{if(els.length){const name=sortedIngs[els[0].index][0];hideTip();filterByIngredient(name);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
 const auths2=['tga','tga_consultations','fda','artg','pubmed','europe_pmc','clinical_trials','cochrane'];
 const aLbls=['TGA','TGA Consult.','FDA','ARTG','PubMed','Europe PMC','ClinTrials','Cochrane'];
-mk('trend-auth-sent',{type:'bar',data:{labels:aLbls,datasets:[{label:'Positive',data:auths2.map(a=>SIGNALS.filter(s=>s.authority===a&&s.sentiment==='positive').length),backgroundColor:'#059669'},{label:'Neutral',data:auths2.map(a=>SIGNALS.filter(s=>s.authority===a&&s.sentiment==='neutral').length),backgroundColor:'#334155'},{label:'Negative',data:auths2.map(a=>SIGNALS.filter(s=>s.authority===a&&s.sentiment==='negative').length),backgroundColor:'#DC2626'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#94A3B8',font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:CA,font:{size:10}},grid:{display:false}},y:{stacked:true,ticks:{color:CA,font:{size:10}},grid:{color:CG}}},onClick:(evt,els)=>{if(els.length){const auth=auths2[els[0].index];hideTip();filterByAuthority(auth);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
+mk('trend-auth-sent',{type:'bar',data:{labels:aLbls,datasets:[{label:'Positive',data:auths2.map(a=>SIGNALS.filter(s=>s.authority===a&&s.sentiment==='positive').length),backgroundColor:'#059669'},{label:'Neutral',data:auths2.map(a=>SIGNALS.filter(s=>s.authority===a&&s.sentiment==='neutral').length),backgroundColor:'#334155'},{label:'Negative',data:auths2.map(a=>SIGNALS.filter(s=>s.authority===a&&s.sentiment==='negative').length),backgroundColor:'#DC2626'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#B4C8D8',font:{size:11}}}},scales:{x:{stacked:true,ticks:{color:CA,font:{size:11}},grid:{display:false}},y:{stacked:true,ticks:{color:CA,font:{size:11}},grid:{color:CG}}},onClick:(evt,els)=>{if(els.length){const auth=auths2[els[0].index];hideTip();filterByAuthority(auth);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
 const _newSrcAuths=['europe_pmc','clinical_trials','cochrane','efsa','semantic_scholar'];
 mk('trend-new-sources',{type:'bar',data:{labels:['Europe PMC','ClinTrials','Cochrane','EFSA','Semantic Scholar'],datasets:[{data:[124,115,6,2,2],backgroundColor:PAL,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc,onClick:(evt,els)=>{if(els.length){const auth=_newSrcAuths[els[0].index];hideTip();filterByAuthority(auth);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
 (()=>{
@@ -3483,7 +3502,7 @@ mk('trend-new-sources',{type:'bar',data:{labels:['Europe PMC','ClinTrials','Coch
 const _rptAuthKeys=['FDA','EFSA','TGA','BfR','MHRA'];
 mk('report-chart-auth',{type:'bar',data:{labels:_rptAuthKeys,datasets:[{data:[2569,233,24,23,20],backgroundColor:PAL,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc,onClick:(evt,els)=>{if(els.length){gotoEvidence(undefined,_rptAuthKeys[els[0].index]);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
 const _rptCatLabels=['GMP violations','Labelling & claims','Equipment & facilities','Contamination','Sterility assurance','Ingredient safety','Computerised systems','Other','Container closure','Batch release'];
-mk('report-chart-cats',{type:'bar',data:{labels:_rptCatLabels,datasets:[{data:[744,462,251,210,198,195,147,121,119,98],backgroundColor:PAL,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:CA,font:{size:10}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:10}},grid:{display:false}}},onClick:(evt,els)=>{if(els.length){gotoEvidence(_rptCatLabels[els[0].index]);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
+mk('report-chart-cats',{type:'bar',data:{labels:_rptCatLabels,datasets:[{data:[744,462,251,210,198,195,147,121,119,98],backgroundColor:PAL,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:CA,font:{size:11}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:11}},grid:{display:false}}},onClick:(evt,els)=>{if(els.length){gotoEvidence(_rptCatLabels[els[0].index]);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
 
 // ─── TREND COMPUTATIONS ───────────────────────────────────────────────────────
 function computeIngredientTrends() {
@@ -4221,8 +4240,30 @@ const CIT_PP = 25;
 let pCatFilter = null;
 const DI_CAPA_KWS = ['computerised systems validation','data integrity','deviation management','audit trail','capa','csv'];
 
+// ── Noise / low-value content filter ────────────────────────────────────────
+function isLowValueContent(item) {
+  const noisePatterns = ['about','more information','subscribe','report','publication',
+    'resource','education','conference','opinion','communication'];
+  const text = ((item.title||'')+' '+(item.summary||'')).toLowerCase();
+  return noisePatterns.some(p => text.includes(p));
+}
+
+// ── Pattern detection — flag repeated company / category (≥3 occurrences) ───
+function detectPattern(cits) {
+  const compFreq={}, catFreq={};
+  cits.forEach(c=>{
+    if(c.company){compFreq[c.company]=(compFreq[c.company]||0)+1;}
+    if(c.category){catFreq[c.category]=(catFreq[c.category]||0)+1;}
+  });
+  const out={};
+  Object.entries(compFreq).forEach(([k,n])=>{if(n>=3)out[k]={type:'company',count:n};});
+  Object.entries(catFreq).forEach(([k,n])=>{if(n>=3)out[k]={type:'category',count:n};});
+  return out;
+}
+
 function filteredCits() {
   return CITATIONS.filter(c => {
+    if (isLowValueContent(c)) return false;
     if (pF.auth !== 'all' && c.authority !== pF.auth) return false;
     if (pF.factype !== 'all' && (c.facility_type||'') !== pF.factype) return false;
     if (pF.srctype !== 'all' && (c.source_type||'') !== pF.srctype) return false;
@@ -4397,6 +4438,7 @@ function renderCatGrid(gridId, countId) {
       <div class="cat-implication">${intel.implication}</div>
       <div class="cat-action">${intel.action}</div>
     </div>` : '';
+    const whyLine=intel?`<div class="cat-why-line">${intel.implication.split('.')[0]}.</div>`:'';
     return `<div class="cat-cell${isAct?' c-active':''}" onclick="pFilterByCat('${safe}')">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px">
         <div class="cat-cell-name">${cat}</div>
@@ -4404,6 +4446,7 @@ function renderCatGrid(gridId, countId) {
       </div>
       <div class="cat-cell-ct">${ct}</div>
       <div class="cat-cell-sub">${high?high+' high sev':'all medium'}</div>
+      ${whyLine}
       ${intelHtml}
     </div>`;
   }).join('');
@@ -4724,13 +4767,15 @@ function renderFacilities() {
 }
 
 // ── Alert card (compact, action-oriented) ────────────────────────────
-function alertCard(c) {
+function alertCard(c, patterns={}) {
   const isHigh=c.severity==='high';
   const st=(c.source_type||'').replace(/_/g,' ');
   const summ=(c.summary||c.category||'Enforcement action').slice(0,160);
   const cat=c.category||'Other';
   const intel=CAT_INTEL[cat];
   const action=intel?intel.action:`Review exposure for ${cat} and monitor for similar enforcement patterns across your site types.`;
+  const pBadge=patterns[c.company]?`<span class="pattern-badge">Pattern: recurring ${(c.company||'').slice(0,28)}</span>`
+    :patterns[c.category]?`<span class="pattern-badge">Pattern: repeated ${c.category}</span>`:'';
   return `<div class="alert-card${isHigh?' ac-high':' ac-medium'}">
     <div class="alert-card-title">${summ}</div>
     <div class="alert-card-meta">
@@ -4739,6 +4784,7 @@ function alertCard(c) {
       <span class="badge badge-type">${st}</span>
       ${c.facility_type?`<span class="badge" style="background:rgba(139,92,246,.06);color:rgba(139,92,246,.5);border:1px solid rgba(139,92,246,.1)">${c.facility_type}</span>`:''}
       ${c.category?`<span class="badge" style="background:rgba(20,50,80,.2);color:#3A5570;border:1px solid rgba(20,50,80,.3)">${c.category}</span>`:''}
+      ${pBadge}
     </div>
     <div class="alert-card-action"><b>Action:</b> ${action}</div>
     <div class="alert-card-footer">
@@ -4751,8 +4797,9 @@ function alertCard(c) {
 // ── Pharma alerts ────────────────────────────────────────────────────
 function renderPharmaAlerts() {
   const el=document.getElementById('pharma-alerts-feed'); if(!el)return;
-  const highs=CITATIONS.filter(c=>c.severity==='high').sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  el.innerHTML=highs.length?highs.map(c=>alertCard(c)).join('')
+  const highs=CITATIONS.filter(c=>c.severity==='high'&&!isLowValueContent(c)).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const patterns=detectPattern(highs);
+  el.innerHTML=highs.length?highs.map(c=>alertCard(c,patterns)).join('')
     :'<div class="empty"><div class="empty-icon">&#9989;</div><div class="empty-text">No high severity alerts</div></div>';
 }
 
@@ -4951,6 +4998,7 @@ function renderIntelligencePage() {
           <div class="icard-top" onclick="toggleIntelCard('${item.id}')">
             <div class="icard-left">
               <div class="icard-title">${item.title}</div>
+              <div class="icard-why-brief">${item.summary.split('. ')[0]}.</div>
               <div class="icard-action-preview">${item.recommendedAction}</div>
             </div>
             <div class="icard-right">
