@@ -2154,6 +2154,38 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
 .alert-card-action b{color:#0D9488 !important;font-weight:700 !important}
 .alert-card-footer{margin-top:3px !important}
 .alert-card-date{font-size:9px !important;color:#1E3048 !important}
+
+/* ── Decision-first overview ───────────────────────────────────── */
+.start-here-action{display:flex;align-items:flex-start;gap:10px;background:rgba(13,148,136,.05);border:1px solid rgba(13,148,136,.12);border-radius:6px;padding:10px 12px;margin-bottom:6px;cursor:default}
+.sha-priority{font-size:8px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border-radius:4px;flex-shrink:0;margin-top:2px}
+.sha-now{background:rgba(208,68,68,.12);color:#D04444;border:1px solid rgba(208,68,68,.2)}
+.sha-urgent{background:rgba(249,115,22,.12);color:#F97316;border:1px solid rgba(249,115,22,.2)}
+.sha-this-week{background:rgba(13,148,136,.12);color:#0D9488;border:1px solid rgba(13,148,136,.2)}
+.sha-body{flex:1;min-width:0}
+.sha-title{font-size:12px;font-weight:600;color:#CBD5E1;line-height:1.4;margin-bottom:2px}
+.sha-why{font-size:10px;color:#3D5268;line-height:1.4}
+.sha-btn{font-size:10px;color:#0D9488;background:none;border:none;cursor:pointer;padding:0 2px;flex-shrink:0;margin-top:2px;white-space:nowrap}
+.sha-btn:hover{text-decoration:underline}
+.top-risk-block{display:flex;align-items:flex-start;gap:10px;background:rgba(255,255,255,.018);border:1px solid rgba(58,96,140,.25);border-radius:6px;padding:10px 12px;margin-bottom:6px;cursor:pointer;transition:background .15s}
+.top-risk-block:hover{background:rgba(58,96,140,.08)}
+.trb-rank{font-size:16px;font-weight:700;color:#2F4558;flex-shrink:0;min-width:22px;text-align:center;margin-top:2px}
+.trb-body{flex:1;min-width:0}
+.trb-hd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px}
+.trb-cat{font-size:12px;font-weight:600;color:#CBD5E1}
+.trb-meaning{font-size:10px;color:#3D5268;line-height:1.4;margin-bottom:4px}
+.trb-action{font-size:10px;color:rgba(13,148,136,.8);font-weight:600;margin-bottom:3px}
+.trb-stats{font-size:9px;color:#2F4558}
+.risk-impact-badge{font-size:8px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:3px}
+.risk-critical{background:rgba(208,68,68,.12);color:#D04444;border:1px solid rgba(208,68,68,.2)}
+.risk-high{background:rgba(249,115,22,.12);color:#F97316;border:1px solid rgba(249,115,22,.2)}
+.risk-watch{background:rgba(58,96,140,.12);color:#8FA5BC;border:1px solid rgba(58,96,140,.2)}
+.vol-bucket{font-size:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:3px;color:#3D5268;background:rgba(58,96,140,.1);border:1px solid rgba(58,96,140,.15)}
+.collapsible-hd{cursor:pointer;user-select:none}
+.collapsible-hd:hover .pharma-section-hd-text{color:#CBD5E1}
+.cat-toggle-icon{float:right;font-size:10px;color:#3D5268;font-weight:400;margin-left:auto}
+.pharma-so-what{font-size:11px;color:#94A3B8;line-height:1.5;padding:8px 12px;margin-top:6px;border-top:1px solid rgba(58,96,140,.2);font-style:italic}
+.so-what-label{font-style:normal;font-weight:700;color:#0D9488;margin-right:4px}
+.section-count{font-size:10px;color:#3D5268;font-weight:400;margin-left:4px}
 </style>
 </head>
 <body>
@@ -2167,7 +2199,7 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
   <button class="prod-tab" data-prod="pharma" onclick="switchProd('pharma')">
     <span class="prod-icon">&#127981;</span>
     Pharma &amp; GMP Compliance
-    <span class="prod-badge">300 citations</span>
+    <span class="prod-badge" id="pharma-tab-count">300 citations</span>
   </button>
 </div>
 <div id="sidebar-overlay" onclick="closeMobSidebar()"></div>
@@ -2627,6 +2659,7 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
       <div class="pharma-ai-title">GMP ENFORCEMENT INTELLIGENCE &mdash; AI SUMMARY</div>
     </div>
     <div id="pharma-ai-body"></div>
+    <div class="pharma-so-what" id="pharma-so-what" style="display:none"></div>
     <div class="pharma-consulting-layer" id="pharma-consulting-layer">
       <div class="pcl-row">
         <div class="pcl-label">Implication</div>
@@ -2656,16 +2689,33 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
     <div class="what-changed-cols" id="what-changed-cols"></div>
   </div>
 
-  <div class="pharma-section">
-    <div class="pharma-section-hd">Findings by Category <span id="pharma-cat-count"></span></div>
-    <div class="cat-grid" id="pharma-cat-grid"></div>
+  <!-- Start Here — Next 7 Days -->
+  <div class="pharma-section" id="start-here-section">
+    <div class="pharma-section-hd">&#128680; Start Here &mdash; Next 7 Days</div>
+    <div id="pharma-start-here"></div>
   </div>
 
+  <!-- Top Risks This Period -->
+  <div class="pharma-section">
+    <div class="pharma-section-hd">Top Risks This Period <span id="top-risks-count" class="section-count"></span></div>
+    <div id="pharma-top-risks"></div>
+  </div>
+
+  <!-- All Findings by Category — collapsed by default -->
+  <div class="pharma-section">
+    <div class="pharma-section-hd collapsible-hd" onclick="toggleAllCategories()">All Findings by Category <span id="pharma-cat-count"></span><span id="all-cats-toggle-icon" class="cat-toggle-icon">&#9660; Show all</span></div>
+    <div id="pharma-cats-collapsed" style="display:none">
+      <div class="cat-grid" id="pharma-cat-grid"></div>
+    </div>
+  </div>
+
+  <!-- Authority Activity -->
   <div class="pharma-section">
     <div class="pharma-section-hd">Authority Activity</div>
     <div id="pharma-auth-bars"></div>
   </div>
 
+  <!-- Recent Enforcement Actions -->
   <div class="pharma-section">
     <div class="pharma-section-hd">Recent Enforcement Actions <span id="pharma-ov-count"></span></div>
     <div id="pharma-ov-chip-bar" class="pharma-chip-bar"></div>
@@ -4390,24 +4440,10 @@ function showPTab(tab) {
 
 // ── Pharma Overview ──────────────────────────────────────────────────
 function renderPharmaOverview() {
-  renderCatGrid('pharma-cat-grid','pharma-cat-count');
-  renderAuthBars('pharma-auth-bars');
-  renderWhatChanged();
-  renderPharmaInsights();
   const data=filteredCits();
   const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.sev!=='all' || pF.dicapa;
-  const oc=document.getElementById('pharma-ov-count'); if(oc) oc.textContent=`${data.length} total`;
-  buildChipBar('pharma-ov-chip-bar');
-  const el=document.getElementById('pharma-ov-feed'); if(!el) return;
-  const limit = isFiltered ? 15 : 8;
-  const feed=data.slice(0,limit);
-  const viewAllBtn = data.length>limit
-    ? `<button class="ov-feed-view-all" onclick="showPTab('pharma-citations')">View all ${data.length} citations &rarr;</button>`
-    : '';
-  el.innerHTML=feed.length
-    ? feed.map(c=>citCard(c)).join('')+viewAllBtn
-    :'<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No citations match filters</div></div>';
-  // KPI counts use same filtered dataset as overview feed — consistent with summary text
+
+  // KPI row
   const high=data.filter(c=>c.severity==='high').length;
   const wl=data.filter(c=>c.source_type==='warning_letter').length;
   const insp=data.filter(c=>c.source_type==='inspection_finding').length;
@@ -4420,6 +4456,36 @@ function renderPharmaOverview() {
   _setKpi('pk-total', data.length);
   _setKpi('pk-diCapa', diCapaFilt);
   _setKpi('pk-tga', tga);
+
+  // Tab badge — always show full dataset size
+  const tabBadge=document.getElementById('pharma-tab-count');
+  if(tabBadge) tabBadge.textContent=`${CITATIONS.length} citations`;
+
+  // AI summary + So What + What Changed
+  renderWhatChanged();
+  renderPharmaInsights();
+  renderSoWhatLine(data);
+
+  // Decision-first sections
+  renderStartHereActions(data);
+  renderTopRiskBlocks(rankPharmaRisks(data));
+  renderAllCategoriesCollapsed(data);
+
+  // Authority activity
+  renderAuthBars('pharma-auth-bars');
+
+  // Recent feed
+  const oc=document.getElementById('pharma-ov-count'); if(oc) oc.textContent=`${data.length} total`;
+  buildChipBar('pharma-ov-chip-bar');
+  const el=document.getElementById('pharma-ov-feed'); if(!el) return;
+  const limit = isFiltered ? 15 : 8;
+  const feed=data.slice(0,limit);
+  const viewAllBtn = data.length>limit
+    ? `<button class="ov-feed-view-all" onclick="showPTab('pharma-citations')">View all ${data.length} citations &rarr;</button>`
+    : '';
+  el.innerHTML=feed.length
+    ? feed.map(c=>citCard(c)).join('')+viewAllBtn
+    :'<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No citations match filters</div></div>';
 }
 
 function renderCatGrid(gridId, countId) {
@@ -4866,6 +4932,148 @@ function renderPharmaInsights() {
     _set('pcl-oppty', intel.opportunity);
     _set('pcl-client', intel.client);
   }
+}
+
+// ── Decision-first overview helpers ───────────────────────────────────
+
+function renderSoWhatLine(data) {
+  const el=document.getElementById('pharma-so-what'); if(!el) return;
+  const catMap=data.reduce((m,c)=>{const k=c.category||'Other';m[k]=(m[k]||0)+1;return m},{});
+  const topEntry=Object.entries(catMap).sort((a,b)=>b[1]-a[1])[0];
+  if(!topEntry){el.style.display='none';return;}
+  const highCount=data.filter(c=>c.severity==='high').length;
+  const intel=CAT_INTEL[topEntry[0]];
+  const oppty=intel?'. '+intel.opportunity:'';
+  el.style.display='block';
+  el.innerHTML=`<span class="so-what-label">So what?</span>${topEntry[0]} leads with ${topEntry[1]} citation${topEntry[1]!==1?'s':''} and ${highCount} high-severity flag${highCount!==1?'s':''}${oppty}.`;
+}
+
+function getTopImmediateActions(data) {
+  const actions=[];
+  const catMap=data.reduce((m,c)=>{const k=c.category||'Other';m[k]=(m[k]||0)+1;return m},{});
+  const topCat=Object.entries(catMap).sort((a,b)=>b[1]-a[1])[0];
+  if(topCat){
+    const intel=CAT_INTEL[topCat[0]];
+    const safe=topCat[0].replace(/'/g,"\\'");
+    actions.push({
+      priority:'now',
+      title:`Review ${topCat[0]} controls — ${topCat[1]} citation${topCat[1]!==1?'s':''}`,
+      why: intel?intel.action:'Highest citation volume this period',
+      onclick:`pFilterByCat('${safe}')`
+    });
+  }
+  const highItems=data.filter(c=>c.severity==='high');
+  if(highItems.length){
+    actions.push({
+      priority:'urgent',
+      title:`${highItems.length} high-severity action${highItems.length!==1?'s':''} require immediate attention`,
+      why:'High severity citations indicate enforcement escalation risk — act before inspection',
+      onclick:`pF.sev='high';syncPFPills();renderPharmaOverview()`
+    });
+  }
+  const tgaCt=data.filter(c=>c.authority==='TGA').length;
+  const suppCt=data.filter(c=>c.facility_type==='Supplement / Nutraceutical').length;
+  if(tgaCt>=suppCt&&tgaCt>0){
+    actions.push({
+      priority:'this-week',
+      title:`${tgaCt} TGA action${tgaCt!==1?'s':''} on file — AU market priority`,
+      why:'Self-audit against AU GMP Code Part 3 for all AU-registered products',
+      onclick:`pF.auth='TGA';syncPFPills();renderPharmaOverview()`
+    });
+  } else if(suppCt>0){
+    actions.push({
+      priority:'this-week',
+      title:`${suppCt} Supplement / Nutraceutical action${suppCt!==1?'s':''} on file`,
+      why:'Labelling & claims leads this facility type — audit substantiation packages',
+      onclick:`pF.factype='Supplement / Nutraceutical';syncPFPills();renderPharmaOverview()`
+    });
+  }
+  return actions.slice(0,3);
+}
+
+function renderStartHereActions(data) {
+  const el=document.getElementById('pharma-start-here'); if(!el) return;
+  const actions=getTopImmediateActions(data);
+  if(!actions.length){el.innerHTML='<div style="font-size:11px;color:#2F4558;padding:8px">No actions — adjust filters or add more data</div>';return;}
+  el.innerHTML=actions.map(a=>`<div class="start-here-action">
+    <div class="sha-priority sha-${a.priority}">${a.priority.replace('-',' ')}</div>
+    <div class="sha-body"><div class="sha-title">${a.title}</div><div class="sha-why">${a.why}</div></div>
+    ${a.onclick?`<button class="sha-btn" onclick="${a.onclick}">Drill in &rarr;</button>`:''}
+  </div>`).join('');
+}
+
+function rankPharmaRisks(data) {
+  const catMap={};
+  data.forEach(c=>{
+    const k=c.category||'Other';
+    if(!catMap[k]) catMap[k]={count:0,high:0};
+    catMap[k].count++;
+    if(c.severity==='high') catMap[k].high++;
+  });
+  return Object.entries(catMap)
+    .map(([cat,v])=>({cat,count:v.count,high:v.high,score:v.count+v.high*3}))
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,5);
+}
+
+function getRiskImpact(count, high) {
+  const pct=count>0?high/count:0;
+  if(pct>0.4||high>5) return {label:'Critical',cls:'risk-critical'};
+  if(pct>0.2||high>2) return {label:'High',cls:'risk-high'};
+  return {label:'Watch',cls:'risk-watch'};
+}
+
+function formatVolumeBucket(count) {
+  if(count>=200) return 'Very High';
+  if(count>=100) return 'High';
+  if(count>=40)  return 'Moderate';
+  if(count>=10)  return 'Low';
+  return 'Minimal';
+}
+
+function renderTopRiskBlocks(risks) {
+  const el=document.getElementById('pharma-top-risks'); if(!el) return;
+  if(!risks.length){
+    el.innerHTML='<div class="empty"><div class="empty-text">No data — adjust filters</div></div>';
+    return;
+  }
+  el.innerHTML=risks.map((r,i)=>{
+    const intel=CAT_INTEL[r.cat];
+    const meaning=intel?intel.implication.split('.')[0]+'.':'';
+    const action=intel?intel.action:'Review enforcement pattern';
+    const impact=getRiskImpact(r.count,r.high);
+    const vol=formatVolumeBucket(r.count);
+    const safe=r.cat.replace(/'/g,"\\'");
+    return `<div class="top-risk-block" onclick="pFilterByCat('${safe}')">
+      <div class="trb-rank">#${i+1}</div>
+      <div class="trb-body">
+        <div class="trb-hd">
+          <span class="trb-cat">${r.cat}</span>
+          <span class="risk-impact-badge ${impact.cls}">${impact.label}</span>
+          <span class="vol-bucket">${vol} volume</span>
+        </div>
+        <div class="trb-meaning">${meaning}</div>
+        <div class="trb-action">&#8594; ${action}</div>
+        <div class="trb-stats">${r.count} citation${r.count!==1?'s':''} &middot; ${r.high} high severity</div>
+      </div>
+    </div>`;
+  }).join('');
+  const allCats=new Set(filteredCits().map(c=>c.category||'Other')).size;
+  const countEl=document.getElementById('top-risks-count');
+  if(countEl) countEl.textContent=`(${risks.length} of ${allCats} categories)`;
+}
+
+function renderAllCategoriesCollapsed(data) {
+  renderCatGrid('pharma-cat-grid','pharma-cat-count');
+}
+
+function toggleAllCategories() {
+  const wrap=document.getElementById('pharma-cats-collapsed');
+  const icon=document.getElementById('all-cats-toggle-icon');
+  if(!wrap) return;
+  const isOpen=wrap.style.display!=='none';
+  wrap.style.display=isOpen?'none':'block';
+  if(icon) icon.innerHTML=isOpen?'&#9660; Show all':'&#9650; Collapse';
 }
 
 // ── What Changed This Period ──────────────────────────────────────────
