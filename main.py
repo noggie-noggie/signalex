@@ -94,16 +94,17 @@ def main() -> None:
 def _run_refresh() -> None:
     """
     Safe pipeline refresh: scrape → classify → sentiment → trends → alerts →
-    patch the signalex-data blob in signals.html.  Layout/CSS/JS untouched.
+    export data/signals_export.json + data/citations_export.json + data/meta.json.
+    signals.html is NEVER modified.
     """
     from scheduler.jobs import run_full_pipeline
-    from generate_signals import update_data_blob
+    from generate_signals import export_json_files
 
     logger.info("Running full pipeline (scrape + classify + analytics)…")
     summary = run_full_pipeline()
 
-    logger.info("Patching signals.html data blob…")
-    result = update_data_blob()
+    logger.info("Exporting JSON data files…")
+    result = export_json_files()
 
     print("\n" + "=" * 65)
     print("  SAFE REFRESH COMPLETE")
@@ -112,10 +113,10 @@ def _run_refresh() -> None:
     for src, ct in summary["source_counts"].items():
         if ct:
             print(f"    {src:30s}  {ct:4d} new")
-    print(f"\n  signals.html data blob updated")
-    print(f"    Signals:      {result['signals']}")
-    print(f"    Citations:    {result['citations']}")
-    print(f"    Last updated: {result['last_updated']}")
+    print(f"\n  JSON data files updated (signals.html untouched)")
+    print(f"    Signals:      {result['signals']}  → data/signals_export.json")
+    print(f"    Citations:    {result['citations']}  → data/citations_export.json")
+    print(f"    Last updated: {result['last_updated']}  → data/meta.json")
     print("=" * 65 + "\n")
 
 
