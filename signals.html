@@ -2103,76 +2103,40 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
 .pharma-chip-clear-all { font-size: 11px; color: rgba(13,148,136,.55); background: none; border: 1px solid rgba(13,148,136,.18); border-radius: 99px; padding: 2px 9px; cursor: pointer; transition: color .1s; }
 .pharma-chip-clear-all:hover { color: rgba(13,148,136,.85); border-color: rgba(13,148,136,.4); }
 
-/* ══ Pharma sizing match ══════════════════════════════════════════════════ */
-/* Scoped so VMS tabs are never affected */
+/* ══ Cross-tab unified styles — VMS and Pharma visually identical ═══════════ */
 
-/* KPI cards inside pharma grid */
-.pharma-kpi-grid .kpi-card {
-  padding: 24px 20px !important;
-  min-height: 120px !important;
-}
-.pharma-kpi-grid .kpi-val {
-  font-size: 36px !important;
-  font-weight: 700 !important;
-  line-height: 1 !important;
-}
-.pharma-kpi-grid .kpi-label {
-  font-size: 11px !important;
-  margin-bottom: 8px !important;
+/* § 1  Pharma section headings → match VMS .section-title (13px / 700 / #F0F0F0) */
+.pharma-section-hd {
+  font-size:      13px !important;
+  font-weight:    700  !important;
+  color:          #F0F0F0 !important;
+  letter-spacing: 0    !important;
+  text-transform: none !important;
 }
 
-/* Category / findings cards */
-#pharma-content .cat-cell {
-  padding: 20px !important;
-}
-#pharma-content .cat-cell-name {
-  font-size: 14px !important;
-  font-weight: 600 !important;
-}
-#pharma-content .cat-cell-ct {
-  font-size: 32px !important;
-  font-weight: 800 !important;
+/* § 2  Pharma section gap → match VMS standard 20px */
+.pharma-section { margin-bottom: 20px !important; }
+
+/* § 3  Pharma AI panel title → match VMS .ai-title (11px / 700 / #9CA3AF) */
+.pharma-ai-title {
+  font-size:   11px !important;
+  font-weight: 700  !important;
 }
 
-/* Section headings */
-#pharma-content .pharma-section-hd {
-  font-size: 14px !important;
-  font-weight: 600 !important;
-  color: #C0D0DC !important;
-}
+/* § 4  Sidebar filter counts — .pf-ct → match VMS .filter-count (10px / #9CA3AF) */
+.pf-ct { font-size: 10px !important; }
 
-/* Section spacing */
-#pharma-content .pharma-section {
-  margin-bottom: 32px !important;
-}
+/* § 5  Sidebar active label weight — match VMS .filter-opt.active .filter-label (700) */
+.pf-pill.active .filter-label { font-weight: 700 !important; }
 
-/* Enforcement / authority bars */
-#pharma-content .enf-row {
-  padding: 12px 16px !important;
-}
-#pharma-content .enf-name {
-  font-size: 14px !important;
-}
-
-/* AI summary / insight text */
-#pharma-content .pharma-insight-text {
-  font-size: 14px !important;
-  line-height: 1.6 !important;
-}
-#pharma-content .pharma-ai-panel p,
-#pharma-content #pharma-ai-body {
-  font-size: 14px !important;
-  line-height: 1.6 !important;
-}
-
-/* Last-refreshed label in topnav */
+/* Last-refreshed topnav label */
 .last-refreshed-label {
-  font-size: 11px;
-  color: #3D5268;
-  white-space: nowrap;
+  font-size:      11px;
+  color:          #3D5268;
+  white-space:    nowrap;
   letter-spacing: .01em;
 }
-/* ═════════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════════════ */
 </style>
 </head>
 <body>
