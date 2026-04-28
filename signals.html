@@ -3789,8 +3789,12 @@ function renderAnalyticsInsights() {
 }
 
 // ─── WATCHLIST ────────────────────────────────────────────────────────────────
-function getWatchlist() { try{return JSON.parse(localStorage.getItem('sx_wl')||'[]')}catch(e){return []} }
-function saveWatchlist(wl) { localStorage.setItem('sx_wl',JSON.stringify(wl)); _syncWlBtn(); }
+let _wlCache = null;
+function getWatchlist() {
+  if(_wlCache===null){try{_wlCache=JSON.parse(localStorage.getItem('sx_wl')||'[]')}catch(e){_wlCache=[];}}
+  return _wlCache;
+}
+function saveWatchlist(wl) { _wlCache=wl; localStorage.setItem('sx_wl',JSON.stringify(wl)); _syncWlBtn(); }
 function isWatched(id) { return getWatchlist().some(x=>x.id===id); }
 function addToWatchlist(id,name,type) {
   const wl=getWatchlist();
@@ -4403,6 +4407,10 @@ let citSortState = { col:'date', dir:-1 };
 let citPg = 1;
 const CIT_PP = 25;
 let pCatFilter = null;
+
+// ── Filtered-citations cache — set _dirty=true whenever filter state changes
+let _filteredCache = null;
+let _dirty = true;
 const DI_CAPA_KWS = ['computerised systems validation','data integrity','deviation management','audit trail','capa','csv'];
 
 // ── DI/CAPA keyword test — single source of truth ────────────────────────────
@@ -4479,12 +4487,15 @@ function detectPattern(cits) {
 }
 
 function filteredCits() {
-  return unifiedFilteredCitations({
+  if (!_dirty && _filteredCache !== null) return _filteredCache;
+  _filteredCache = unifiedFilteredCitations({
     auth: pF.auth, sev: pF.sev, srctype: pF.srctype, factype: pF.factype,
     catFilter: pCatFilter, dicapa: pF.dicapa, company: pF.company, query: pF.query,
     dateFrom: pF.dateFrom, dateTo: pF.dateTo,
     sortCol: citSortState.col, sortDir: citSortState.dir,
   });
+  _dirty = false;
+  return _filteredCache;
 }
 
 function resetPharmaFilters() {
@@ -4495,6 +4506,7 @@ function resetPharmaFilters() {
   syncPFPills(); renderPAll();
 }
 function _setPActiveKpi(id) {
+  _dirty = true;
   if(pActiveKpi) { const prev=document.getElementById(pActiveKpi); if(prev) prev.classList.remove('pk-active'); }
   pActiveKpi=id;
   if(id) { const el=document.getElementById(id); if(el) el.classList.add('pk-active'); }
@@ -4516,12 +4528,26 @@ function pKpiClick(kpiId, dim, val) {
   if(feed) feed.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function syncPFPills() {
+  _dirty = true;
   document.querySelectorAll('.pf-pill[data-pf]').forEach(el=>{
     const dim=el.dataset.pf, val=el.dataset.val;
     el.classList.toggle('active', pF[dim]===val||(val==='all'&&pF[dim]==='all'));
   });
 }
-function renderPAll() { citPg=1; renderPharmaOverview(); renderCitations(); renderEnfPage(); renderFacilities(); renderPharmaAlerts(); renderIntelligencePage(); }
+function renderPAll() {
+  console.time('renderPAll');
+  citPg=1;
+  const _at=document.querySelector('#pharma-nav .nav-tab.active');
+  const _tab=_at?_at.dataset.ptab:'pharma-overview';
+  if(_tab==='pharma-overview') renderPharmaOverview();
+  else if(_tab==='pharma-citations') renderCitations();
+  else if(_tab==='pharma-enforcement') renderEnfPage();
+  else if(_tab==='pharma-facilities') renderFacilities();
+  else if(_tab==='pharma-alerts') renderPharmaAlerts();
+  else if(_tab==='pharma-intelligence') renderIntelligencePage();
+  else renderPharmaOverview();
+  console.timeEnd('renderPAll');
+}
 
 function pSetFilter(dim, val) {
   pF[dim] = pF[dim]===val ? 'all' : val;
@@ -4555,13 +4581,14 @@ function buildChipBar(elId) {
   if(pF.auth!=='all')    chips.push({label:`Authority: ${pF.auth}`,                  fn:`pF.auth='all';syncPFPills();renderPAll()`});
   if(pF.factype!=='all') chips.push({label:`Facility: ${pF.factype}`,                fn:`pF.factype='all';syncPFPills();renderPAll()`});
   if(pF.dicapa)          chips.push({label:'DI / CAPA / CSV',                        fn:`pF.dicapa=false;_setPActiveKpi(null);syncPFPills();renderPAll()`});
-  if(pCatFilter)         chips.push({label:`Category: ${pCatFilter}`,                fn:`pCatFilter=null;renderPAll()`});
+  if(pCatFilter)         chips.push({label:`Category: ${pCatFilter}`,                fn:`pCatFilter=null;_dirty=true;renderPAll()`});
   if(!chips.length){el.innerHTML='';return;}
   el.innerHTML=chips.map(ch=>
     `<span class="pharma-chip">${ch.label}<button class="pharma-chip-x" onclick="${ch.fn}">&#10005;</button></span>`
   ).join('')+`<button class="pharma-chip-clear-all" onclick="resetPharmaFilters()">&#10005; Clear all</button>`;
 }
 function sortCit(col) {
+  _dirty = true;
   if (citSortState.col===col) citSortState.dir=-citSortState.dir;
   else { citSortState.col=col; citSortState.dir=-1; }
   renderCitations();
@@ -4589,12 +4616,15 @@ function renderPharmaOverview() {
   const data=filteredCits();
   const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.sev!=='all' || pF.dicapa;
 
-  // KPI row
-  const high=data.filter(c=>c.severity==='high').length;
-  const wl=data.filter(c=>c.source_type==='warning_letter').length;
-  const insp=data.filter(c=>c.source_type==='inspection_finding').length;
-  const diCapaFilt=data.filter(isDiCapa).length;
-  const tga=data.filter(c=>c.authority==='TGA').length;
+  // KPI row — single pass over data
+  let high=0,wl=0,insp=0,diCapaFilt=0,tga=0;
+  for(const c of data){
+    if(c.severity==='high')high++;
+    if(c.source_type==='warning_letter')wl++;
+    if(c.source_type==='inspection_finding')insp++;
+    if(isDiCapa(c))diCapaFilt++;
+    if(c.authority==='TGA')tga++;
+  }
   const _setKpi=(id,val)=>{const e=document.getElementById(id);if(e){const v=e.querySelector('.kpi-val');if(v){v.textContent=val;v.classList.add('kpi-updated');setTimeout(()=>v.classList.remove('kpi-updated'),600);}}};
   _setKpi('pk-high', high);
   _setKpi('pk-wl', wl);
@@ -5021,14 +5051,17 @@ function renderPharmaInsights() {
   const data=filteredCits();
   const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.sev!=='all' || pF.factype!=='all' || pF.dicapa;
   const n = (ct, noun) => ct===0 ? `No ${noun} match current filters` : `${ct} ${noun}`;
-  const wlCt=data.filter(c=>c.source_type==='warning_letter').length;
-  const inspCt=data.filter(c=>c.source_type==='inspection_finding').length;
-  const importCt=data.filter(c=>c.source_type==='import_alert').length;
-  const suppCt=data.filter(c=>c.facility_type==='Supplement / Nutraceutical').length;
-  const tgaCt=data.filter(c=>c.authority==='TGA').length;
-  const csvCt=data.filter(c=>c.category==='Computerised systems validation').length;
-  const sterCt=data.filter(c=>c.category==='Sterility assurance').length;
-  const labelCt=data.filter(c=>c.category==='Labelling & claims').length;
+  let wlCt=0,inspCt=0,importCt=0,suppCt=0,tgaCt=0,csvCt=0,sterCt=0,labelCt=0;
+  for(const c of data){
+    if(c.source_type==='warning_letter')wlCt++;
+    if(c.source_type==='inspection_finding')inspCt++;
+    if(c.source_type==='import_alert')importCt++;
+    if(c.facility_type==='Supplement / Nutraceutical')suppCt++;
+    if(c.authority==='TGA')tgaCt++;
+    if(c.category==='Computerised systems validation')csvCt++;
+    if(c.category==='Sterility assurance')sterCt++;
+    if(c.category==='Labelling & claims')labelCt++;
+  }
   const sc = isFiltered ? 'in current view' : 'on file';
   const insights=[
     {col:'#D04444',label:'Warning Letters',
@@ -5398,15 +5431,15 @@ document.querySelectorAll('#pharma-nav .nav-tab[data-ptab]').forEach(btn=>{
   btn.addEventListener('click',()=>showPTab(btn.dataset.ptab));
 });
 const pComp=document.getElementById('p-company');
-if(pComp)pComp.addEventListener('input',()=>{pF.company=pComp.value;renderPAll();});
+if(pComp)pComp.addEventListener('input',()=>{_dirty=true;pF.company=pComp.value;renderPAll();});
 const citSrch=document.getElementById('cit-search');
-if(citSrch)citSrch.addEventListener('input',()=>{pF.query=citSrch.value;renderCitations();});
+if(citSrch)citSrch.addEventListener('input',()=>{_dirty=true;pF.query=citSrch.value;renderCitations();});
 const facSrch=document.getElementById('fac-search');
 if(facSrch)facSrch.addEventListener('input',()=>renderFacilities());
 const pdf=document.getElementById('p-date-from');
-if(pdf)pdf.addEventListener('change',()=>{pF.dateFrom=pdf.value;renderPAll();});
+if(pdf)pdf.addEventListener('change',()=>{_dirty=true;pF.dateFrom=pdf.value;renderPAll();});
 const pdt=document.getElementById('p-date-to');
-if(pdt)pdt.addEventListener('change',()=>{pF.dateTo=pdt.value;renderPAll();});
+if(pdt)pdt.addEventListener('change',()=>{_dirty=true;pF.dateTo=pdt.value;renderPAll();});
 
 // ── Init ─────────────────────────────────────────────────────────────
 (function initProd(){
