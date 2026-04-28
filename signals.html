@@ -3515,11 +3515,25 @@ const sc={x:{ticks:{color:CA,font:{size:11}},grid:{color:CG}},y:{ticks:{color:CA
 // Store all chart refs so we can resize them when tabs become visible
 const _charts = {};
 const mk=(id,cfg)=>{const c=document.getElementById(id);if(c){_charts[id]=new Chart(c,cfg);return _charts[id];}};
-mk('chart-sources',{type:'bar',data:{labels:['PubMed','Europe PMC','ClinTrials','TGA Consult','Cochrane','ARTG','FDA','TGA','EFSA','SemanticScholar','Adv.Events'],datasets:[{data:[138,124,115,7,6,4,3,2,2,2,2],backgroundColor:PAL,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc}});
-mk('chart-sentiment',{type:'doughnut',data:{labels:['Positive','Neutral','Negative'],datasets:[{data:[78,311,16],backgroundColor:['#059669','#334155','#DC2626'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#B4C8D8',font:{size:11},padding:10}}}}});
-mk('chart-severity',{type:'doughnut',data:{labels:['Low','Medium','High'],datasets:[{data:[373,18,14],backgroundColor:['#334155','#D97706','#DC2626'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#B4C8D8',font:{size:11},padding:10}}}}});
-mk('chart-events',{type:'bar',data:{labels:['Research/Other','Safety Alert','Warning','New Listing','Recall'],datasets:[{data:[383,11,4,4,3],backgroundColor:['#1E3A5F','#F59E0B','#D97706','#3B82F6','#EF4444'],borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc}});
-mk('chart-categories',{type:'bar',data:{labels:['GMP violations','Labelling & claims','Equipment','Contamination','Sterility','Ingredient safety','CSV','Other'],datasets:[{data:[744,462,251,210,198,195,147,121],backgroundColor:'#0D9488',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:CA,font:{size:11}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:11}},grid:{display:false}}}}});
+// chart-sources — computed from SIGNALS by authority
+const _srcAuthMap={'PubMed':'pubmed','Europe PMC':'europe_pmc','ClinTrials':'clinical_trials','TGA Consult':'tga_consultations','Cochrane':'cochrane','ARTG':'artg','FDA':'fda','TGA':'tga','EFSA':'efsa','SemanticScholar':'semantic_scholar','Adv.Events':'adverse_events'};
+const _srcLabels=Object.keys(_srcAuthMap);
+const _srcData=_srcLabels.map(lbl=>SIGNALS.filter(s=>s.authority===_srcAuthMap[lbl]).length);
+mk('chart-sources',{type:'bar',data:{labels:_srcLabels,datasets:[{data:_srcData,backgroundColor:PAL,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc}});
+// chart-sentiment — computed from SIGNALS
+const _sentData=[SIGNALS.filter(s=>(s.sentiment||'').toLowerCase()==='positive').length,SIGNALS.filter(s=>(s.sentiment||'').toLowerCase()==='neutral').length,SIGNALS.filter(s=>(s.sentiment||'').toLowerCase()==='negative').length];
+mk('chart-sentiment',{type:'doughnut',data:{labels:['Positive','Neutral','Negative'],datasets:[{data:_sentData,backgroundColor:['#059669','#334155','#DC2626'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#B4C8D8',font:{size:11},padding:10}}}}});
+// chart-severity — computed from SIGNALS
+const _sevData=[SIGNALS.filter(s=>(s.severity||'').toLowerCase()==='low').length,SIGNALS.filter(s=>(s.severity||'').toLowerCase()==='medium').length,SIGNALS.filter(s=>(s.severity||'').toLowerCase()==='high').length];
+mk('chart-severity',{type:'doughnut',data:{labels:['Low','Medium','High'],datasets:[{data:_sevData,backgroundColor:['#334155','#D97706','#DC2626'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#B4C8D8',font:{size:11},padding:10}}}}});
+// chart-events — computed from SIGNALS
+const _evtKnown=['recall','safety_alert','warning','new_listing'];
+const _evtData=[SIGNALS.filter(s=>!_evtKnown.includes((s.event_type||'').toLowerCase())).length,SIGNALS.filter(s=>(s.event_type||'').toLowerCase()==='safety_alert').length,SIGNALS.filter(s=>(s.event_type||'').toLowerCase()==='warning').length,SIGNALS.filter(s=>(s.event_type||'').toLowerCase()==='new_listing').length,SIGNALS.filter(s=>(s.event_type||'').toLowerCase()==='recall').length];
+mk('chart-events',{type:'bar',data:{labels:['Research/Other','Safety Alert','Warning','New Listing','Recall'],datasets:[{data:_evtData,backgroundColor:['#1E3A5F','#F59E0B','#D97706','#3B82F6','#EF4444'],borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc}});
+// chart-categories — top 8 categories from CITATIONS
+const _catMap8={};CITATIONS.forEach(c=>{const k=c.category||'Other';_catMap8[k]=(_catMap8[k]||0)+1;});
+const _catE8=Object.entries(_catMap8).sort((a,b)=>b[1]-a[1]).slice(0,8);
+mk('chart-categories',{type:'bar',data:{labels:_catE8.map(x=>x[0]),datasets:[{data:_catE8.map(x=>x[1]),backgroundColor:'#0D9488',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:CA,font:{size:11}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:11}},grid:{display:false}}}}});
 const ingMap={};SIGNALS.forEach(s=>{const i=(s.ingredient_name||'').trim();if(!i||i==='unknown')return;ingMap[i]=(ingMap[i]||0)+1});
 const sortedIngs=Object.entries(ingMap).sort((a,b)=>b[1]-a[1]).slice(0,15);
 mk('trend-ingredients',{type:'bar',data:{labels:sortedIngs.map(x=>x[0]),datasets:[{data:sortedIngs.map(x=>x[1]),backgroundColor:'#0D9488',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.parsed.x} signals`}}},scales:{x:{ticks:{color:CA,font:{size:11}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:11}},grid:{display:false}}},onClick:(evt,els)=>{if(els.length){const name=sortedIngs[els[0].index][0];hideTip();filterByIngredient(name);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
@@ -3527,32 +3541,38 @@ const auths2=['tga','tga_consultations','fda','artg','pubmed','europe_pmc','clin
 const aLbls=['TGA','TGA Consult.','FDA','ARTG','PubMed','Europe PMC','ClinTrials','Cochrane'];
 mk('trend-auth-sent',{type:'bar',data:{labels:aLbls,datasets:[{label:'Positive',data:auths2.map(a=>SIGNALS.filter(s=>s.authority===a&&s.sentiment==='positive').length),backgroundColor:'#059669'},{label:'Neutral',data:auths2.map(a=>SIGNALS.filter(s=>s.authority===a&&s.sentiment==='neutral').length),backgroundColor:'#334155'},{label:'Negative',data:auths2.map(a=>SIGNALS.filter(s=>s.authority===a&&s.sentiment==='negative').length),backgroundColor:'#DC2626'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#B4C8D8',font:{size:11}}}},scales:{x:{stacked:true,ticks:{color:CA,font:{size:11}},grid:{display:false}},y:{stacked:true,ticks:{color:CA,font:{size:11}},grid:{color:CG}}},onClick:(evt,els)=>{if(els.length){const auth=auths2[els[0].index];hideTip();filterByAuthority(auth);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
 const _newSrcAuths=['europe_pmc','clinical_trials','cochrane','efsa','semantic_scholar'];
-mk('trend-new-sources',{type:'bar',data:{labels:['Europe PMC','ClinTrials','Cochrane','EFSA','Semantic Scholar'],datasets:[{data:[124,115,6,2,2],backgroundColor:PAL,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc,onClick:(evt,els)=>{if(els.length){const auth=_newSrcAuths[els[0].index];hideTip();filterByAuthority(auth);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
+mk('trend-new-sources',{type:'bar',data:{labels:['Europe PMC','ClinTrials','Cochrane','EFSA','Semantic Scholar'],datasets:[{data:_newSrcAuths.map(a=>SIGNALS.filter(s=>s.authority===a).length),backgroundColor:PAL,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc,onClick:(evt,els)=>{if(els.length){const auth=_newSrcAuths[els[0].index];hideTip();filterByAuthority(auth);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
 (()=>{
-  const cats={GMP:744,'Labelling':462,'Equipment':251,'Contamination':210,'Sterility':198,'Ingredient safety':195,'CSV':147,'Other':121,'Container closure':119,'Batch release':98};
   const auths3=['FDA','EFSA','TGA','BfR','MHRA'];
-  const max=744;
-  // Map heatmap category labels to CLAIM_KW categories for filtering
-  const _hmCatMap={'GMP':'GMP & manufacturing','Labelling':'Labelling & claims','Ingredient safety':'Ingredient safety','Contamination':'Contamination risk','Sterility':'Sterility'};
+  // Map CITATIONS category names to CLAIM_KW keys for VMS filter links
+  const _hmClaimMap={'GMP violations':'GMP & manufacturing','Labelling & claims':'Labelling & claims','Ingredient safety':'Ingredient safety','Contamination':'Contamination risk','Contamination risk':'Contamination risk','Sterility':'Sterility','Sterility assurance':'Sterility'};
+  // Compute top-10 categories and per-cell counts from CITATIONS
+  const _hmCats={};CITATIONS.forEach(c=>{const k=c.category||'Other';_hmCats[k]=(_hmCats[k]||0)+1;});
+  const _hmCatList=Object.entries(_hmCats).sort((a,b)=>b[1]-a[1]).slice(0,10).map(x=>x[0]);
+  const max=Math.max(...Object.values(_hmCats),1);
   let html=`<div class="heatmap-col-labels">${auths3.map(a=>`<div class="heatmap-col-label">${a}</div>`).join('')}</div>`;
-  Object.entries(cats).forEach(([cat,base])=>{
-    const vals=auths3.map((a,i)=>Math.round(base*[.87,.08,.01,.02,.02][i]+Math.random()*20));
+  _hmCatList.forEach(cat=>{
+    const vals=auths3.map(a=>CITATIONS.filter(c=>(c.category||'Other')===cat&&c.authority===a).length);
     const safe=cat.replace(/'/g,"\\'");
-    const claimCat=_hmCatMap[cat]||null;
-    const clickFn=claimCat
-      ? `filterByClaim('${claimCat.replace(/'/g,"\\'")}')`
-      : `gotoEvidence('${safe}')`;
+    const claimCat=_hmClaimMap[cat]||null;
+    const clickFn=claimCat?`filterByClaim('${claimCat.replace(/'/g,"\\'")}')`:`gotoEvidence('${safe}')`;
     html+=`<div class="heatmap-row" onclick="${clickFn}" title="Click to filter: ${cat}">
       <div class="heatmap-label">${cat}</div>
-      <div class="heatmap-cells">${vals.map(v=>`<div class="heatmap-cell" style="background:rgba(13,148,136,${(.08+v/max*.85).toFixed(2)})" title="${Math.round(v)}"></div>`).join('')}
+      <div class="heatmap-cells">${vals.map(v=>`<div class="heatmap-cell" style="background:rgba(13,148,136,${(.08+v/max*.85).toFixed(2)})" title="${v}"></div>`).join('')}
       </div></div>`;
   });
   document.getElementById('heatmap-container').innerHTML=html;
 })();
+// report-chart-auth — computed from CITATIONS by authority
 const _rptAuthKeys=['FDA','EFSA','TGA','BfR','MHRA'];
-mk('report-chart-auth',{type:'bar',data:{labels:_rptAuthKeys,datasets:[{data:[2569,233,24,23,20],backgroundColor:PAL,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc,onClick:(evt,els)=>{if(els.length){gotoEvidence(undefined,_rptAuthKeys[els[0].index]);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
-const _rptCatLabels=['GMP violations','Labelling & claims','Equipment & facilities','Contamination','Sterility assurance','Ingredient safety','Computerised systems','Other','Container closure','Batch release'];
-mk('report-chart-cats',{type:'bar',data:{labels:_rptCatLabels,datasets:[{data:[744,462,251,210,198,195,147,121,119,98],backgroundColor:PAL,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:CA,font:{size:11}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:11}},grid:{display:false}}},onClick:(evt,els)=>{if(els.length){gotoEvidence(_rptCatLabels[els[0].index]);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
+const _rptAuthData=_rptAuthKeys.map(a=>CITATIONS.filter(c=>c.authority===a).length);
+mk('report-chart-auth',{type:'bar',data:{labels:_rptAuthKeys,datasets:[{data:_rptAuthData,backgroundColor:PAL,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:sc,onClick:(evt,els)=>{if(els.length){gotoEvidence(undefined,_rptAuthKeys[els[0].index]);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
+// report-chart-cats — top 10 categories from CITATIONS (dynamic labels + data)
+const _rptCatMap={};CITATIONS.forEach(c=>{const k=c.category||'Other';_rptCatMap[k]=(_rptCatMap[k]||0)+1;});
+const _rptCatEntries=Object.entries(_rptCatMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+const _rptCatLabels=_rptCatEntries.map(x=>x[0]);
+const _rptCatData=_rptCatEntries.map(x=>x[1]);
+mk('report-chart-cats',{type:'bar',data:{labels:_rptCatLabels,datasets:[{data:_rptCatData,backgroundColor:PAL,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:CA,font:{size:11}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:11}},grid:{display:false}}},onClick:(evt,els)=>{if(els.length){gotoEvidence(_rptCatLabels[els[0].index]);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
 
 // ─── TREND COMPUTATIONS ───────────────────────────────────────────────────────
 function computeIngredientTrends() {
@@ -4009,6 +4029,98 @@ function renderVmsWhatChanged() {
   el.innerHTML=`<div class="wc-vms-panel"><div class="wc-vms-hd">What Changed This Period</div><div class="wc-vms-cols"><div><div class="wc-vms-col-hd">Ingredient Activity</div>${ingCol}</div><div><div class="wc-vms-col-hd">New High-Severity</div>${highCol}</div><div><div class="wc-vms-col-hd">Enforcement Activity</div>${enfCol}</div></div></div>`;
 }
 
+// ─── DATE WINDOW HELPER ───────────────────────────────────────────────────────
+function _computeDateWindows() {
+  const base=SIGNALEX_META.lastUpdated?new Date(SIGNALEX_META.lastUpdated):new Date();
+  const toISO=d=>d.toISOString().slice(0,10);
+  const recentFrom=new Date(base); recentFrom.setMonth(recentFrom.getMonth()-6);
+  const priorFrom=new Date(base);  priorFrom.setMonth(priorFrom.getMonth()-12);
+  return {recentFrom:toISO(recentFrom),priorFrom:toISO(priorFrom),priorTo:toISO(recentFrom)};
+}
+
+// ─── SIDEBAR COUNT SYNC ───────────────────────────────────────────────────────
+function syncVMSSidebarCounts() {
+  // Authority counts from SIGNALS
+  document.querySelectorAll('#auth-filters [data-filter="auth"]').forEach(el=>{
+    const v=el.dataset.val,ct=el.querySelector('.filter-count');
+    if(!ct) return;
+    ct.textContent=v==='all'?SIGNALS.length:SIGNALS.filter(s=>s.authority===v).length;
+  });
+  // Severity counts
+  document.querySelectorAll('#sev-filters [data-filter="sev"]').forEach(el=>{
+    const v=el.dataset.val,ct=el.querySelector('.filter-count');
+    if(!ct||v==='all') return;
+    ct.textContent=SIGNALS.filter(s=>(s.severity||'').toLowerCase()===v).length;
+  });
+  // Sentiment counts
+  document.querySelectorAll('#sent-filters [data-filter="sent"]').forEach(el=>{
+    const v=el.dataset.val,ct=el.querySelector('.filter-count');
+    if(!ct||v==='all') return;
+    ct.textContent=SIGNALS.filter(s=>(s.sentiment||'').toLowerCase()===v).length;
+  });
+  // Event type counts — 'other' catches all unlisted types
+  document.querySelectorAll('#type-filters [data-filter="type"]').forEach(el=>{
+    const v=el.dataset.val,ct=el.querySelector('.filter-count');
+    if(!ct||v==='all') return;
+    const _known=['recall','safety_alert','warning','new_listing'];
+    ct.textContent=v==='other'
+      ?SIGNALS.filter(s=>!_known.includes((s.event_type||'').toLowerCase())).length
+      :SIGNALS.filter(s=>(s.event_type||'').toLowerCase()===v).length;
+  });
+}
+
+function syncPharmaSidebarCounts() {
+  const base=CITATIONS.filter(c=>!isLowValueContent(c));
+  // Authority counts
+  document.querySelectorAll('#p-auth-filters .pf-pill[data-pf="auth"]').forEach(el=>{
+    const v=el.dataset.val,ct=el.querySelector('.pf-ct');
+    if(!ct) return;
+    ct.textContent=v==='all'?base.length:base.filter(c=>c.authority===v).length;
+  });
+  // Facility type counts
+  document.querySelectorAll('#p-factype-filters .pf-pill[data-pf="factype"]').forEach(el=>{
+    const v=el.dataset.val,ct=el.querySelector('.pf-ct');
+    if(!ct||v==='all') return;
+    ct.textContent=base.filter(c=>(c.facility_type||'')===v).length;
+  });
+  // Source type counts
+  document.querySelectorAll('#p-srctype-filters .pf-pill[data-pf="srctype"]').forEach(el=>{
+    const v=el.dataset.val,ct=el.querySelector('.pf-ct');
+    if(!ct||v==='all') return;
+    ct.textContent=base.filter(c=>(c.source_type||'')===v).length;
+  });
+  // Severity counts
+  document.querySelectorAll('#p-sev-filters .pf-pill[data-pf="sev"]').forEach(el=>{
+    const v=el.dataset.val,ct=el.querySelector('.pf-ct');
+    if(!ct||v==='all') return;
+    ct.textContent=base.filter(c=>(c.severity||'').toLowerCase()===v).length;
+  });
+}
+
+// ─── VMS KPI CARD SYNC ────────────────────────────────────────────────────────
+function syncVMSKpiCards() {
+  const high=SIGNALS.filter(s=>(s.severity||'').toLowerCase()==='high').length;
+  const recalls=SIGNALS.filter(s=>(s.event_type||'').toLowerCase()==='recall').length;
+  const clinical=SIGNALS.filter(s=>s.authority==='clinical_trials').length;
+  const positive=SIGNALS.filter(s=>(s.sentiment||'').toLowerCase()==='positive').length;
+  const _setV=(id,val)=>{const e=document.getElementById(id);if(e){const v=e.querySelector('.kpi-val');if(v)v.textContent=Number.isInteger(val)&&val>=1000?val.toLocaleString():val;}};
+  _setV('kpi-high-sev',high);
+  _setV('kpi-recalls',recalls);
+  _setV('kpi-total',SIGNALS.length);
+  _setV('kpi-clinical',clinical);
+  _setV('kpi-positive',positive);
+  _setV('kpi-evidence',CITATIONS.length);
+  // Update AI panel sub-line
+  const subLine=document.querySelector('#page-overview .ai-sub');
+  if(subLine){
+    const auths=new Set(SIGNALS.map(s=>s.authority)).size;
+    const lastUpd=SIGNALEX_META.lastUpdated
+      ?new Date(SIGNALEX_META.lastUpdated).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})
+      :'—';
+    subLine.textContent=`${auths} sources · ${SIGNALS.length} signals · updated ${lastUpd} — click any insight to filter`;
+  }
+}
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 renderOverviewSignals();
 renderTrendPanels();
@@ -4018,6 +4130,9 @@ renderAnalyticsInsights();
 _syncWlBtn();
 _syncSidebarStates();
 _syncKpiCards();
+syncVMSSidebarCounts();
+syncVMSKpiCards();
+syncPharmaSidebarCounts();
 
 // ═══════════════════════════════════════════════════════════════════
 //  PRODUCT SWITCHER  +  PHARMA GMP TAB
@@ -4696,8 +4811,9 @@ function renderEnfPage() {
 function renderGroupedEnforcement(elId) {
   const el=document.getElementById(elId); if(!el) return;
   const data=filteredCits();
-  const recent=CITATIONS.filter(c=>c.date&&c.date>='2025-07-01');
-  const prior=CITATIONS.filter(c=>c.date&&c.date>='2025-01-01'&&c.date<'2025-07-01');
+  const {recentFrom,priorFrom,priorTo}=_computeDateWindows();
+  const recent=CITATIONS.filter(c=>c.date&&c.date>=recentFrom);
+  const prior=CITATIONS.filter(c=>c.date&&c.date>=priorFrom&&c.date<priorTo);
   const catR={},catP={};
   recent.forEach(c=>{const k=c.category||'Other';catR[k]=(catR[k]||0)+1;});
   prior.forEach(c=>{const k=c.category||'Other';catP[k]=(catP[k]||0)+1;});
@@ -5079,8 +5195,9 @@ function toggleAllCategories() {
 // ── What Changed This Period ──────────────────────────────────────────
 function renderWhatChanged() {
   const el=document.getElementById('what-changed-cols'); if(!el)return;
-  const recent=CITATIONS.filter(c=>c.date&&c.date>='2025-10-01');
-  const prior=CITATIONS.filter(c=>c.date&&c.date>='2025-04-01'&&c.date<'2025-10-01');
+  const {recentFrom,priorFrom,priorTo}=_computeDateWindows();
+  const recent=CITATIONS.filter(c=>c.date&&c.date>=recentFrom);
+  const prior=CITATIONS.filter(c=>c.date&&c.date>=priorFrom&&c.date<priorTo);
   // Category changes — only show substantive shifts
   const catR={},catP={};
   recent.forEach(c=>{const k=c.category||'Other';catR[k]=(catR[k]||0)+1;});
