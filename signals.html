@@ -201,7 +201,7 @@ button{cursor:pointer;border:none;font-family:inherit;font-size:inherit;backgrou
 .sep{height:1px;background:var(--border);margin:16px 0}
 /* ─── Trend Panels ────────────────────────────────────────────────────────── */
 .trend-panels{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
-@media(max-width:900px){.trend-panels{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){.trend-panels{grid-template-columns:1fr 1fr}.forward-signal-row{grid-template-columns:1fr 80px;grid-template-rows:auto auto auto}.fs-signal,.fs-action{grid-column:1/-1}}
 @media(max-width:640px){.trend-panels{grid-template-columns:1fr}}
 .trend-panel{background:rgba(12,24,40,.55);border:1px solid rgba(20,50,85,.35);border-radius:8px;padding:12px 14px;box-shadow:none}
 .trend-panel-hd{display:flex;align-items:center;gap:6px;margin-bottom:8px;padding-bottom:7px;border-bottom:1px solid rgba(20,50,85,.4)}
@@ -272,7 +272,6 @@ button{cursor:pointer;border:none;font-family:inherit;font-size:inherit;backgrou
 .card-ingredient:hover{background:var(--teal);color:#fff}
 /* ── Live dot ─────────────────────────────────────────────────────────────── */
 .live-dot{display:inline-block;width:7px;height:7px;background:var(--red-dim);border-radius:50%;animation:blink 2s ease-in-out infinite;flex-shrink:0}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 /* ── Feed header ──────────────────────────────────────────────────────────── */
 .feed-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .feed-title-text{font-size:13px;font-weight:700;color:var(--white);display:flex;align-items:center;gap:8px}
@@ -1201,7 +1200,7 @@ body.cmode .cat-cell-intel { display: block; }
 .what-changed-title { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #0D9488; }
 .what-changed-period { font-size: 10px; color: #2F4558; }
 .what-changed-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-@media(max-width:700px){ .what-changed-cols { grid-template-columns: 1fr; } }
+@media(max-width:700px){ .what-changed-cols { grid-template-columns: 1fr; } .wc-vms-cols { grid-template-columns: 1fr 1fr; } }
 .wc-col-hd { font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #2F4558; margin-bottom: 6px; }
 .wc-item { font-size: 11px; color: #7A92A8; padding: 3px 0; display: flex; align-items: baseline; gap: 5px; }
 .wc-item .wc-arrow { font-size: 10px; flex-shrink: 0; }
@@ -1226,10 +1225,6 @@ body.cmode .cat-cell-intel { display: block; }
   transition: border-color .15s;
 }
 .forward-signal-row:hover { border-color: rgba(13,148,136,.25); }
-@media(max-width:900px){
-  .forward-signal-row { grid-template-columns: 1fr 80px; grid-template-rows: auto auto auto; }
-  .fs-signal,.fs-action { grid-column: 1/-1; }
-}
 .fs-cat   { font-size: 11px; font-weight: 600; color: #C0CDD8; }
 .fs-dir   { display: flex; align-items: center; gap: 4px; }
 .dir-badge {
@@ -1441,7 +1436,6 @@ body.cmode .pharma-consulting-layer { display: block; }
 .wc-vms-panel{background:#0C1A29;border:1px solid rgba(20,50,85,.4);border-radius:8px;padding:11px 14px}
 .wc-vms-hd{font-size:9px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#1E3248;margin-bottom:10px}
 .wc-vms-cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-@media(max-width:700px){.wc-vms-cols{grid-template-columns:1fr 1fr}}
 .wc-vms-col-hd{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#1E3248;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid rgba(20,50,85,.3)}
 .wc-vms-bullet{padding:4px 0;border-bottom:1px solid rgba(20,50,85,.18)}
 .wc-vms-bullet:last-child{border-bottom:none}
