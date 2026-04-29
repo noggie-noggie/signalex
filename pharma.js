@@ -373,3 +373,251 @@ const FAC_PROFILES = {
 function getFacilityRiskProfile(name) {
   return FAC_PROFILES[name] || null;
 }
+
+
+// === PHARMA OVERVIEW RENDER FUNCTIONS ===
+
+// ── Pharma Overview ──────────────────────────────────────────────────
+function renderPharmaOverview() {
+  const data=filteredCits();
+  const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.sev!=='all' || pF.dicapa;
+
+  // KPI row — single pass over data
+  let high=0,wl=0,insp=0,diCapaFilt=0,tga=0;
+  for(const c of data){
+    if(c.severity==='high')high++;
+    if(c.source_type==='warning_letter')wl++;
+    if(c.source_type==='inspection_finding')insp++;
+    if(isDiCapa(c))diCapaFilt++;
+    if(c.authority==='TGA')tga++;
+  }
+  const _setKpi=(id,val)=>{const e=document.getElementById(id);if(e){const v=e.querySelector('.kpi-val');if(v){v.textContent=val;v.classList.add('kpi-updated');setTimeout(()=>v.classList.remove('kpi-updated'),600);}}};
+  _setKpi('pk-high', high);
+  _setKpi('pk-wl', wl);
+  _setKpi('pk-483', insp);
+  _setKpi('pk-total', data.length);
+  _setKpi('pk-diCapa', diCapaFilt);
+  _setKpi('pk-tga', tga);
+
+  // Tab badge — always show full dataset size
+  const tabBadge=document.getElementById('pharma-tab-count');
+  if(tabBadge) tabBadge.textContent=`${CITATIONS.length} citations`;
+
+  // AI summary + So What + What Changed
+  renderWhatChanged();
+  renderPharmaInsights();
+  renderSoWhatLine(data);
+
+  // Decision-first sections
+  renderStartHereActions(data);
+  renderTopRiskBlocks(rankPharmaRisks(data));
+  renderAllCategoriesCollapsed(data);
+
+  // Authority activity
+  renderAuthBars('pharma-auth-bars');
+
+  // Recent feed
+  const oc=document.getElementById('pharma-ov-count'); if(oc) oc.textContent=`${data.length} total`;
+  buildChipBar('pharma-ov-chip-bar');
+  const el=document.getElementById('pharma-ov-feed'); if(!el) return;
+  const limit = isFiltered ? 15 : 8;
+  const feed=data.slice(0,limit);
+  const viewAllBtn = data.length>limit
+    ? `<button class="ov-feed-view-all" onclick="showPTab('pharma-citations')">View all ${data.length} citations &rarr;</button>`
+    : '';
+  el.innerHTML=feed.length
+    ? feed.map(c=>citCard(c)).join('')+viewAllBtn
+    :'<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No citations match filters</div></div>';
+}
+
+function renderCatGrid(gridId, countId) {
+  const data=filteredCits();
+  const catCounts={};
+  data.forEach(c=>{const k=c.category||'Other';catCounts[k]=(catCounts[k]||0)+1;});
+  const cats=Object.entries(catCounts).sort((a,b)=>b[1]-a[1]);
+  const el=document.getElementById(gridId); if(!el) return;
+  el.innerHTML=cats.map(([cat,ct])=>{
+    const isAct=pCatFilter===cat;
+    const high=data.filter(c=>(c.category||'Other')===cat&&c.severity==='high').length;
+    const safe=cat.replace(/'/g,"\\'");
+    const intel = CAT_INTEL[cat];
+    const intelHtml = intel ? `<div class="cat-cell-intel">
+      <div class="action-tag ${intel.urgency}">${intel.urgency}</div>
+      <div class="cat-implication">${intel.implication}</div>
+      <div class="cat-action">${intel.action}</div>
+    </div>` : '';
+    const whyLine=intel?`<div class="cat-why-line">${intel.implication.split('.')[0]}.</div>`:'';
+    return `<div class="cat-cell${isAct?' c-active':''}" onclick="pFilterByCat('${safe}')">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px">
+        <div class="cat-cell-name">${cat}</div>
+        <button class="ing-ep-btn" onclick="event.stopPropagation();openEntityPanel('${safe}','category')" title="Open ${cat} detail" style="font-size:12px;margin-top:1px;flex-shrink:0">&#9432;</button>
+      </div>
+      <div class="cat-cell-ct">${ct}</div>
+      <div class="cat-cell-sub">${high?high+' high sev':'all medium'}</div>
+      ${whyLine}
+      ${intelHtml}
+    </div>`;
+  }).join('');
+  const cc=document.getElementById(countId); if(cc) cc.textContent=`${data.length} citations`;
+}
+// ── Pharma AI insights ────────────────────────────────────────────────
+function renderPharmaInsights() {
+  const data=filteredCits();
+  const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.sev!=='all' || pF.factype!=='all' || pF.dicapa;
+  const n = (ct, noun) => ct===0 ? `No ${noun} match current filters` : `${ct} ${noun}`;
+  let wlCt=0,inspCt=0,importCt=0,suppCt=0,tgaCt=0,csvCt=0,sterCt=0,labelCt=0;
+  for(const c of data){
+    if(c.source_type==='warning_letter')wlCt++;
+    if(c.source_type==='inspection_finding')inspCt++;
+    if(c.source_type==='import_alert')importCt++;
+    if(c.facility_type==='Supplement / Nutraceutical')suppCt++;
+    if(c.authority==='TGA')tgaCt++;
+    if(c.category==='Computerised systems validation')csvCt++;
+    if(c.category==='Sterility assurance')sterCt++;
+    if(c.category==='Labelling & claims')labelCt++;
+  }
+  const sc = isFiltered ? 'in current view' : 'on file';
+  const insights=[
+    {col:'#D04444',label:'Warning Letters',
+     text:wlCt===0&&isFiltered
+       ? `No warning letters match the current filters.`
+       : `<b>${wlCt} warning letter${wlCt!==1?'s':''}</b> ${sc}. GMP violations and labelling &amp; claims lead by volume. Action: Review repeat citation patterns against your site's enforcement risk profile.`},
+    {col:'#C87020',label:'483 / Inspection Findings',
+     text:inspCt===0&&isFiltered
+       ? `No inspection findings match the current filters.`
+       : `<b>${inspCt} inspection finding${inspCt!==1?'s':''}</b> ${sc}. CSV (${csvCt}) and sterility assurance (${sterCt}) are systemic gaps across General Pharma and Sterile facilities. Action: Prioritise CSV remediation and CCS completeness.`},
+    {col:'#C87020',label:'Import Alert Exposure',
+     text:importCt===0&&isFiltered
+       ? `No import alerts match the current filters.`
+       : `<b>${importCt} import alert${importCt!==1?'s':''}</b> ${sc}. Contamination &amp; sterility is the primary trigger. Action: Audit incoming raw material controls and foreign supplier verification programme.`},
+    {col:'#3D5268',label:'Supplement / Nutra. Risk',
+     text:suppCt===0&&isFiltered
+       ? `No Supplement / Nutraceutical actions match the current filters.`
+       : `<b>${suppCt} enforcement action${suppCt!==1?'s':''}</b> targeting Supplement / Nutraceutical facilities. Labelling &amp; claims (${labelCt}) is the dominant category. Action: Audit labelling substantiation packages against applicable jurisdiction standards.`},
+    {col:'rgba(13,148,136,.75)',label:'TGA Enforcement Watch',
+     text:tgaCt===0&&isFiltered
+       ? `No TGA actions match the current filters.`
+       : `<b>${tgaCt} TGA enforcement action${tgaCt!==1?'s':''}</b> ${sc}. Trend is increasing. Action: Run proactive self-audit against AU GMP Code Part 3 for all AU-registered products.`},
+  ];
+  const el=document.getElementById('pharma-ai-body'); if(!el)return;
+  el.innerHTML=insights.map((i,idx)=>{
+    const actions=[
+      `pF.srctype='warning_letter';syncPFPills();renderPharmaOverview();document.getElementById('pharma-ov-feed').scrollIntoView({behavior:'smooth',block:'start'})`,
+      `pF.srctype='inspection_finding';syncPFPills();renderPharmaOverview();document.getElementById('pharma-ov-feed').scrollIntoView({behavior:'smooth',block:'start'})`,
+      `pF.srctype='import_alert';syncPFPills();renderPharmaOverview();document.getElementById('pharma-ov-feed').scrollIntoView({behavior:'smooth',block:'start'})`,
+      `pF.factype='Supplement / Nutraceutical';syncPFPills();renderPharmaOverview();document.getElementById('pharma-ov-feed').scrollIntoView({behavior:'smooth',block:'start'})`,
+      `pF.auth='TGA';syncPFPills();renderPharmaOverview();document.getElementById('pharma-ov-feed').scrollIntoView({behavior:'smooth',block:'start'})`,
+    ];
+    return `<div class="pharma-insight-row" onclick="${actions[idx]}" title="Click to filter to this signal">
+      <div class="pharma-insight-dot" style="background:${i.col}"></div>
+      <span class="pharma-insight-label" style="color:${i.col}">${i.label}:</span>
+      <span class="pharma-insight-text">${i.text}</span>
+    </div>`;
+  }).join('');
+  // Consultant mode overlay — top category interpretation
+  const topCat=Object.entries(
+    data.reduce((m,c)=>{const k=c.category||'Other';m[k]=(m[k]||0)+1;return m},{})
+  ).sort((a,b)=>b[1]-a[1])[0];
+  const intel=topCat&&CAT_INTEL[topCat[0]];
+  if(intel){
+    const _set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+    _set('pcl-implication', intel.implication);
+    _set('pcl-action', intel.action);
+    _set('pcl-oppty', intel.opportunity);
+    _set('pcl-client', intel.client);
+  }
+}
+function renderStartHereActions(data) {
+  const el=document.getElementById('pharma-start-here'); if(!el) return;
+  const actions=getTopImmediateActions(data);
+  if(!actions.length){el.innerHTML='<div style="font-size:11px;color:#2F4558;padding:8px">No actions — adjust filters or add more data</div>';return;}
+  el.innerHTML=actions.map(a=>`<div class="start-here-action">
+    <div class="sha-priority sha-${a.priority}">${a.priority.replace('-',' ')}</div>
+    <div class="sha-body"><div class="sha-title">${a.title}</div><div class="sha-why">${a.why}</div></div>
+    ${a.onclick?`<button class="sha-btn" onclick="${a.onclick}">Drill in &rarr;</button>`:''}
+  </div>`).join('');
+}
+
+function renderTopRiskBlocks(risks) {
+  const el=document.getElementById('pharma-top-risks'); if(!el) return;
+  if(!risks.length){
+    el.innerHTML='<div class="empty"><div class="empty-text">No data — adjust filters</div></div>';
+    return;
+  }
+  el.innerHTML=risks.map((r,i)=>{
+    const intel=CAT_INTEL[r.cat];
+    const meaning=intel?intel.implication.split('.')[0]+'.':'';
+    const action=intel?intel.action:'Review enforcement pattern';
+    const impact=getRiskImpact(r.count,r.high);
+    const vol=formatVolumeBucket(r.count);
+    const safe=r.cat.replace(/'/g,"\\'");
+    return `<div class="top-risk-block" onclick="pFilterByCat('${safe}')">
+      <div class="trb-rank">#${i+1}</div>
+      <div class="trb-body">
+        <div class="trb-hd">
+          <span class="trb-cat">${r.cat}</span>
+          <span class="risk-impact-badge ${impact.cls}">${impact.label}</span>
+          <span class="vol-bucket">${vol} volume</span>
+        </div>
+        <div class="trb-meaning">${meaning}</div>
+        <div class="trb-action">&#8594; ${action}</div>
+        <div class="trb-stats">${r.count} citation${r.count!==1?'s':''} &middot; ${r.high} high severity</div>
+      </div>
+    </div>`;
+  }).join('');
+  const allCats=new Set(filteredCits().map(c=>c.category||'Other')).size;
+  const countEl=document.getElementById('top-risks-count');
+  if(countEl) countEl.textContent=`(${risks.length} of ${allCats} categories)`;
+}
+
+function renderAllCategoriesCollapsed(data) {
+  renderCatGrid('pharma-cat-grid','pharma-cat-count');
+}
+
+function toggleAllCategories() {
+  const wrap=document.getElementById('pharma-cats-collapsed');
+  const icon=document.getElementById('all-cats-toggle-icon');
+  if(!wrap) return;
+  const isOpen=wrap.style.display!=='none';
+  wrap.style.display=isOpen?'none':'block';
+  if(icon) icon.innerHTML=isOpen?'&#9660; Show all':'&#9650; Collapse';
+}
+
+// ── What Changed This Period ──────────────────────────────────────────
+function renderWhatChanged() {
+  const el=document.getElementById('what-changed-cols'); if(!el)return;
+  const {recentFrom,priorFrom,priorTo}=_computeDateWindows();
+  const recent=CITATIONS.filter(c=>c.date&&c.date>=recentFrom);
+  const prior=CITATIONS.filter(c=>c.date&&c.date>=priorFrom&&c.date<priorTo);
+  // Category changes — only show substantive shifts
+  const catR={},catP={};
+  recent.forEach(c=>{const k=c.category||'Other';catR[k]=(catR[k]||0)+1;});
+  prior.forEach(c=>{const k=c.category||'Other';catP[k]=(catP[k]||0)+1;});
+  const changes=Object.keys({...catR,...catP})
+    .map(k=>({k,r:catR[k]||0,p:catP[k]||0,d:(catR[k]||0)-(catP[k]||0)}))
+    .filter(x=>x.p>10&&Math.abs(x.d)>15)
+    .sort((a,b)=>Math.abs(b.d)-Math.abs(a.d)).slice(0,5);
+  const newCats=Object.keys(catR).filter(k=>!catP[k]&&catR[k]>=50).slice(0,3);
+  // Authority changes
+  const authR={},authP={};
+  recent.forEach(c=>{authR[c.authority]=(authR[c.authority]||0)+1;});
+  prior.forEach(c=>{authP[c.authority]=(authP[c.authority]||0)+1;});
+  const authChanges=Object.keys({...authR,...authP})
+    .map(k=>({k,r:authR[k]||0,p:authP[k]||0,d:(authR[k]||0)-(authP[k]||0)}))
+    .filter(x=>Math.abs(x.d)>5)
+    .sort((a,b)=>Math.abs(b.d)-Math.abs(a.d)).slice(0,4);
+  const upChanges=changes.filter(x=>x.d>0);
+  const dnChanges=changes.filter(x=>x.d<0);
+  const mkItem=(arrow,cls,label,delta)=>
+    `<div class="wc-item"><span class="wc-arrow ${cls}">${arrow}</span><span class="wc-label">${label}</span><span class="wc-delta">${delta>0?'+'+delta:delta}</span></div>`;
+  const col1=`<div class="wc-col-hd">Rising categories</div>`
+    +upChanges.map(x=>mkItem('▲','up',x.k,x.d)).join('')
+    +(newCats.length?newCats.map(k=>`<div class="wc-item"><span class="wc-arrow new">★</span><span class="wc-label">${k}</span><span class="wc-delta">new</span></div>`).join(''):'');
+  const col2=`<div class="wc-col-hd">Decreasing categories</div>`
+    +(dnChanges.length?dnChanges.map(x=>mkItem('▼','down',x.k,x.d)).join('')
+      :'<div class="wc-item" style="color:#2F4558;font-size:10px">No significant decreases</div>');
+  const col3=`<div class="wc-col-hd">Authority activity</div>`
+    +authChanges.map(x=>mkItem(x.d>0?'▲':'▼',x.d>0?'up':'down',x.k,x.d)).join('');
+  el.innerHTML=col1?`<div>${col1}</div><div>${col2}</div><div>${col3}</div>`
+    :'<div class="wc-item" style="color:#2F4558">Insufficient data for comparison</div>';
+}
