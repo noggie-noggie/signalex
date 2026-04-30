@@ -926,3 +926,226 @@ function renderPharmaAlerts() {
   el.innerHTML=highs.length?highs.map(c=>alertCard(c,patterns)).join('')
     :'<div class="empty"><div class="empty-icon">&#9989;</div><div class="empty-text">No high severity alerts</div></div>';
 }
+
+// === PHARMA INTELLIGENCE + PLUMBING ===
+
+// ── Intelligence page ─────────────────────────────────────────────────
+// ── Intelligence tab — badge helpers ─────────────────────────────────
+function mbTrend(t){ return `<span class="mb mb-trend-${t}">${t}</span>`; }
+function mbConf(c){ return `<span class="mb mb-conf-${c}">${c === 'high' ? '✓ high' : c + ' conf'}</span>`; }
+function mbImpact(i){ return `<span class="mb mb-impact-${i}">${i} impact</span>`; }
+
+// ── Intelligence card expand/collapse ─────────────────────────────────
+function toggleIntelCard(id) {
+  if(intelExpanded.has(id)) intelExpanded.delete(id); else intelExpanded.add(id);
+  const c=document.getElementById('icard-'+id); if(c) c.classList.toggle('expanded', intelExpanded.has(id));
+}
+
+// ── Intelligence filter actions ───────────────────────────────────────
+function applyIntelFilter(dim, val) {
+  intelFilters[dim] = intelFilters[dim]===val ? 'all' : val;
+  renderIntelligencePage();
+}
+function resetIntelFilters() {
+  intelFilters = { priority:'all', trend:'all', confidence:'all', impact:'all' };
+  renderIntelligencePage();
+}
+
+// ── Intelligence page — render functions ──────────────────────────────
+function renderIntelligencePage() {
+  // Top band — always shows immediate-priority items regardless of filter
+  const topItems = INTEL_ITEMS.filter(i=>i.priority==='immediate');
+  const tb = document.getElementById('intel-top-band');
+  if(tb) tb.innerHTML = topItems.map((item,i)=>`
+    <div class="top-sig">
+      <div class="top-sig-rank">Priority ${i+1}</div>
+      <div class="top-sig-title">${item.title}</div>
+      <div class="top-sig-meta">${mbTrend(item.trend)} ${mbConf(item.confidence)} ${mbImpact(item.impact)}</div>
+      <div class="top-sig-summary">${item.summary}</div>
+      <div class="top-sig-action">${item.recommendedAction}</div>
+    </div>`).join('');
+
+  // Filters bar
+  const fb = document.getElementById('intel-filters-bar');
+  if(fb) {
+    const mk=(dim,val,label)=>`<span class="ifp${intelFilters[dim]===val?' active':''}" onclick="applyIntelFilter('${dim}','${val}')">${label}</span>`;
+    const hasF = Object.values(intelFilters).some(v=>v!=='all');
+    fb.innerHTML =
+      `<span class="intel-filter-label">Priority</span>
+       ${mk('priority','immediate','Immediate')}${mk('priority','near_term','Near-Term')}${mk('priority','monitor','Monitor')}
+       <div class="intel-filter-sep"></div>
+       <span class="intel-filter-label">Trend</span>
+       ${mk('trend','rising','Rising')}${mk('trend','emerging','Emerging')}${mk('trend','stable','Stable')}
+       <div class="intel-filter-sep"></div>
+       <span class="intel-filter-label">Impact</span>
+       ${mk('impact','high','High')}${mk('impact','medium','Medium')}
+       ${hasF?'<button class="ifp-reset" onclick="resetIntelFilters()">✕ Clear</button>':''}`;
+  }
+
+  // Priority-grouped sections
+  const filtered = INTEL_ITEMS.filter(item=>{
+    if(intelFilters.priority!=='all'&&item.priority!==intelFilters.priority) return false;
+    if(intelFilters.trend!=='all'&&item.trend!==intelFilters.trend) return false;
+    if(intelFilters.confidence!=='all'&&item.confidence!==intelFilters.confidence) return false;
+    if(intelFilters.impact!=='all'&&item.impact!==intelFilters.impact) return false;
+    return true;
+  });
+
+  const body = document.getElementById('intel-priority-body');
+  if(!body) return;
+
+  if(!filtered.length){
+    body.innerHTML='<div class="empty"><div class="empty-icon">&#128269;</div><div class="empty-text">No items match the current filters</div><button class="btn-secondary" style="margin-top:12px" onclick="resetIntelFilters()">Reset filters</button></div>';
+    return;
+  }
+
+  const SECTION_META = {
+    immediate:{ label:'Immediate Action', note:'Act on these before your next inspection' },
+    near_term: { label:'Near-Term Risk',   note:'Address within the next quarter' },
+    monitor:   { label:'Monitor',          note:'Track for escalating regulator focus' },
+  };
+  const groups = ['immediate','near_term','monitor']
+    .map(key=>({ key, ...SECTION_META[key], items:filtered.filter(i=>i.priority===key) }))
+    .filter(g=>g.items.length);
+
+  body.innerHTML = groups.map(g=>`
+    <div class="intel-priority-section">
+      <div class="intel-priority-hd">
+        <span class="intel-priority-hd-label ${g.key}">${g.label}</span>
+        <span class="intel-priority-hd-ct">${g.note} &mdash; ${g.items.length} item${g.items.length!==1?'s':''}</span>
+      </div>
+      ${g.items.map(item=>{
+        const exp = intelExpanded.has(item.id);
+        const auth = item.authorityTags.map(a=>`<span class="badge badge-authority" style="font-size:8px;padding:1px 5px">${a}</span>`).join(' ');
+        return `<div class="icard${exp?' expanded':''}" id="icard-${item.id}">
+          <div class="icard-top" onclick="toggleIntelCard('${item.id}')">
+            <div class="icard-left">
+              <div class="icard-title">${item.title}</div>
+              <div class="icard-why-brief">${item.summary.split('. ')[0]}.</div>
+              <div class="icard-action-preview">${item.recommendedAction}</div>
+            </div>
+            <div class="icard-right">
+              <div class="icard-badges">${mbTrend(item.trend)} ${mbConf(item.confidence)} ${mbImpact(item.impact)}</div>
+              <div style="display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap">${auth}</div>
+              <div class="icard-expand">&#9662;</div>
+            </div>
+          </div>
+          <div class="icard-detail">
+            <div class="icard-detail-row">
+              <div class="icard-detail-lbl">Why it matters</div>
+              <div class="icard-detail-txt">${item.whyItMatters}</div>
+            </div>
+            <div class="icard-detail-row">
+              <div class="icard-detail-lbl">Recommended action</div>
+              <div class="icard-detail-action">${item.recommendedAction}</div>
+            </div>
+            <div class="icard-detail-row cmode-only">
+              <div class="icard-detail-lbl">Likely client conversation</div>
+              <div class="icard-detail-client">${item.likelyClientConversation}</div>
+            </div>
+            <div class="icard-detail-footer">
+              <div class="icard-detail-opp cmode-only">Commercial opportunity: ${item.commercialOpportunity}</div>
+              <div class="icard-detail-evid">Evidence: ${item.evidenceSummary}</div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+}
+
+function resetPharmaFilters() {
+  pF={auth:'all',factype:'all',srctype:'all',sev:'all',company:'',query:'',dateFrom:'',dateTo:'',dicapa:false};
+  pCatFilter=null;
+  ['cit-search','p-company'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  _setPActiveKpi(null);
+  syncPFPills(); renderPAll();
+}
+function _setPActiveKpi(id) {
+  _dirty = true;
+  if(pActiveKpi) { const prev=document.getElementById(pActiveKpi); if(prev) prev.classList.remove('pk-active'); }
+  pActiveKpi=id;
+  if(id) { const el=document.getElementById(id); if(el) el.classList.add('pk-active'); }
+}
+function pKpiClick(kpiId, dim, val) {
+  pCatFilter=null;
+  const toggling = pActiveKpi===kpiId;
+  pF={auth:'all',factype:'all',srctype:'all',sev:'all',company:'',query:'',dateFrom:'',dateTo:'',dicapa:false};
+  if(!toggling) {
+    if(dim==='dicapa') pF.dicapa=true;
+    else if(dim) pF[dim]=val;
+    _setPActiveKpi(kpiId);
+  } else {
+    _setPActiveKpi(null);
+  }
+  syncPFPills();
+  renderPharmaOverview();
+  const feed=document.getElementById('pharma-ov-feed');
+  if(feed) feed.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function syncPFPills() {
+  _dirty = true;
+  document.querySelectorAll('.pf-pill[data-pf]').forEach(el=>{
+    const dim=el.dataset.pf, val=el.dataset.val;
+    el.classList.toggle('active', pF[dim]===val||(val==='all'&&pF[dim]==='all'));
+  });
+}
+
+function pSetFilter(dim, val) {
+  pF[dim] = pF[dim]===val ? 'all' : val;
+  syncPFPills(); renderPAll();
+}
+// All filter functions toggle: clicking the same value again clears the filter
+function pFilterBySev(v)     { pF.sev     = pF.sev===v     ? 'all' : v; syncPFPills(); renderPAll(); }
+function pFilterBySrc(v)     { pF.srctype = pF.srctype===v  ? 'all' : v; syncPFPills(); renderPAll(); }
+function pFilterByAuth(v)    { pF.auth    = pF.auth===v     ? 'all' : v; syncPFPills(); renderPAll(); }
+function pFilterByFacType(v) { pF.factype = pF.factype===v  ? 'all' : v; syncPFPills(); renderPAll(); }
+function pFilterByCat(cat) {
+  pCatFilter = pCatFilter===cat ? null : cat;
+  syncPFPills();
+  const activeTab = document.querySelector('#pharma-nav .nav-tab.active');
+  const tab = activeTab ? activeTab.dataset.ptab : 'pharma-overview';
+  if(tab==='pharma-overview') {
+    renderPharmaOverview();
+    const feed=document.getElementById('pharma-ov-feed');
+    if(feed) feed.scrollIntoView({behavior:'smooth',block:'start'});
+  } else {
+    renderPAll(); // stays on current tab — no tab switch
+  }
+}
+
+// ── Shared chip bar renderer ─────────────────────────────────────────
+function buildChipBar(elId) {
+  const el=document.getElementById(elId); if(!el) return;
+  const chips=[];
+  if(pF.sev!=='all')     chips.push({label:`Severity: ${pF.sev}`,                    fn:`pF.sev='all';_setPActiveKpi(null);syncPFPills();renderPAll()`});
+  if(pF.srctype!=='all') chips.push({label:`Type: ${pF.srctype.replace(/_/g,' ')}`,  fn:`pF.srctype='all';_setPActiveKpi(null);syncPFPills();renderPAll()`});
+  if(pF.auth!=='all')    chips.push({label:`Authority: ${pF.auth}`,                  fn:`pF.auth='all';syncPFPills();renderPAll()`});
+  if(pF.factype!=='all') chips.push({label:`Facility: ${pF.factype}`,                fn:`pF.factype='all';syncPFPills();renderPAll()`});
+  if(pF.dicapa)          chips.push({label:'DI / CAPA / CSV',                        fn:`pF.dicapa=false;_setPActiveKpi(null);syncPFPills();renderPAll()`});
+  if(pCatFilter)         chips.push({label:`Category: ${pCatFilter}`,                fn:`pCatFilter=null;_dirty=true;renderPAll()`});
+  if(!chips.length){el.innerHTML='';return;}
+  el.innerHTML=chips.map(ch=>
+    `<span class="pharma-chip">${ch.label}<button class="pharma-chip-x" onclick="${ch.fn}">&#10005;</button></span>`
+  ).join('')+`<button class="pharma-chip-clear-all" onclick="resetPharmaFilters()">&#10005; Clear all</button>`;
+}
+function sortCit(col) {
+  _dirty = true;
+  if (citSortState.col===col) citSortState.dir=-citSortState.dir;
+  else { citSortState.col=col; citSortState.dir=-1; }
+  renderCitations();
+}
+
+function renderPAll() {
+  console.time('renderPAll');
+  citPg=1;
+  const _at=document.querySelector('#pharma-nav .nav-tab.active');
+  const _tab=_at?_at.dataset.ptab:'pharma-overview';
+  if(_tab==='pharma-overview') renderPharmaOverview();
+  else if(_tab==='pharma-citations') renderCitations();
+  else if(_tab==='pharma-enforcement') renderEnfPage();
+  else if(_tab==='pharma-facilities') renderFacilities();
+  else if(_tab==='pharma-alerts') renderPharmaAlerts();
+  else if(_tab==='pharma-intelligence') renderIntelligencePage();
+  else renderPharmaOverview();
+  console.timeEnd('renderPAll');
+}
