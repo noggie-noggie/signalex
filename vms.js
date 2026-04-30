@@ -386,3 +386,70 @@ function renderEvidence() {
     if(e2<pages){if(e2<pages-1){const x=document.createElement('span');x.textContent='…';x.style.color='var(--slate-dim)';pg.appendChild(x);}pg.appendChild(mkB(pages,pages,false));}
     if(evPage<pages)pg.appendChild(mkB('›',evPage+1,false));}
 }
+
+
+// === VMS ORCHESTRATION ===
+
+// ─── VMS KPI CARD SYNC ────────────────────────────────────────────────────────
+function syncVMSKpiCards() {
+  const high=SIGNALS.filter(s=>(s.severity||'').toLowerCase()==='high').length;
+  const recalls=SIGNALS.filter(s=>(s.event_type||'').toLowerCase()==='recall').length;
+  const clinical=SIGNALS.filter(s=>s.authority==='clinical_trials').length;
+  const positive=SIGNALS.filter(s=>(s.sentiment||'').toLowerCase()==='positive').length;
+  const _setV=(id,val)=>{const e=document.getElementById(id);if(e){const v=e.querySelector('.kpi-val');if(v)v.textContent=Number.isInteger(val)&&val>=1000?val.toLocaleString():val;}};
+  _setV('kpi-high-sev',high);
+  _setV('kpi-recalls',recalls);
+  _setV('kpi-total',SIGNALS.length);
+  _setV('kpi-clinical',clinical);
+  _setV('kpi-positive',positive);
+  _setV('kpi-evidence',CITATIONS.length);
+  // Update AI panel sub-line
+  const subLine=document.querySelector('#page-overview .ai-sub');
+  if(subLine){
+    const auths=new Set(SIGNALS.map(s=>s.authority)).size;
+    const lastUpd=SIGNALEX_META.lastUpdated
+      ?new Date(SIGNALEX_META.lastUpdated).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})
+      :'—';
+    subLine.textContent=`${auths} sources · ${SIGNALS.length} signals · updated ${lastUpd} — click any insight to filter`;
+  }
+}
+
+function syncVMSSidebarCounts() {
+  // Authority counts from SIGNALS
+  document.querySelectorAll('#auth-filters [data-filter="auth"]').forEach(el=>{
+    const v=el.dataset.val,ct=el.querySelector('.filter-count');
+    if(!ct) return;
+    ct.textContent=v==='all'?SIGNALS.length:SIGNALS.filter(s=>s.authority===v).length;
+  });
+  // Severity counts
+  document.querySelectorAll('#sev-filters [data-filter="sev"]').forEach(el=>{
+    const v=el.dataset.val,ct=el.querySelector('.filter-count');
+    if(!ct||v==='all') return;
+    ct.textContent=SIGNALS.filter(s=>(s.severity||'').toLowerCase()===v).length;
+  });
+  // Sentiment counts
+  document.querySelectorAll('#sent-filters [data-filter="sent"]').forEach(el=>{
+    const v=el.dataset.val,ct=el.querySelector('.filter-count');
+    if(!ct||v==='all') return;
+    ct.textContent=SIGNALS.filter(s=>(s.sentiment||'').toLowerCase()===v).length;
+  });
+  // Event type counts — 'other' catches all unlisted types
+  document.querySelectorAll('#type-filters [data-filter="type"]').forEach(el=>{
+    const v=el.dataset.val,ct=el.querySelector('.filter-count');
+    if(!ct||v==='all') return;
+    const _known=['recall','safety_alert','warning','new_listing'];
+    ct.textContent=v==='other'
+      ?SIGNALS.filter(s=>!_known.includes((s.event_type||'').toLowerCase())).length
+      :SIGNALS.filter(s=>(s.event_type||'').toLowerCase()===v).length;
+  });
+}
+
+function _commit() {
+  currentPage = 1;
+  _syncSidebarStates();
+  _updateChips();
+  _syncKpiCards();
+  renderSignals();
+  renderOverviewSignals();
+  renderTrendPanels();
+}
