@@ -721,7 +721,7 @@ const MARKET_MAP = {
   global:['pubmed','cochrane','who_ictrp','biorxiv','semantic_scholar'],
 };
 const CLAIM_KW = {
-  'Weight Loss':    ['weight loss','weight management','fat','slimming','obesity','adipose','metabolism','appetite','caloric','bmi','body mass','body composition','thermogenic','diet'],
+  'Weight Loss':    ['weight loss','weight management','fat loss','body fat','slimming','obesity','overweight','adipose','metabolism','metabolic rate','appetite','appetite suppression','thermogenic','body composition','bmi','body mass','caloric'],
   'Pain & Inflam.': ['pain','inflammation','inflammatory','arthritis','joint','anti-inflammatory','nsaid','analgesic','nociceptive','osteoarthritis','rheumatoid','fibromyalgia','chronic pain'],
   'Immune Support': ['immune','immunity','immunomodulat','antiviral','infection','antimicrobial','cold','flu','influenza','pathogen','cytokine','lymphocyte','interferon','vaccine'],
   'Cognitive':      ['cognitive','brain','memory','nootropic','focus','mental','neurological','neuroprotect','dementia','alzheimer','adhd','concentration','learning','executive function'],
@@ -759,9 +759,7 @@ function filteredSignals() {
       if (!allowed.has(s.authority)) return false;
     }
     if (activeClaimCat) {
-      const kws = CLAIM_KW[activeClaimCat]||[];
-      const txt = _sigText(s);  // search ALL text fields
-      if (!kws.some(k => txt.includes(k))) return false;
+      if (!signalMatchesClaimCategory(s, activeClaimCat)) return false;
     }
     if (filters.ingredient) {
       if (!_ingMatch(_sigText(s), filters.ingredient)) return false;
@@ -823,6 +821,10 @@ function filterByAuthority(auth) {
 function filterByClaim(cat) {
   hideTip();
   activeClaimCat = (activeClaimCat === cat) ? null : cat;
+  if (activeClaimCat) {
+    const computed = SIGNALS.filter(s=>signalMatchesClaimCategory(s,activeClaimCat)).length;
+    console.log('[ClaimFilter] category:', activeClaimCat, '| computed count:', computed);
+  }
   _commit(); showTab('signals');
 }
 function removeFilter(dim, val) {

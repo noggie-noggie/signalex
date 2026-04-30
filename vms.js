@@ -5,6 +5,14 @@
 function _sigText(s) {
   return [s.title,s.summary,s.ai_summary,s.ingredient_name,s.ingredient_relevance,s.trend_relevance,s.signal_type].filter(Boolean).join(' ').toLowerCase();
 }
+// Claim category matcher — used by BOTH computeClaimRisk() and filteredSignals()
+// Searches title + summary + ai_summary only; excludes noisy metadata fields
+function signalMatchesClaimCategory(s, cat) {
+  const kws = CLAIM_KW[cat] || [];
+  if (!kws.length) return false;
+  const txt = [s.title, s.summary, s.ai_summary].filter(Boolean).join(' ').toLowerCase();
+  return kws.some(k => txt.includes(k));
+}
 function _ingMatch(hay, q) {
   const ql = q.toLowerCase();
   if (hay.includes(ql)) return true;
@@ -144,6 +152,7 @@ function signalCard(s) {
 
 function renderSignals() {
   const data = filteredSignals();
+  if (activeClaimCat) console.log('[ClaimFilter] filtered results:', data.length, 'for', activeClaimCat);
   const pages = Math.ceil(data.length/PER_PAGE);
   currentPage = Math.min(currentPage, pages||1);
   const slice = data.slice((currentPage-1)*PER_PAGE, currentPage*PER_PAGE);
@@ -152,10 +161,13 @@ function renderSignals() {
     if (slice.length) {
       list.innerHTML = slice.map(s=>signalCard(s)).join('');
     } else {
-      const sug = _suggestSignals(3);
+      const emptyTitle = activeClaimCat
+        ? `No matching ${activeClaimCat} signals found for current filters`
+        : 'No signals match this filter';
+      const sug = activeClaimCat ? [] : _suggestSignals(3);
       list.innerHTML = '<div class="empty-filter-state">'
         + '<div class="empty-icon">&#128270;</div>'
-        + '<div class="empty-title">No signals match this filter</div>'
+        + `<div class="empty-title">${emptyTitle}</div>`
         + '<div class="empty-sub">Try broadening your search&nbsp;&nbsp;<button class="card-action card-action-primary" onclick="clearAllFilters()">Clear all filters</button></div>'
         + (sug.length ? '<div class="empty-sug-label">Closest matches:</div>' + sug.map(s=>signalCard(s)).join('') : '')
         + '</div>';
@@ -283,20 +295,34 @@ function renderAnalyticsInsights() {
 // ─── VMS WHAT CHANGED ─────────────────────────────────────────────────────────
 function renderVmsWhatChanged() {
   const el=document.getElementById('vms-what-changed'); if(!el) return;
-  const now=Date.now(),d7=now-7*864e5;
+  // Use latest signal date as reference so weekly scrape batches fall within the window
+  const latestMs=SIGNALS.reduce((m,s)=>Math.max(m,+new Date(s.scraped_at||s.created_at||0)),0);
+  const refDate=latestMs||Date.now();
+  const d7=refDate-7*864e5;
+  const fromStr=new Date(d7).toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+  const toStr=new Date(refDate).toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+  const inWindow=SIGNALS.filter(s=>+new Date(s.scraped_at||s.created_at||0)>=d7).length;
+  console.log('[WhatChanged] window:',fromStr,'→',toStr,'| signals in window:',inWindow);
   const ingTrends=computeIngredientTrends();
   const rising=ingTrends.filter(i=>i.curr>i.prev).slice(0,3);
   const falling=ingTrends.filter(i=>i.curr<i.prev).slice(0,2);
-  const newHigh=SIGNALS.filter(s=>s.severity==='high'&&new Date(s.scraped_at||s.created_at).getTime()>=d7).slice(0,3);
+  const newHigh=SIGNALS.filter(s=>s.severity==='high'&&+new Date(s.scraped_at||s.created_at||0)>=d7).slice(0,3);
   const enfs=computeEnforcementTrends();
   const enfUp=enfs.filter(e=>e.change>0).slice(0,3);
+  const emptyCol=(title)=>`<div style="padding:4px 0"><div style="font-size:11px;font-weight:600;color:#6B8FAF;margin-bottom:3px">${title}</div><div style="font-size:9px;color:#4a6a87">Baseline checked: ${fromStr} – ${toStr}</div></div>`;
+  const actionStyle='font-size:10px;color:rgba(13,148,136,.82);padding-top:5px;margin-top:3px;border-top:1px solid rgba(30,70,110,.4)';
+  const actionLbl='<b style="color:rgba(13,148,136,.95)">Action:</b> ';
   const ingCol=(rising.length||falling.length)?[
     ...rising.map(i=>{const pct=i.prev>0?Math.round((i.curr-i.prev)/i.prev*100):null;return`<div class="wc-vms-bullet"><div class="wc-vms-lbl">${i.name}</div><div class="wc-vms-txt wc-vms-rising">${i.curr} signals${pct!==null?' (+'+pct+'%)':''}</div>${i.high>0?`<div class="wc-vms-why">${i.high} high severity</div>`:''}</div>`;}),
     ...falling.map(i=>`<div class="wc-vms-bullet"><div class="wc-vms-lbl">${i.name}</div><div class="wc-vms-txt wc-vms-falling">${i.curr} signals (↓ from ${i.prev})</div></div>`)
-  ].join(''):'<div style="font-size:10px;color:#1A2D42;padding:4px 0">No significant changes this period</div>';
-  const highCol=newHigh.length?newHigh.map(s=>`<div class="wc-vms-bullet"><div class="wc-vms-lbl" style="cursor:pointer;color:rgba(190,75,75,.65)" onclick="openDrawer(${s.id})">${trunc(s.title||'',52)}</div><div class="wc-vms-txt">${authLabel(s.authority)} · ${fmt(s.scraped_at)}</div></div>`).join(''):'<div style="font-size:10px;color:#1A2D42;padding:4px 0">No new high-severity signals</div>';
-  const enfCol=enfUp.length?enfUp.map(e=>`<div class="wc-vms-bullet"><div class="wc-vms-lbl">${e.label}</div><div class="wc-vms-txt wc-vms-rising">+${e.change} vs prior week</div>${e.high>0?`<div class="wc-vms-why">${e.high} high severity</div>`:''}</div>`).join(''):'<div style="font-size:10px;color:#1A2D42;padding:4px 0">No significant enforcement changes</div>';
-  el.innerHTML=`<div class="wc-vms-panel"><div class="wc-vms-hd">What Changed This Period</div><div class="wc-vms-cols"><div><div class="wc-vms-col-hd">Ingredient Activity</div>${ingCol}</div><div><div class="wc-vms-col-hd">New High-Severity</div>${highCol}</div><div><div class="wc-vms-col-hd">Enforcement Activity</div>${enfCol}</div></div></div>`;
+  ].join(''):emptyCol('No major changes detected');
+  const highCol=newHigh.length?newHigh.map(s=>`<div class="wc-vms-bullet"><div class="wc-vms-lbl" style="cursor:pointer;color:rgba(190,75,75,.65)" onclick="openDrawer(${s.id})">${trunc(s.title||'',52)}</div><div class="wc-vms-txt">${authLabel(s.authority)} · ${fmt(s.scraped_at)}</div></div>`).join(''):emptyCol('No new high-severity signals');
+  const enfCol=enfUp.length===1
+    ?`<div class="wc-vms-bullet"><div class="wc-vms-lbl">${enfUp[0].label} activity increasing</div><div class="wc-vms-txt wc-vms-rising">+${enfUp[0].change} vs prior period</div>${enfUp[0].high>0?`<div class="wc-vms-why">${enfUp[0].high} high severity</div>`:''}<div style="${actionStyle}">${actionLbl}Review current listings and claim exposure</div></div>`
+    :enfUp.length?enfUp.map(e=>`<div class="wc-vms-bullet"><div class="wc-vms-lbl">${e.label}</div><div class="wc-vms-txt wc-vms-rising">+${e.change} vs prior week</div>${e.high>0?`<div class="wc-vms-why">${e.high} high severity</div>`:''}</div>`).join('')
+    :emptyCol('No significant enforcement changes');
+  const panelPad=(rising.length||falling.length||newHigh.length||enfUp.length)?'11px 14px':'8px 14px';
+  el.innerHTML=`<div class="wc-vms-panel" style="padding:${panelPad}"><div class="wc-vms-hd">What Changed This Period</div><div class="wc-vms-cols"><div><div class="wc-vms-col-hd">Ingredient Activity</div>${ingCol}</div><div><div class="wc-vms-col-hd">New High-Severity</div>${highCol}</div><div><div class="wc-vms-col-hd">Enforcement Activity</div>${enfCol}</div></div></div>`;
 }
 
 // === VMS ENTITIES + EVIDENCE RENDER ===

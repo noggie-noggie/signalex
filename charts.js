@@ -81,8 +81,8 @@ function computeIngredientTrends() {
 }
 function computeClaimRisk() {
   const res=[];
-  for(const [cat,kws] of Object.entries(CLAIM_KW)){
-    const m=SIGNALS.filter(s=>{const t=((s.title||'')+' '+(s.summary||'')).toLowerCase();return kws.some(k=>t.includes(k));});
+  for(const [cat] of Object.entries(CLAIM_KW)){
+    const m=SIGNALS.filter(s=>signalMatchesClaimCategory(s,cat));
     if(m.length<2) continue;
     const high=m.filter(s=>s.severity==='high').length;
     const ratio=high/m.length;
@@ -112,7 +112,24 @@ function renderTrendPanels() {
   const ings=computeIngredientTrends();
   const ingEl=document.getElementById('tp-ingredients');
   if(ingEl){
-    if(!ings.length){ingEl.innerHTML='<div class="trend-none">No significant ingredient trends</div>';}
+    if(!ings.length){
+      const allIngs={};
+      SIGNALS.forEach(s=>{const ing=(s.ingredient_name||'').trim().toLowerCase();if(!ing||ing==='unknown')return;allIngs[ing]=(allIngs[ing]||0)+1;});
+      const top6=Object.entries(allIngs).sort((a,b)=>b[1]-a[1]).slice(0,6);
+      if(!top6.length){ingEl.innerHTML='<div class="trend-none">No significant ingredient trends</div>';}
+      else{ingEl.innerHTML=''
+        +'<div style="font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-dim);margin-bottom:3px;pointer-events:none;cursor:default">Baseline ingredient watchlist</div>'
+        +'<div style="font-size:10px;color:#527292;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid rgba(30,70,110,.4);pointer-events:none">Tracking volume until meaningful trend movement emerges</div>'
+        +top6.map(([ing,count])=>{
+          const nm=ing.replace(/'/g,"\\'");
+          const isAct=filters.ingredient.toLowerCase()===ing;
+          return `<div class="trend-row${isAct?' tr-active':''}" onclick="filterByIngredient('${nm}')" onmouseenter="showIngTip(event,'${nm}')" onmouseleave="hideTip()">
+            <div style="flex:1;min-width:0"><span class="trend-rname">${ing}</span></div>
+            <div style="display:flex;align-items:center;gap:4px;flex-shrink:0"><span class="t-ct">${count}</span><span class="t-conf t-conf-low">all time</span></div>
+          </div>`;
+        }).join('')
+        +'<div style="font-size:10px;color:rgba(13,148,136,.82);padding-top:5px;margin-top:3px;border-top:1px solid rgba(30,70,110,.4)"><b style="color:rgba(13,148,136,.95)">Action:</b> Monitor these ingredients for emerging regulatory or claim signals</div>';}
+    }
     else{ingEl.innerHTML=ings.map(i=>{
       const chg=i.curr-i.prev,pct=i.prev>0?Math.round(chg/i.prev*100):null;
       const ind=chg>0?`<span class="t-up">&#8679; ${pct!==null?'+'+pct+'%':'+'+chg}</span>`:chg<0?`<span class="t-dn">&#8681; ${pct!==null?pct+'%':chg}</span>`:`<span class="t-flat">&mdash;</span>`;
