@@ -621,3 +621,308 @@ function renderWhatChanged() {
   el.innerHTML=col1?`<div>${col1}</div><div>${col2}</div><div>${col3}</div>`
     :'<div class="wc-item" style="color:#2F4558">Insufficient data for comparison</div>';
 }
+
+// === PHARMA CITATIONS + ENFORCEMENT RENDER ===
+
+function renderAuthBars(elId) {
+  const data=filteredCits();
+  const ac={}, catByAuth={};
+  data.forEach(c=>{
+    ac[c.authority]=(ac[c.authority]||0)+1;
+    if(!catByAuth[c.authority]) catByAuth[c.authority]={};
+    const k=c.category||'Other';
+    catByAuth[c.authority][k]=(catByAuth[c.authority][k]||0)+1;
+  });
+  const mx=Math.max(...Object.values(ac),1);
+  const el=document.getElementById(elId); if(!el) return;
+  el.innerHTML=Object.entries(ac).sort((a,b)=>b[1]-a[1]).map(([auth,ct])=>{
+    const topCats=Object.entries(catByAuth[auth]||{}).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>`${k} (${v})`).join(', ');
+    const tip=`${auth}: ${ct} citation${ct!==1?'s':''}. Top: ${topCats}. Click to filter — click again to clear.`;
+    const isActive=pF.auth===auth;
+    return `<div class="enf-row${isActive?' er-active':''}" onclick="pFilterByAuth('${auth}')" title="${tip}">
+      <span class="enf-name">${auth}</span>
+      <div class="enf-bar-wrap"><div class="enf-bar-fill" style="width:${Math.round(ct/mx*100)}%"></div></div>
+      <span class="enf-ct">${ct}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Citation card ────────────────────────────────────────────────────
+function citCard(c) {
+  const sc=c.severity==='high'?'high-sev':'medium-sev';
+  const st=(c.source_type||'').replace(/_/g,' ');
+  const summ=(c.summary||c.category||'Enforcement action').slice(0,140);
+  return `<div class="signal-card ${sc}" style="margin-bottom:8px">
+    <div class="card-top"><div class="card-title">${summ}</div></div>
+    <div class="card-badges">
+      ${sevBadge(c.severity||'medium')}
+      <span class="badge badge-authority">${c.authority||'—'}</span>
+      <span class="badge badge-type">${st}</span>
+      ${c.facility_type?`<span class="badge" style="background:rgba(139,92,246,.06);color:rgba(139,92,246,.55);border:1px solid rgba(139,92,246,.1)">${c.facility_type}</span>`:''}
+    </div>
+    ${c.category?`<div class="card-summary">${c.category}</div>`:''}
+    ${c.company?`<div class="card-summary" style="color:#3D5268;font-size:10px">Company: ${c.company}</div>`:''}
+    <div class="card-footer">
+      <div class="card-meta">${c.date?c.date.slice(0,10):'—'} &middot; ${c.country||c.authority||''}</div>
+      <div class="card-actions">
+        ${c.url?`<a class="card-action card-action-primary" href="${c.url}" target="_blank" onclick="event.stopPropagation()">View &#8599;</a>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Citations insight strip ──────────────────────────────────────────
+function renderCitationsInsightStrip() {
+  const el=document.getElementById('cit-insight-strip'); if(!el) return;
+  const data=filteredCits();
+  if(!data.length){el.innerHTML='';return;}
+  const catCounts={},authCounts={},srcCounts={};
+  data.forEach(c=>{
+    const k=c.category||'Other'; catCounts[k]=(catCounts[k]||0)+1;
+    authCounts[c.authority]=(authCounts[c.authority]||0)+1;
+    const s=(c.source_type||'other').replace(/_/g,' '); srcCounts[s]=(srcCounts[s]||0)+1;
+  });
+  const topCat=Object.entries(catCounts).sort((a,b)=>b[1]-a[1])[0];
+  const topAuth=Object.entries(authCounts).sort((a,b)=>b[1]-a[1])[0];
+  const topSrc=Object.entries(srcCounts).sort((a,b)=>b[1]-a[1])[0];
+  const high=data.filter(c=>c.severity==='high').length;
+  const action=topCat&&CAT_INTEL[topCat[0]]?CAT_INTEL[topCat[0]].action:'Review enforcement actions relevant to your site profile.';
+  el.innerHTML=`<div class="insight-strip">
+    <div class="insight-strip-hd">What this table shows</div>
+    <div class="insight-strip-bullets">
+      <div class="isb"><div class="isb-dot${high>0?' isb-dot-red':''}"></div><div class="isb-text"><b>${data.length} citation${data.length!==1?'s':''}</b> match current filters${high>0?` — <b>${high} high severity</b>`:''}.${data.length===CITATIONS.length?' Full dataset — use sidebar or KPI cards to filter.':''}</div></div>
+      ${topCat?`<div class="isb"><div class="isb-dot isb-dot-amber"></div><div class="isb-text"><b>${topCat[0]}</b> is the dominant category (${topCat[1]} citations). ${action}</div></div>`:''}
+      ${topAuth?`<div class="isb"><div class="isb-dot"></div><div class="isb-text"><b>${topAuth[0]}</b> leads by authority (${topAuth[1]} actions). Primary source type: <b>${topSrc?topSrc[0]:'—'}</b>.</div></div>`:''}
+    </div>
+  </div>`;
+}
+
+// ── Citations table ──────────────────────────────────────────────────
+function renderCitations() {
+  buildChipBar('cit-chip-bar');
+  renderCitationsInsightStrip();
+  const data=filteredCits();
+  const pages=Math.ceil(data.length/CIT_PP);
+  citPg=Math.min(citPg,pages||1);
+  const slice=data.slice((citPg-1)*CIT_PP,citPg*CIT_PP);
+  const tb=document.getElementById('cit-tbody'); if(!tb) return;
+  const cc=document.getElementById('cit-count'); if(cc) cc.textContent=`${data.length} citations`;
+  if(!slice.length) {
+    tb.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:24px 0;color:#2A3E52;font-size:12px">
+      <div style="font-size:22px;margin-bottom:6px">&#128270;</div>No citations match the current filters.
+      <button class="btn-secondary" style="display:block;margin:10px auto 0" onclick="resetPharmaFilters()">Clear filters</button>
+    </td></tr>`;
+    document.getElementById('cit-pagination').innerHTML='';
+    return;
+  }
+  tb.innerHTML=slice.map(c=>{
+    const st=(c.source_type||'').replace(/_/g,' ');
+    return `<tr onclick="pFilterByCat('${(c.category||'Other').replace(/'/g,"\\'")}')" title="Filter by ${c.category||'this category'}">
+      <td><span class="badge badge-authority">${c.authority||'—'}</span></td>
+      <td><span class="badge badge-type" style="white-space:nowrap">${st}</span></td>
+      <td style="color:#3D5268;font-size:10px;min-width:90px">${c.facility_type||'—'}</td>
+      <td style="min-width:110px">${c.category||'—'}</td>
+      <td>${sevBadge(c.severity||'medium')}</td>
+      <td style="white-space:nowrap;font-size:10px;color:#3D5268">${c.date?c.date.slice(0,10):'—'}</td>
+      <td style="max-width:280px;font-size:11px;color:#7A92A8">${(c.summary||'—').slice(0,100)}</td>
+      <td>${c.url?`<a class="cit-link" href="${c.url}" target="_blank" onclick="event.stopPropagation()">&#8599;</a>`:'—'}</td>
+    </tr>`;
+  }).join('');
+  const pg=document.getElementById('cit-pagination'); if(!pg) return; pg.innerHTML='';
+  if(pages>1){
+    const mkB=(l,p,a)=>{const b=document.createElement('button');b.className='page-btn'+(a?' active':'');b.textContent=l;b.onclick=()=>{citPg=p;renderCitations()};return b};
+    if(citPg>1)pg.appendChild(mkB('‹',citPg-1,false));
+    for(let i=1;i<=pages;i++){
+      if(i===1||i===pages||Math.abs(i-citPg)<=2)pg.appendChild(mkB(i,i,i===citPg));
+      else if(Math.abs(i-citPg)===3){const s=document.createElement('span');s.textContent='…';s.style.color='#2F4558';pg.appendChild(s);}
+    }
+    if(citPg<pages)pg.appendChild(mkB('›',citPg+1,false));
+  }
+}
+
+
+// ── Enforcement insight strip ─────────────────────────────────────────
+function renderEnfInsightStrip() {
+  const el=document.getElementById('enf-insight-strip'); if(!el) return;
+  const data=filteredCits();
+  if(!data.length){el.innerHTML='';return;}
+  const srcCounts={},catCounts={};
+  data.forEach(c=>{
+    const s=(c.source_type||'other').replace(/_/g,' ');srcCounts[s]=(srcCounts[s]||0)+1;
+    const k=c.category||'Other';catCounts[k]=(catCounts[k]||0)+1;
+  });
+  const topSrc=Object.entries(srcCounts).sort((a,b)=>b[1]-a[1])[0];
+  const topCat=Object.entries(catCounts).sort((a,b)=>b[1]-a[1])[0];
+  const importCt=data.filter(c=>c.source_type==='import_alert').length;
+  const action=topCat&&CAT_INTEL[topCat[0]]?CAT_INTEL[topCat[0]].action:'Review enforcement actions and prioritise based on your site profile.';
+  el.innerHTML=`<div class="insight-strip">
+    <div class="insight-strip-hd">Enforcement movement</div>
+    <div class="insight-strip-bullets">
+      ${topSrc?`<div class="isb"><div class="isb-dot isb-dot-amber"></div><div class="isb-text"><b>${topSrc[0]}</b> is the dominant enforcement source (${topSrc[1]} of ${data.length} actions).</div></div>`:''}
+      ${topCat?`<div class="isb"><div class="isb-dot isb-dot-red"></div><div class="isb-text"><b>${topCat[0]}</b> is the primary category. Action: ${action}</div></div>`:''}
+      ${importCt>0?`<div class="isb"><div class="isb-dot"></div><div class="isb-text"><b>${importCt} import alert${importCt!==1?'s':''}</b> — low in count but high in operational impact. Review foreign supplier verification and incoming material controls.</div></div>`:''}
+    </div>
+  </div>`;
+}
+
+// ── Enforcement page ─────────────────────────────────────────────────
+function renderEnfPage() {
+  buildChipBar('enf-chip-bar');
+  renderEnfInsightStrip();
+  renderAuthBars('enf-auth-rows');
+  renderCatGrid('enf-cat-grid','enf-cat-count');
+  const data=filteredCits();
+  const el=document.getElementById('enf-srctype-rows'); if(!el) return;
+  const sc={};
+  data.forEach(c=>{const k=(c.source_type||'other').replace(/_/g,' ');sc[k]=(sc[k]||0)+1;});
+  const mx=Math.max(...Object.values(sc),1);
+  el.innerHTML=Object.entries(sc).sort((a,b)=>b[1]-a[1]).map(([st,ct])=>
+    `<div class="enf-row">
+      <span class="enf-name">${st}</span>
+      <div class="enf-bar-wrap"><div class="enf-bar-fill" style="width:${Math.round(ct/mx*100)}%"></div></div>
+      <span class="enf-ct">${ct}</span>
+    </div>`).join('');
+  renderGroupedEnforcement('enf-grouped-feed');
+}
+
+function renderGroupedEnforcement(elId) {
+  const el=document.getElementById(elId); if(!el) return;
+  const data=filteredCits();
+  const {recentFrom,priorFrom,priorTo}=_computeDateWindows();
+  const recent=CITATIONS.filter(c=>c.date&&c.date>=recentFrom);
+  const prior=CITATIONS.filter(c=>c.date&&c.date>=priorFrom&&c.date<priorTo);
+  const catR={},catP={};
+  recent.forEach(c=>{const k=c.category||'Other';catR[k]=(catR[k]||0)+1;});
+  prior.forEach(c=>{const k=c.category||'Other';catP[k]=(catP[k]||0)+1;});
+  const groups={};
+  data.forEach(c=>{const k=c.category||'Other';if(!groups[k])groups[k]=[];groups[k].push(c);});
+  const sorted=Object.entries(groups).sort((a,b)=>b[1].length-a[1].length);
+  if(!sorted.length){el.innerHTML='<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No enforcement actions match filters</div></div>';return;}
+  el.innerHTML=sorted.map(([cat,items])=>{
+    const rCt=catR[cat]||0, pCt=catP[cat]||0;
+    const trendHtml=formatTrendMovement(rCt,pCt);
+    const intel=CAT_INTEL[cat];
+    const actionLine=intel?`<div class="enf-cat-action"><b>Action:</b> ${intel.action}</div>`:'';
+    const topItems=items.slice(0,3);
+    const safe=cat.replace(/'/g,"\\'");
+    return `<details class="enf-group">
+      <summary class="enf-group-hd">
+        <span class="enf-group-name">${cat}</span>
+        <span class="enf-group-ct">${items.length}</span>
+        ${trendHtml}
+        <span class="enf-group-arrow">&#9660;</span>
+      </summary>
+      <div class="enf-group-body">
+        ${actionLine}
+        ${topItems.map(c=>citCard(c)).join('')}
+        ${items.length>3?`<button class="enf-view-all-btn" onclick="pFilterByCat('${safe}');showPTab('pharma-citations')">View all ${items.length} &rarr;</button>`:''}
+      </div>
+    </details>`;
+  }).join('');
+}
+
+// === PHARMA FACILITIES + ALERTS RENDER ===
+
+function renderFacilityRiskStrip() {
+  const el=document.getElementById('fac-risk-strip'); if(!el) return;
+  const data=filteredCits();
+  const map={};
+  data.forEach(c=>{
+    const ft=c.facility_type||'Unknown';
+    if(!map[ft])map[ft]={total:0,cats:{}};
+    map[ft].total++;
+    const k=c.category||'Other';map[ft].cats[k]=(map[ft].cats[k]||0)+1;
+  });
+  const items=Object.entries(map).sort((a,b)=>b[1].total-a[1].total);
+  if(!items.length){el.innerHTML='';return;}
+  const cards=items.map(([name,d])=>{
+    const profile=getFacilityRiskProfile(name);
+    const topCat=Object.entries(d.cats).sort((a,b)=>b[1]-a[1])[0];
+    return `<div class="fac-risk-card">
+      <div class="fac-risk-name">${name} <span style="font-size:10px;color:#2A3E52;font-weight:400">(${d.total} citation${d.total!==1?'s':''})</span></div>
+      ${topCat?`<div class="fac-risk-row"><div class="fac-risk-lbl">Top finding</div><div class="fac-risk-val">${topCat[0]}</div></div>`:''}
+      ${profile?`<div class="fac-risk-row"><div class="fac-risk-lbl">Exposure</div><div class="fac-risk-val">${profile.exposure}</div></div>`:''}
+      ${profile?`<div class="fac-risk-row"><div class="fac-risk-lbl">Insp. focus</div><div class="fac-risk-val">${profile.focus}</div></div>`:''}
+      ${profile?`<div class="fac-risk-action">Action: ${profile.action}</div>`:''}
+    </div>`;
+  }).join('');
+  el.innerHTML=`<div class="insight-strip" style="padding-bottom:4px">
+    <div class="insight-strip-hd">Facility risk exposure</div>
+  </div>
+  <div class="fac-risk-grid">${cards}</div>`;
+}
+
+// ── Facilities ───────────────────────────────────────────────────────
+function renderFacilities() {
+  buildChipBar('fac-chip-bar');
+  renderFacilityRiskStrip();
+  const q=(document.getElementById('fac-search')||{value:''}).value.toLowerCase();
+  const data=filteredCits();
+  const map={};
+  data.forEach(c=>{
+    const ft=c.facility_type||'Unknown';
+    if(!map[ft])map[ft]={name:ft,total:0,high:0,auths:new Set(),cats:{},cos:new Set()};
+    map[ft].total++;
+    if(c.severity==='high')map[ft].high++;
+    map[ft].auths.add(c.authority);
+    const k=c.category||'Other';
+    map[ft].cats[k]=(map[ft].cats[k]||0)+1;
+    if(c.company)map[ft].cos.add(c.company);
+  });
+  let items=Object.values(map).sort((a,b)=>b.total-a.total);
+  if(q)items=items.filter(i=>i.name.toLowerCase().includes(q));
+  const fc=document.getElementById('fac-count'); if(fc)fc.textContent=`${items.length} facility type${items.length!==1?'s':''}`;
+  const el=document.getElementById('facility-grid'); if(!el)return;
+  el.innerHTML=items.length?items.map(f=>{
+    const safe=f.name.replace(/'/g,"\\'");
+    const topCats=Object.entries(f.cats).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
+    const exCos=[...f.cos].slice(0,3).join(', ');
+    return `<div class="facility-card${pF.factype===f.name?' fc-active':''}" onclick="pFilterByFacType('${safe}')" title="Click to filter — click again to clear">
+      <div class="facility-name">${f.name}</div>
+      <div class="facility-type-label">${[...f.auths].join(' · ')}</div>
+      <div class="facility-stats">
+        <span class="facility-stat">${f.total} citations</span>
+        ${f.high?`<span class="facility-stat fsr">${f.high} high sev</span>`:''}
+      </div>
+      ${topCats?`<div class="facility-cats">Top: ${topCats}</div>`:''}
+      ${exCos?`<div class="facility-cos">${exCos}</div>`:''}
+    </div>`;
+  }).join(''):'<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No facilities match</div></div>';
+}
+
+// ── Alert card (compact, action-oriented) ────────────────────────────
+function alertCard(c, patterns={}) {
+  const isHigh=c.severity==='high';
+  const st=(c.source_type||'').replace(/_/g,' ');
+  const summ=(c.summary||c.category||'Enforcement action').slice(0,160);
+  const cat=c.category||'Other';
+  const intel=CAT_INTEL[cat];
+  const action=intel?intel.action:`Review exposure for ${cat} and monitor for similar enforcement patterns across your site types.`;
+  const pBadge=patterns[c.company]?`<span class="pattern-badge">Pattern: recurring ${(c.company||'').slice(0,28)}</span>`
+    :patterns[c.category]?`<span class="pattern-badge">Pattern: repeated ${c.category}</span>`:'';
+  return `<div class="alert-card${isHigh?' ac-high':' ac-medium'}">
+    <div class="alert-card-title">${summ}</div>
+    <div class="alert-card-meta">
+      ${sevBadge(c.severity||'medium')}
+      <span class="badge badge-authority">${c.authority||'—'}</span>
+      <span class="badge badge-type">${st}</span>
+      ${c.facility_type?`<span class="badge" style="background:rgba(139,92,246,.06);color:rgba(139,92,246,.5);border:1px solid rgba(139,92,246,.1)">${c.facility_type}</span>`:''}
+      ${c.category?`<span class="badge" style="background:rgba(20,50,80,.2);color:#3A5570;border:1px solid rgba(20,50,80,.3)">${c.category}</span>`:''}
+      ${pBadge}
+    </div>
+    <div class="alert-card-action"><b>Action:</b> ${action}</div>
+    <div class="alert-card-footer">
+      <div class="alert-card-date">${c.date?c.date.slice(0,10):'—'}${c.company?' · '+c.company:''}</div>
+      ${c.url?`<a class="card-action card-action-primary" href="${c.url}" target="_blank" style="font-size:10px">View &#8599;</a>`:''}
+    </div>
+  </div>`;
+}
+
+// ── Pharma alerts ────────────────────────────────────────────────────
+function renderPharmaAlerts() {
+  const el=document.getElementById('pharma-alerts-feed'); if(!el)return;
+  const highs=unifiedFilteredCitations({sev:'high',sortCol:'date',sortDir:-1});
+  const patterns=detectPattern(highs);
+  el.innerHTML=highs.length?highs.map(c=>alertCard(c,patterns)).join('')
+    :'<div class="empty"><div class="empty-icon">&#9989;</div><div class="empty-text">No high severity alerts</div></div>';
+}
