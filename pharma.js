@@ -377,19 +377,27 @@ function getFacilityRiskProfile(name) {
 // ── Action line generator — ensures every facility card has a recommended action ─
 function generateFacilityAction(topIssueCat) {
   const cat = (topIssueCat || '').toLowerCase();
-  if (cat.includes('gmp') || cat.includes('documentation') || cat.includes('batch') || cat.includes('deviation'))
-    return 'Review SOP compliance, documentation controls, and cleaning validation.';
-  if (cat.includes('steril') || cat.includes('contamination') || cat.includes('aseptic') || cat.includes('container closure'))
-    return 'Audit CCS, EM program, and aseptic behaviour controls.';
-  if (cat.includes('label') || cat.includes('claim') || cat.includes('ingredient safety'))
-    return 'Verify claim substantiation and regulatory alignment across jurisdictions.';
+  if (cat.includes('gmp violation') || cat.includes('gmp non-compliance'))
+    return 'Audit SOP adherence, deviation management, and cleaning validation records against current GMP expectations.';
+  if (cat.includes('documentation') || cat.includes('record') || cat.includes('batch record'))
+    return 'Review documentation controls, batch record completeness, and ALCOA+ compliance across production steps.';
+  if (cat.includes('steril') || cat.includes('aseptic') || cat.includes('contamination'))
+    return 'Audit container closure integrity, environmental monitoring programme, and aseptic process controls.';
+  if (cat.includes('label') || cat.includes('claim'))
+    return 'Verify label claims against registered specifications and confirm regulatory alignment across target jurisdictions.';
+  if (cat.includes('ingredient safety') || cat.includes('adulterat') || cat.includes('prohibited'))
+    return 'Review ingredient sourcing and safety dossiers; confirm no prohibited substances are present in the supply chain.';
   if (cat.includes('supply') || cat.includes('import') || cat.includes('procure') || cat.includes('fsvp'))
-    return 'Review supplier qualification and incoming material controls.';
-  if (cat.includes('equipment') || cat.includes('facilit') || cat.includes('maintenance'))
-    return 'Review preventive maintenance programme and equipment qualification lifecycle.';
-  if (cat.includes('csv') || cat.includes('data integrity') || cat.includes('computerised'))
-    return 'Assess CSV documentation currency, audit trail integrity, and access governance.';
-  return 'Review site-specific enforcement profile and prioritise corrective actions.';
+    return 'Review supplier qualification programme, FSVP documentation, and incoming material testing coverage.';
+  if (cat.includes('equipment') || cat.includes('maintenance') || cat.includes('facilit'))
+    return 'Audit preventive maintenance schedules, equipment qualification lifecycle, and facility hygiene controls.';
+  if (cat.includes('csv') || cat.includes('data integrity') || cat.includes('computerised') || cat.includes('audit trail'))
+    return 'Assess CSV documentation currency, audit trail completeness, and access control governance.';
+  if (cat.includes('deviation') || cat.includes('capa') || cat.includes('corrective'))
+    return 'Review CAPA effectiveness, deviation closure rates, and systemic root cause trending.';
+  if (cat.includes('testing') || cat.includes('analytical') || cat.includes('laboratory'))
+    return 'Review laboratory controls, OOS investigation procedures, and analytical method validation status.';
+  return 'Review site-specific enforcement history and prioritise corrective actions based on repeat finding patterns.';
 }
 
 
@@ -666,18 +674,17 @@ function renderAuthBars(elId) {
 }
 
 // ── Display-level citation grouping ──────────────────────────────────
-// Groups filteredCits() output by (authority, source_type, month, facility_type, family)
-// so that boilerplate rows with the same family in the same period collapse to one
+// Groups filteredCits() output by (authority, source_type, month, facility_type, category)
+// so that rows with the same category in the same period collapse to one
 // visible row with a ×N count badge.  Does NOT touch the raw data.
 function _groupCitsForDisplay(cits) {
   const groupMap = {};
   const order = [];
   cits.forEach(c => {
-    const rawText = (c.summary||'') + ' ' + (c.violation_details||'');
-    const family = getPharmaSummaryFamily(rawText) || 'raw';
+    const category = (c.category||'Other').toLowerCase();
     const dateMonth = (c.date||'').slice(0, 7);  // YYYY-MM
     const facType = (c.facility_type||'').toLowerCase();
-    const key = [c.authority||'', c.source_type||'', dateMonth, facType, family].join('|');
+    const key = [c.authority||'', c.source_type||'', dateMonth, facType, category].join('|');
     if (!groupMap[key]) {
       groupMap[key] = { ...c, _groupCount: 1 };
       order.push(key);
@@ -757,7 +764,7 @@ function renderCitations() {
   citPg=Math.min(citPg,pages||1);
   const slice=data.slice((citPg-1)*CIT_PP,citPg*CIT_PP);
   const tb=document.getElementById('cit-tbody'); if(!tb) return;
-  const cc=document.getElementById('cit-count'); if(cc) cc.textContent=`${data.length} grouped citations`;
+  const cc=document.getElementById('cit-count'); if(cc) cc.textContent=`${data.length} grouped citation rows`;
   if(!slice.length) {
     tb.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:24px 0;color:#2A3E52;font-size:12px">
       <div style="font-size:22px;margin-bottom:6px">&#128270;</div>No citations match the current filters.
@@ -768,9 +775,7 @@ function renderCitations() {
   }
   tb.innerHTML=slice.map(c=>{
     const st=(c.source_type||'').replace(/_/g,' ');
-    const rawText=(c.summary||'')+' '+(c.violation_details||'');
-    const family=getPharmaSummaryFamily(rawText);
-    const displaySumm=c.clean_title||(family?PHARMA_FAMILY_LABELS[family]:(c.summary||'—').slice(0,100));
+    const displaySumm=c.category||c.clean_title||(c.summary||'—').slice(0,100);
     const gcBadge=(c._groupCount||1)>1?` <span class="cit-group-badge">×${c._groupCount}</span>`:'';
     return `<tr onclick="pFilterByCat('${(c.category||'Other').replace(/'/g,"\\'")}')" title="Filter by ${c.category||'this category'}">
       <td><span class="badge badge-authority">${c.authority||'—'}</span></td>
@@ -898,7 +903,7 @@ function renderFacilityRiskStrip() {
       ${topCat?`<div class="fac-risk-row"><div class="fac-risk-lbl">Top finding</div><div class="fac-risk-val">${topCat[0]}</div></div>`:''}
       ${profile?`<div class="fac-risk-row"><div class="fac-risk-lbl">Exposure</div><div class="fac-risk-val">${profile.exposure}</div></div>`:''}
       ${profile?`<div class="fac-risk-row"><div class="fac-risk-lbl">Insp. focus</div><div class="fac-risk-val">${profile.focus}</div></div>`:''}
-      ${profile?`<div class="fac-risk-action">Action: ${profile.action}</div>`:''}
+      <div class="fac-risk-action">Action: ${profile?profile.action:topCat?generateFacilityAction(topCat[0]):'Review facility enforcement profile and prioritise corrective actions.'}</div>
     </div>`;
   }).join('');
   el.innerHTML=`<div class="insight-strip" style="padding-bottom:4px">
@@ -938,14 +943,17 @@ function renderFacilities() {
     f.factype=sorted.length?sorted[0][0]:'Unknown';
     delete f.factypes;
   });
-  let coItems=Object.values(coMap).sort((a,b)=>b.total-a.total);
+  // Filter to meaningful companies only: volume, severity, or breadth signal
+  let coItems=Object.values(coMap)
+    .filter(f=>f.total>=3||f.high>=1||Object.keys(f.cats).length>1)
+    .sort((a,b)=>b.total-a.total);
   if(q) coItems=coItems.filter(i=>i.name.toLowerCase().includes(q)||i.factype.toLowerCase().includes(q));
 
   // ── Insufficient company data — show message, facility type strip above handles the rest ──
-  if(coItems.length < 5 && !q) {
-    console.warn('[Signalex] Low company count ('+coItems.length+') — showing limited data message');
+  if(coItems.length < 3 && !q) {
+    console.warn('[Signalex] Low meaningful company count ('+coItems.length+') — showing limited data message');
     const fc=document.getElementById('fac-count'); if(fc)fc.textContent='0 companies';
-    el.innerHTML='<div class="facility-limited-msg">Company-level facility data is limited for current filters. Use the Facility Risk Exposure panel above for type-level analysis.</div>';
+    el.innerHTML='<div class="facility-limited-msg">Most company-level records are single citations. Use facility-type exposure above for now.</div>';
     return;
   }
 
@@ -955,12 +963,12 @@ function renderFacilities() {
     el.innerHTML='<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No facilities match</div></div>';
     return;
   }
-  const coNote='<div class="facility-data-note">Facility data is inferred from available enforcement records and may need source verification.</div>';
+  const coNote='<div class="facility-data-note">Repeated company/facility signals — shown where citation count ≥ 3, high-severity citation present, or multiple categories matched. Data inferred from enforcement records.</div>';
   el.innerHTML=coNote+coItems.map(f=>{
-    const topCatEntry=Object.entries(f.cats).sort((a,b)=>b[1]-a[1])[0];
-    const topCatName=topCatEntry?topCatEntry[0]:'';
-    const topIssues=Object.entries(f.cats).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
-    const topDisplay=topIssues||'Not classified';
+    const sortedCats=Object.entries(f.cats).sort((a,b)=>b[1]-a[1]);
+    const topCatName=sortedCats.length?sortedCats[0][0]:'';
+    const top2Cats=sortedCats.slice(0,2).map(([k,v])=>`${k} (${v})`).join(', ');
+    const topDisplay=top2Cats||'Not classified';
     const action=topCatName?generateFacilityAction(topCatName):'Review source record and classify enforcement issue before client use.';
     return `<div class="facility-card">
       <div class="facility-name">${f.name||'Unknown facility'}</div>
@@ -969,7 +977,7 @@ function renderFacilities() {
         <span class="facility-stat">${f.total} citation${f.total!==1?'s':''}</span>
         ${f.high?`<span class="facility-stat fsr">${f.high} high sev</span>`:''}
       </div>
-      <div class="facility-cats">Top issues: ${topDisplay}</div>
+      <div class="facility-cats">Top categories: ${topDisplay}</div>
       <div class="facility-action">&#8594; ${action}</div>
     </div>`;
   }).join('');
