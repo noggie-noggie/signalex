@@ -1800,3 +1800,44 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
 .pharma-so-what{font-size:11px;color:#94A3B8;line-height:1.5;padding:8px 12px;margin-top:6px;border-top:1px solid rgba(58,96,140,.2);font-style:italic}
 .so-what-label{font-style:normal;font-weight:700;color:#0D9488;margin-right:4px}
 .section-count{font-size:10px;color:#3D5268;font-weight:400;margin-left:4px}
+
+/* ═══════════════════════════════════════════════════════════════
+   VMS OVERVIEW READABILITY — contrast/visibility fixes
+   All originals used dark-on-dark colors (#0C1A29 bg)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* What Changed panel */
+.wc-vms-hd      { color: #7E9AB5 !important; }
+.wc-vms-col-hd  { color: #5A8AA8 !important; border-bottom-color: rgba(30,70,110,.5) !important; }
+.wc-vms-lbl     { color: #A8C4D8 !important; }
+.wc-vms-txt     { color: #6E90AA !important; }
+.wc-vms-why     { color: #507088 !important; font-style: italic; }
+.wc-vms-rising  { color: rgba(210,88,88,.92) !important; }
+.wc-vms-falling { color: rgba(13,148,136,.82) !important; }
+.wc-vms-new     { color: rgba(188,150,52,.88) !important; }
+.wc-vms-bullet  { border-bottom-color: rgba(30,65,100,.4) !important; }
+
+/* Trend panel row context — why/sub-text and confidence badges */
+.trend-row-why   { color: #527292 !important; }
+.t-conf-high     { color: rgba(13,148,136,.82) !important; }
+.t-conf-medium   { color: #5A7A9A !important; background: rgba(20,55,90,.28) !important; }
+.t-conf-low      { color: #507088 !important; background: rgba(20,55,90,.18) !important; }
+
+/* Analytics insight section headings (aim-panel, acb) */
+.aim-panel-hd { color: #5A8AA8 !important; }
+.acb-hd       { color: #5A8AA8 !important; }
+
+/* Analytics source rows */
+.src-desc         { color: #5A7A94 !important; }
+.src-row          { border-bottom-color: rgba(30,65,100,.35) !important; }
+.src-tag-low      { color: #6B8FAF !important; }
+
+/* Analytics risk rank rows */
+.rr-num           { color: #5A7A9A !important; }
+.rr-trend-stable  { color: #4A6A87 !important; }
+.rr-ct            { color: #6B8FAF !important; }
+.rr-row           { border-bottom-color: rgba(30,65,100,.35) !important; }
+
+/* AI insight sub-line */
+.ai-sub           { color: #7A95AC !important; }
+.insight-text     { color: #8AABB9 !important; }
