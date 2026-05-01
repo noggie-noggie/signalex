@@ -636,6 +636,9 @@ class SignalClassifier:
             logger.error("Claude API error (pubmed) for %s: %s", signal["source_id"], exc)
             return ClassifiedSignal(**base, source_label="pubmed")
 
+        if not response.content:
+            logger.error("Claude API returned empty content for pubmed %s", signal["source_id"])
+            return ClassifiedSignal(**base, source_label="pubmed")
         parsed = self._parse_json(response.content[0].text.strip(), signal["source_id"])
         return ClassifiedSignal(
             **base,
@@ -784,6 +787,9 @@ class SignalClassifier:
             logger.error("Claude API error (%s) for %s: %s", source_label, signal["source_id"], exc)
             return ClassifiedSignal(**base, source_label=source_label)
 
+        if not response.content:
+            logger.error("Claude API returned empty content for %s %s", source_label, signal["source_id"])
+            return ClassifiedSignal(**base, source_label=source_label)
         parsed = self._parse_json(response.content[0].text.strip(), signal["source_id"])
         kwargs: dict = {
             **base,
