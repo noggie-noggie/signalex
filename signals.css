@@ -1864,3 +1864,86 @@ body.reading-mode .drawer-why          { font-size: 13px; line-height: 1.75; }
 
 body.reading-mode .badge        { opacity: 0.9; }
 body.reading-mode .filter-chip  { opacity: 0.9; }
+
+/* ═══════════════════════════════════════════════════════════════
+   PHARMA ↔ VMS VISUAL ALIGNMENT
+   CSS-only; no layout/data/structure changes.
+   Brings pharma backgrounds, borders, and text into the same
+   visual rhythm as VMS signal cards and trend panels.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Intelligence cards ──────────────────────────────────────── */
+.icard { background: var(--navy) !important; border-color: var(--border) !important; }
+.icard:hover { border-color: rgba(13,148,136,.35) !important; }
+.icard.expanded { border-color: rgba(13,148,136,.45) !important; }
+.icard-top { padding: 12px 14px !important; }
+.icard-title        { color: var(--off) !important; font-size: 13px !important; }
+.icard-why-brief    { color: var(--slate-dim) !important; font-size: 11px !important; }
+.icard-action-preview { color: var(--teal) !important; font-size: 12px !important; }
+.icard-expand       { color: var(--slate-dim) !important; }
+.icard-detail-lbl   { color: var(--slate-dim) !important; }
+.icard-detail-txt   { color: var(--slate) !important; font-size: 12px !important; line-height: 1.6 !important; }
+.icard-detail-action { color: var(--teal) !important; font-size: 12px !important; }
+.icard-detail-client { color: var(--slate-dim) !important; }
+.icard-detail-evid  { color: var(--slate-dim) !important; }
+.icard-detail-opp   { color: rgba(13,148,136,.8) !important; }
+.icard-detail-footer { border-top-color: rgba(37,68,112,.4) !important; }
+.mb-conf-medium { color: var(--slate-dim) !important; }
+.mb-conf-low    { color: var(--slate-dim) !important; opacity: .7; }
+
+/* ── Enforcement groups ──────────────────────────────────────── */
+.enf-group { border-color: var(--border) !important; }
+.enf-group-hd { background: rgba(255,255,255,.03) !important; }
+.enf-group-hd:hover { background: rgba(255,255,255,.06) !important; }
+.enf-group-name { color: var(--off2) !important; }
+.enf-group-ct   { color: var(--slate-dim) !important; background: rgba(37,68,112,.3) !important; }
+.enf-group-trend-stable { color: var(--slate-dim) !important; }
+.enf-group-arrow { color: var(--slate-dim) !important; }
+.enf-group-body  { border-top-color: rgba(37,68,112,.5) !important; }
+.enf-view-all-btn { color: var(--slate-dim) !important; border-color: rgba(37,68,112,.5) !important; }
+.enf-trend-stable { color: var(--slate-dim) !important; }
+.enf-trend-down   { color: var(--slate-dim) !important; }
+.enf-cat-action   { border-top-color: rgba(37,68,112,.4) !important; }
+
+/* ── Alert cards ─────────────────────────────────────────────── */
+.alert-card { background: var(--navy) !important; border-color: var(--border) !important; }
+.alert-card-title { color: var(--off) !important; font-size: 13px !important; }
+.alert-card-date  { color: var(--slate-dim) !important; font-size: 10px !important; }
+
+/* ── Insight strips ──────────────────────────────────────────── */
+.insight-strip    { background: var(--navy) !important; border-color: var(--border) !important; }
+.insight-strip-hd { color: var(--slate-dim) !important; }
+.isb-text         { color: var(--slate) !important; }
+.isb-text b       { color: var(--off2) !important; }
+
+/* ── Facility cards interior ─────────────────────────────────── */
+.facility-cats { color: var(--slate-dim) !important; }
+.facility-cos  { color: var(--slate-dim) !important; font-style: normal !important; }
+
+/* ── Facility risk cards ─────────────────────────────────────── */
+.fac-risk-card   { background: var(--navy) !important; border-color: var(--border) !important; }
+.fac-risk-name   { color: var(--off2) !important; }
+.fac-risk-lbl    { color: var(--slate-dim) !important; }
+.fac-risk-val    { color: var(--slate) !important; font-size: 12px !important; }
+.fac-risk-action { color: var(--teal) !important; border-top-color: rgba(37,68,112,.4) !important; }
+
+/* ── Top risk blocks ─────────────────────────────────────────── */
+.top-risk-block { background: var(--navy) !important; border-color: var(--border) !important; }
+.top-risk-block:hover { background: var(--navy-mid) !important; border-color: rgba(13,148,136,.3) !important; }
+.trb-rank    { color: var(--slate-dim) !important; }
+.trb-cat     { color: var(--off2) !important; font-size: 13px !important; }
+.trb-meaning { color: var(--slate-dim) !important; font-size: 11px !important; }
+.trb-action  { color: var(--teal) !important; }
+.trb-stats   { color: var(--slate-dim) !important; }
+
+/* ── Start-here action items ─────────────────────────────────── */
+.sha-title { color: var(--off2) !important; }
+.sha-why   { color: var(--slate-dim) !important; }
+
+/* ── Category grid sub-text / overview labels ────────────────── */
+.cat-why-line     { color: var(--slate-dim) !important; font-size: 11px !important; }
+.intel-filter-label { color: var(--slate-dim) !important; }
+.cat-toggle-icon  { color: var(--slate-dim) !important; }
+.vol-bucket       { color: var(--slate-dim) !important; }
+.wc-col-hd        { color: var(--slate-dim) !important; }
+.pharma-so-what   { color: var(--slate) !important; }
