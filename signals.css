@@ -1841,3 +1841,26 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
 /* AI insight sub-line */
 .ai-sub           { color: #7A95AC !important; }
 .insight-text     { color: #8AABB9 !important; }
+
+/* ═══════════════════════════════════════════════════════════════
+   READING MODE — toggled by body.reading-mode (📖 button)
+   Default UI is completely unaffected.
+   ═══════════════════════════════════════════════════════════════ */
+body.reading-mode { font-size: 14.5px; line-height: 1.65; }
+
+body.reading-mode .signal-card  { padding: 18px 20px; line-height: 1.7; }
+body.reading-mode .card-title   { font-size: 14px; }
+body.reading-mode .card-summary { font-size: 13px; line-height: 1.7; -webkit-line-clamp: 3; }
+body.reading-mode .card-why     { line-height: 1.7; -webkit-line-clamp: 3; }
+body.reading-mode .card-meta    { font-size: 11px; }
+
+body.reading-mode .kpi-card     { box-shadow: none; }
+
+body.reading-mode .insight-row  { padding: 8px 6px 8px 2px; }
+body.reading-mode .insight-text { font-size: 13px; line-height: 1.7; color: #8AABB9 !important; }
+
+body.reading-mode .drawer-section-body { font-size: 13px; line-height: 1.75; }
+body.reading-mode .drawer-why          { font-size: 13px; line-height: 1.75; }
+
+body.reading-mode .badge        { opacity: 0.9; }
+body.reading-mode .filter-chip  { opacity: 0.9; }

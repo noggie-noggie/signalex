@@ -47,6 +47,7 @@
     <div class="search-box"><span class="si">&#128269;</span><input type="text" id="global-search" placeholder="Search signals, entities..." autocomplete="off"></div>
     <button class="wl-nav-btn" id="wl-nav-btn" onclick="openWatchlistPanel()" title="Watchlist">&#9733; <span class="wl-ct" id="wl-ct"></span></button>
     <button class="icon-btn" title="Notifications">&#128276;<span class="dot"></span></button>
+    <button id="readingModeToggle" class="icon-btn" title="Reading Mode" style="font-size:15px">&#128214;</button>
     <span id="last-refreshed" class="last-refreshed-label"></span>
     <div class="avatar">IL</div>
   </div>
@@ -1472,6 +1473,20 @@ if(pdt)pdt.addEventListener('change',()=>{_dirty=true;pF.dateTo=pdt.value;render
     document.getElementById('pharma-sidebar').style.display='none';
     document.getElementById('pharma-content').style.display='none';
   }
+})();
+
+// ─── READING MODE ─────────────────────────────────────────────────────────────
+(()=>{
+  if(localStorage.getItem('readingMode')==='on') document.body.classList.add('reading-mode');
+  const btn=document.getElementById('readingModeToggle');
+  function updateReadingIcon(){btn.style.opacity=document.body.classList.contains('reading-mode')?'1':'0.45';}
+  updateReadingIcon();
+  btn.onclick=()=>{
+    document.body.classList.toggle('reading-mode');
+    const isOn=document.body.classList.contains('reading-mode');
+    localStorage.setItem('readingMode',isOn?'on':'off');
+    updateReadingIcon();
+  };
 })();
 
 </script>
