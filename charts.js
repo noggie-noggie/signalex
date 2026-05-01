@@ -79,18 +79,55 @@ function computeIngredientTrends() {
     .sort((a,b)=>{const ca=a[1]-(prev[a[0]]||0),cb=b[1]-(prev[b[0]]||0);return cb-ca||b[1]-a[1];})
     .slice(0,6).map(([ing,c])=>({name:ing,curr:c,prev:prev[ing]||0,high:highM[ing]||0}));
 }
+// Returns all CLAIM_CATEGORIES keys matched by a single signal.
+function getClaimCategoryMatches(signal) {
+  return Object.keys(CLAIM_CATEGORIES).filter(cat => signalMatchesClaimCategory(signal, cat));
+}
+
+// Classify all signals, count matches per category, remove 0-match categories, sort by count desc.
+function getRankedClaimCategories(signals) {
+  const counts = {};
+  signals.forEach(s => {
+    getClaimCategoryMatches(s).forEach(cat => { counts[cat] = (counts[cat] || 0) + 1; });
+  });
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([cat, count]) => ({ key: cat, label: CLAIM_CATEGORIES[cat].label, count }));
+}
+
+// Returns signals that match zero categories.
+function getUnclassifiedSignals(signals) {
+  return signals.filter(s => getClaimCategoryMatches(s).length === 0);
+}
+
+// Console-only debug tool. Call debugClaimCategoryMatches() in browser console.
+function debugClaimCategoryMatches() {
+  const ranked = getRankedClaimCategories(SIGNALS);
+  console.group('[Signalex] Claim Category Debug');
+  ranked.forEach(({ key, label, count }) => {
+    const top5 = SIGNALS.filter(s => signalMatchesClaimCategory(s, key)).slice(0, 5).map(s => s.title || '(no title)');
+    console.group(`${label} — ${count} signals`);
+    top5.forEach(t => console.log(' •', t));
+    console.groupEnd();
+  });
+  const unclassified = getUnclassifiedSignals(SIGNALS);
+  console.group(`Unclassified — ${unclassified.length} signals`);
+  unclassified.slice(0, 5).forEach(s => console.log(' •', s.title || '(no title)'));
+  console.groupEnd();
+  const multi = SIGNALS.filter(s => getClaimCategoryMatches(s).length > 1);
+  console.log(`Multi-category signals: ${multi.length}`, multi.slice(0, 3).map(s => ({ title: (s.title || '').slice(0, 50), cats: getClaimCategoryMatches(s) })));
+  console.groupEnd();
+}
+
 function computeClaimRisk() {
-  const res=[];
-  for(const [cat] of Object.entries(CLAIM_KW)){
-    const m=SIGNALS.filter(s=>signalMatchesClaimCategory(s,cat));
-    if(m.length<2) continue;
-    const high=m.filter(s=>s.severity==='high').length;
-    const ratio=high/m.length;
-    const risk=ratio>.5?'H':ratio>.2?'M':'L';
-    const auths=[...new Set(m.map(s=>authLabel(s.authority)))].slice(0,3).join(', ');
-    res.push({cat,total:m.length,high,ratio,risk,auths});
-  }
-  return res.sort((a,b)=>b.ratio-a.ratio||b.total-a.total).slice(0,5);
+  return getRankedClaimCategories(SIGNALS).slice(0, 5).map(({ key: cat, count: total }) => {
+    const m = SIGNALS.filter(s => signalMatchesClaimCategory(s, cat));
+    const high = m.filter(s => s.severity === 'high').length;
+    const ratio = high / total;
+    const risk = ratio > .5 ? 'H' : ratio > .2 ? 'M' : 'L';
+    const auths = [...new Set(m.map(s => authLabel(s.authority)))].slice(0, 3).join(', ');
+    return { cat, total, high, ratio, risk, auths };
+  });
 }
 function computeEnforcementTrends() {
   const now=Date.now(),d7=now-7*864e5,d14=now-14*864e5;

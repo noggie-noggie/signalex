@@ -5,13 +5,13 @@
 function _sigText(s) {
   return [s.title,s.summary,s.ai_summary,s.ingredient_name,s.ingredient_relevance,s.trend_relevance,s.signal_type].filter(Boolean).join(' ').toLowerCase();
 }
-// Claim category matcher — used by BOTH computeClaimRisk() and filteredSignals()
-// Searches title + summary + ai_summary only; excludes noisy metadata fields
+// Single matching engine — used by computeClaimRisk(), filteredSignals(), debug tools.
+// Matches content fields only; excludes authority, severity, event_type, and metadata.
 function signalMatchesClaimCategory(s, cat) {
-  const kws = CLAIM_KW[cat] || [];
-  if (!kws.length) return false;
-  const txt = [s.title, s.summary, s.ai_summary].filter(Boolean).join(' ').toLowerCase();
-  return kws.some(k => txt.includes(k));
+  const entry = CLAIM_CATEGORIES[cat];
+  if (!entry || !entry.keywords.length) return false;
+  const txt = [s.title, s.summary, s.ai_summary, s.ingredient_name, s.ingredient_relevance, s.trend_relevance].filter(Boolean).join(' ').toLowerCase();
+  return entry.keywords.some(k => txt.includes(k));
 }
 function _ingMatch(hay, q) {
   const ql = q.toLowerCase();

@@ -720,13 +720,19 @@ const MARKET_MAP = {
   EU:['efsa','europe_pmc'],
   global:['pubmed','cochrane','who_ictrp','biorxiv','semantic_scholar'],
 };
-const CLAIM_KW = {
-  'Weight Loss':    ['weight loss','weight management','fat loss','body fat','slimming','obesity','overweight','adipose','metabolism','metabolic rate','appetite','appetite suppression','thermogenic','body composition','bmi','body mass','caloric'],
-  'Pain & Inflam.': ['pain','inflammation','inflammatory','joint pain','arthritis','anti-inflammatory','nsaid','analgesic','soreness','osteoarthritis','rheumatoid','fibromyalgia','chronic pain','stiffness'],
-  'Immune Support': ['immune','immunity','immunomodulat','antiviral','respiratory infection','antimicrobial','common cold','influenza','pathogen','cytokine','lymphocyte','interferon'],
-  'Cognitive':      ['cognition','cognitive','memory','nootropic','concentration','attention','mental performance','brain health','neuroprotection','neuroprotect','executive function','alzheimer','dementia','adhd'],
-  'Cardiovascular': ['cardiovascular','heart','cholesterol','blood pressure','cardiac','hypertension','triglyceride','lipid','atherosclerosis','stroke','vascular','endothelial'],
-  'Muscle & Sport': ['muscle','sport','exercise performance','athletic performance','creatine','protein synthesis','muscle strength','endurance','muscle recovery','ergogenic','hypertrophy','anabolic','testosterone','training adaptation'],
+const CLAIM_CATEGORIES = {
+  'Weight Loss':      { label: 'Weight Loss',      keywords: ['weight loss','weight management','fat loss','body fat','slimming','obesity','overweight','adipose','metabolism','metabolic rate','appetite','appetite suppression','thermogenic','body composition','bmi','body mass','caloric'] },
+  'Pain & Inflam.':   { label: 'Pain & Inflam.',   keywords: ['pain','inflammation','inflammatory','joint pain','arthritis','anti-inflammatory','nsaid','analgesic','soreness','osteoarthritis','rheumatoid','fibromyalgia','chronic pain','stiffness'] },
+  'Immune Support':   { label: 'Immune Support',   keywords: ['immune','immunity','immunomodulat','antiviral','respiratory infection','antimicrobial','common cold','influenza','pathogen','cytokine','lymphocyte','interferon'] },
+  'Cognitive':        { label: 'Cognitive',        keywords: ['cognition','cognitive','memory','nootropic','concentration','attention','mental performance','brain health','neuroprotection','neuroprotect','executive function','alzheimer','dementia','adhd'] },
+  'Cardiovascular':   { label: 'Cardiovascular',   keywords: ['cardiovascular','heart','cholesterol','blood pressure','cardiac','hypertension','triglyceride','lipid','atherosclerosis','stroke','vascular','endothelial'] },
+  'Muscle & Sport':   { label: 'Muscle & Sport',   keywords: ['muscle','sport','exercise performance','athletic performance','creatine','protein synthesis','muscle strength','endurance','muscle recovery','ergogenic','hypertrophy','anabolic','testosterone','training adaptation'] },
+  'Sleep':            { label: 'Sleep',            keywords: ['sleep','insomnia','melatonin','circadian','sleep quality','sleep onset','sleep duration','sleep disorder','wakefulness','sleep latency','jet lag'] },
+  'Gut Health':       { label: 'Gut Health',       keywords: ['gut','digestive','digestion','probiotic','prebiotic','microbiome','microbiota','ibs','irritable bowel','intestinal','bowel','gastrointestinal','gut flora','dysbiosis','fiber','fibre'] },
+  'Stress & Mood':    { label: 'Stress & Mood',    keywords: ['stress','anxiety','mood','depression','cortisol','adaptogen','anxiolytic','serotonin','dopamine','gaba','wellbeing','mental health','burnout','resilience','relaxation'] },
+  'Hormonal':         { label: 'Hormonal',         keywords: ['hormone','hormonal','estrogen','oestrogen','progesterone','thyroid','adrenal','menopause','pms','perimenopause','dhea','endocrine','fertility','reproductive'] },
+  'Skin & Beauty':    { label: 'Skin & Beauty',    keywords: ['skin','collagen','hair','nail','beauty','anti-aging','anti-ageing','wrinkle','elasticity','complexion','hyaluronic','keratin','biotin','dermal','photoprotection'] },
+  'Energy & Fatigue': { label: 'Energy & Fatigue', keywords: ['energy','fatigue','tiredness','exhaustion','vitality','stamina','mitochondria','atp','coq10','b12','iron deficiency','chronic fatigue','lethargy','alertness','adrenal fatigue'] },
 };
 const AUTH_LABELS = {tga:'TGA',tga_consultations:'TGA Consult.',fda:'FDA',artg:'ARTG',pubmed:'PubMed',adverse_events:'Adv.Events',europe_pmc:'Europe PMC',clinical_trials:'ClinTrials.gov',cochrane:'Cochrane',efsa:'EFSA',biorxiv:'Preprint',semantic_scholar:'Semantic Scholar',who_ictrp:'WHO ICTRP'};
 
@@ -908,7 +914,7 @@ function toggleSave(btn) {
 
 // ─── RENDER SIGNALS ───────────────────────────────────────────────────────────
 function _suggestSignals(n) {
-  const q = (filters.ingredient || (activeClaimCat ? CLAIM_KW[activeClaimCat]?.join(' ') : '') || filters.query || '').toLowerCase();
+  const q = (filters.ingredient || (activeClaimCat ? CLAIM_CATEGORIES[activeClaimCat]?.keywords.join(' ') : '') || filters.query || '').toLowerCase();
   if (!q) return [];
   const words = q.split(/\W+/).filter(w=>w.length>3);
   if (!words.length) return [];
@@ -1251,8 +1257,7 @@ function _epAuthContent(auth) {
   <button class="ep-copy-btn" onclick="copyEntityMemo('${authSafe}','authority',this)">&#128203; Copy Client Memo</button>`;
 }
 function _epCatContent(cat) {
-  const kws=CLAIM_KW[cat]||[];
-  const sigs=kws.length?SIGNALS.filter(s=>{const t=((s.title||'')+' '+(s.summary||'')).toLowerCase();return kws.some(k=>t.includes(k));}):[];
+  const sigs=SIGNALS.filter(s=>signalMatchesClaimCategory(s,cat));
   const total=sigs.length,high=sigs.filter(s=>s.severity==='high').length;
   const ings=[...new Set(sigs.map(s=>s.ingredient_name).filter(i=>i&&i!=='unknown'))].slice(0,6);
   const recent=sigs.sort((a,b)=>new Date(b.scraped_at)-new Date(a.scraped_at)).slice(0,4);
