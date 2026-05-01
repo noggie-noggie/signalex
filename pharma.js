@@ -665,6 +665,29 @@ function renderAuthBars(elId) {
   }).join('');
 }
 
+// ── Display-level citation grouping ──────────────────────────────────
+// Groups filteredCits() output by (authority, source_type, month, facility_type, family)
+// so that boilerplate rows with the same family in the same period collapse to one
+// visible row with a ×N count badge.  Does NOT touch the raw data.
+function _groupCitsForDisplay(cits) {
+  const groupMap = {};
+  const order = [];
+  cits.forEach(c => {
+    const rawText = (c.summary||'') + ' ' + (c.violation_details||'');
+    const family = getPharmaSummaryFamily(rawText) || 'raw';
+    const dateMonth = (c.date||'').slice(0, 7);  // YYYY-MM
+    const facType = (c.facility_type||'').toLowerCase();
+    const key = [c.authority||'', c.source_type||'', dateMonth, facType, family].join('|');
+    if (!groupMap[key]) {
+      groupMap[key] = { ...c, _groupCount: 1 };
+      order.push(key);
+    } else {
+      groupMap[key]._groupCount++;
+    }
+  });
+  return order.map(k => groupMap[k]);
+}
+
 // ── Citation card ────────────────────────────────────────────────────
 const _IMPORT_ALERT_TIP = 'Import Alert: regulatory action preventing products from entering a country due to safety or compliance issues (e.g. FDA Import Alert — Detention Without Physical Examination)';
 function citCard(c) {
@@ -676,8 +699,11 @@ function citCard(c) {
   const family=getPharmaSummaryFamily(rawText);
   const displaySumm=c.clean_title
     || (family ? PHARMA_FAMILY_LABELS[family] : (c.summary||c.category||'Enforcement action').slice(0,140));
+  const groupBadge = (c._groupCount||1) > 1
+    ? `<span class="cit-group-badge" title="${c._groupCount} similar citations grouped">×${c._groupCount}</span>`
+    : '';
   return `<div class="signal-card ${sc}" style="margin-bottom:8px">
-    <div class="card-top"><div class="card-title">${displaySumm}</div></div>
+    <div class="card-top"><div class="card-title">${displaySumm}${groupBadge}</div></div>
     <div class="card-badges">
       ${sevBadge(c.severity||'medium')}
       <span class="badge badge-authority">${c.authority||'—'}</span>
@@ -725,7 +751,8 @@ function renderCitationsInsightStrip() {
 function renderCitations() {
   buildChipBar('cit-chip-bar');
   renderCitationsInsightStrip();
-  const data=filteredCits();
+  const grouped=_groupCitsForDisplay(filteredCits());
+  const data=grouped;
   const pages=Math.ceil(data.length/CIT_PP);
   citPg=Math.min(citPg,pages||1);
   const slice=data.slice((citPg-1)*CIT_PP,citPg*CIT_PP);
@@ -744,6 +771,7 @@ function renderCitations() {
     const rawText=(c.summary||'')+' '+(c.violation_details||'');
     const family=getPharmaSummaryFamily(rawText);
     const displaySumm=c.clean_title||(family?PHARMA_FAMILY_LABELS[family]:(c.summary||'—').slice(0,100));
+    const gcBadge=(c._groupCount||1)>1?` <span class="cit-group-badge">×${c._groupCount}</span>`:'';
     return `<tr onclick="pFilterByCat('${(c.category||'Other').replace(/'/g,"\\'")}')" title="Filter by ${c.category||'this category'}">
       <td><span class="badge badge-authority">${c.authority||'—'}</span></td>
       <td><span class="badge badge-type" style="white-space:nowrap">${st}</span></td>
@@ -751,7 +779,7 @@ function renderCitations() {
       <td style="min-width:110px">${c.category||'—'}</td>
       <td>${sevBadge(c.severity||'medium')}</td>
       <td style="white-space:nowrap;font-size:10px;color:#3D5268">${c.date?c.date.slice(0,10):'—'}</td>
-      <td style="max-width:280px;font-size:11px;color:#7A92A8">${displaySumm}</td>
+      <td style="max-width:280px;font-size:11px;color:#7A92A8">${displaySumm}${gcBadge}</td>
       <td>${c.url?`<a class="cit-link" href="${c.url}" target="_blank" onclick="event.stopPropagation()">&#8599;</a>`:'—'}</td>
     </tr>`;
   }).join('');
@@ -890,16 +918,25 @@ function renderFacilities() {
   const el=document.getElementById('facility-grid'); if(!el)return;
 
   // ── Try per-company view first ──
+  const _UNINFORMATIVE_CO = new Set(['unknown','n/a','na','various','multiple','other','—','-']);
   const coMap={};
   data.forEach(c=>{
     const co=(c.company||'').trim();
-    if(!co) return;
-    if(!coMap[co])coMap[co]={name:co,factype:c.facility_type||'Unknown',total:0,high:0,auths:new Set(),cats:{}};
+    if(!co || _UNINFORMATIVE_CO.has(co.toLowerCase())) return;
+    if(!coMap[co])coMap[co]={name:co,factype:'',total:0,high:0,auths:new Set(),cats:{},factypes:{}};
     coMap[co].total++;
     if(c.severity==='high')coMap[co].high++;
     coMap[co].auths.add(c.authority);
     const k=c.category||'Other';
     coMap[co].cats[k]=(coMap[co].cats[k]||0)+1;
+    const ft=c.facility_type||'';
+    if(ft) coMap[co].factypes[ft]=(coMap[co].factypes[ft]||0)+1;
+  });
+  // Resolve best facility type (most common non-empty value)
+  Object.values(coMap).forEach(f=>{
+    const sorted=Object.entries(f.factypes).sort((a,b)=>b[1]-a[1]);
+    f.factype=sorted.length?sorted[0][0]:'Unknown';
+    delete f.factypes;
   });
   let coItems=Object.values(coMap).sort((a,b)=>b.total-a.total);
   if(q) coItems=coItems.filter(i=>i.name.toLowerCase().includes(q)||i.factype.toLowerCase().includes(q));

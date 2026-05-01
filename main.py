@@ -21,7 +21,10 @@ one-off backfills without waiting for the scheduled run time.
 
 import argparse
 import logging
+import signal as _signal
 import sys
+
+_REFRESH_TIMEOUT_SECS = 20 * 60  # 20 minutes hard stop
 
 logging.basicConfig(
     level=logging.INFO,
@@ -96,28 +99,51 @@ def _run_refresh() -> None:
     Safe pipeline refresh: scrape → classify → sentiment → trends → alerts →
     replace ONLY the SIGNALEX DATA block in signals.html.
     Layout, CSS, and JS logic are never touched.
+
+    Hard-stops after _REFRESH_TIMEOUT_SECS (20 min) and prints
+    SAFE REFRESH FAILED: <reason> on any error.
     """
-    from scheduler.jobs import run_full_pipeline
-    from generate_signals import update_data_blob
+    def _alarm_handler(signum, frame):
+        raise TimeoutError(f"Pipeline exceeded {_REFRESH_TIMEOUT_SECS // 60}-minute safety limit")
 
-    logger.info("Running full pipeline (scrape + classify + analytics)…")
-    summary = run_full_pipeline()
+    _signal.signal(_signal.SIGALRM, _alarm_handler)
+    _signal.alarm(_REFRESH_TIMEOUT_SECS)
 
-    logger.info("Patching signals.html data block…")
-    result = update_data_blob()
+    try:
+        from scheduler.jobs import run_full_pipeline
+        from generate_signals import update_data_blob
 
-    print("\n" + "=" * 65)
-    print("  SAFE REFRESH COMPLETE")
-    print("=" * 65)
-    print(f"\n  New signals: {summary['total_new']}")
-    for src, ct in summary["source_counts"].items():
-        if ct:
-            print(f"    {src:30s}  {ct:4d} new")
-    print(f"\n  signals.html data block updated (layout/CSS/JS untouched)")
-    print(f"    Signals:      {result['signals']}")
-    print(f"    Citations:    {result['citations']}")
-    print(f"    Last updated: {result['last_updated']}")
-    print("=" * 65 + "\n")
+        logger.info("Running full pipeline (scrape + classify + analytics)…")
+        summary = run_full_pipeline()
+
+        logger.info("Patching signals.html data block…")
+        result = update_data_blob()
+
+        _signal.alarm(0)  # cancel timeout
+
+        print("\n" + "=" * 65)
+        print("  SAFE REFRESH COMPLETE")
+        print("=" * 65)
+        print(f"\n  New signals: {summary['total_new']}")
+        for src, ct in summary["source_counts"].items():
+            if ct:
+                print(f"    {src:30s}  {ct:4d} new")
+        print(f"\n  signals.html data block updated (layout/CSS/JS untouched)")
+        print(f"    Signals:      {result['signals']}")
+        print(f"    Citations:    {result['citations']}")
+        print(f"    Last updated: {result['last_updated']}")
+        print("=" * 65 + "\n")
+
+    except (TimeoutError, KeyboardInterrupt) as exc:
+        _signal.alarm(0)
+        reason = str(exc) if str(exc) else type(exc).__name__
+        print(f"\nSAFE REFRESH FAILED: {reason}\n", file=sys.stderr)
+        sys.exit(1)
+    except Exception as exc:
+        _signal.alarm(0)
+        logger.exception("Refresh pipeline failed")
+        print(f"\nSAFE REFRESH FAILED: {exc}\n", file=sys.stderr)
+        sys.exit(1)
 
 
 def _print_trend_report(report) -> None:

@@ -168,11 +168,12 @@ function renderTrendPanels() {
         +'<div style="font-size:10px;color:rgba(13,148,136,.82);padding-top:5px;margin-top:3px;border-top:1px solid rgba(30,70,110,.4)"><b style="color:rgba(13,148,136,.95)">Action:</b> Monitor these ingredients for emerging regulatory or claim signals</div>';}
     }
     else{ingEl.innerHTML=ings.map(i=>{
-      const chg=i.curr-i.prev,pct=i.prev>0?Math.round(chg/i.prev*100):null;
-      const ind=chg>0?`<span class="t-up">&#8679; ${pct!==null?'+'+pct+'%':'+'+chg}</span>`:chg<0?`<span class="t-dn">&#8681; ${pct!==null?pct+'%':chg}</span>`:`<span class="t-flat">&mdash;</span>`;
+      const chg=i.curr-i.prev;
+      const pctTip=i.prev>0?`${chg>0?'+':''}${Math.round(chg/i.prev*100)}% vs prior week`:'new this period';
+      const ind=chg>0?`<span class="t-up" title="${pctTip}">&#8679; +${chg}</span>`:chg<0?`<span class="t-dn" title="${pctTip}">&#8681; ${chg}</span>`:`<span class="t-flat">&mdash;</span>`;
       const hb=i.high>0?` <span class="rbadge rbadge-H">${i.high}!</span>`:'';
       const conf=i.curr>=5?'high':i.curr>=2?'medium':'low';
-      const why=chg>0?`Rising${pct!==null?' +'+pct+'%':''} vs last week${i.high?' · '+i.high+' high-sev':''}`:chg<0?`Down${pct!==null?' '+pct+'%':''} vs last week${i.high?' · '+i.high+' high-sev':''}`:i.high>0?`Stable · ${i.high} high-severity alert${i.high>1?'s':''}`:null;
+      const why=chg>0?`+${chg} vs last week${i.high?' · '+i.high+' high-sev':''}`:chg<0?`${chg} vs last week${i.high?' · '+i.high+' high-sev':''}`:i.high>0?`Stable · ${i.high} high-severity alert${i.high>1?'s':''}`:null;
       const nm=i.name.replace(/'/g,"\\'");
       const isAct=filters.ingredient.toLowerCase()===i.name;
       return `<div class="trend-row${isAct?' tr-active':''}" onclick="filterByIngredient('${nm}')" onmouseenter="showIngTip(event,'${nm}')" onmouseleave="hideTip()">

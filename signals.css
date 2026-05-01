@@ -567,6 +567,7 @@ button{cursor:pointer;border:none;font-family:inherit;font-size:inherit;backgrou
 .cit-table tr:hover td { background: rgba(255,255,255,.012); }
 .cit-link { color: rgba(13,148,136,.7); font-size: 11px; }
 .cit-link:hover { color: var(--teal); text-decoration: underline; }
+.cit-group-badge { display:inline-block; margin-left:5px; background:rgba(13,148,136,.12); color:rgba(13,148,136,.75); border:1px solid rgba(13,148,136,.2); border-radius:4px; font-size:9px; font-weight:700; padding:1px 5px; vertical-align:middle; letter-spacing:.03em; }
 
 /* Enforcement bars */
 .enf-row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 5px; cursor: pointer; transition: background .1s; margin-bottom: 2px; }

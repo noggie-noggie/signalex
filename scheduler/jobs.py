@@ -14,8 +14,11 @@ One-shot function:
 
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 from datetime import datetime, timezone
+
+_SOURCE_TIMEOUT_SECS = 5 * 60   # 5 min per scraper source
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -244,7 +247,20 @@ def run_full_pipeline() -> dict:
             cfg = config.SCRAPER_CONFIG.get(cfg_key, {}) if cfg_key else {}
             scraper = ScraperClass(cfg)
             logger.info("Running scraper: %s", label)
-            raw_signals = scraper.run()
+
+            # Per-source timeout — skip source if it hangs beyond limit
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _ex:
+                _fut = _ex.submit(scraper.run)
+                try:
+                    raw_signals = _fut.result(timeout=_SOURCE_TIMEOUT_SECS)
+                except concurrent.futures.TimeoutError:
+                    logger.error(
+                        "Scraper %s timed out after %ds — skipping",
+                        label, _SOURCE_TIMEOUT_SECS,
+                    )
+                    source_counts[label] = 0
+                    continue
+
             logger.info("%s: %d raw signal(s)", label, len(raw_signals))
 
             classified = _classify_with_feedback(classifier, raw_signals, classify_method)

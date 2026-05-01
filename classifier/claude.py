@@ -458,7 +458,11 @@ class SignalClassifier:
     """
 
     def __init__(self) -> None:
-        self.client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+        import httpx
+        self.client = anthropic.Anthropic(
+            api_key=config.ANTHROPIC_API_KEY,
+            timeout=httpx.Timeout(90.0, connect=10.0),  # 90s per call, 10s connect
+        )
 
     # ------------------------------------------------------------------
     # Public API
