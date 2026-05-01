@@ -1,9 +1,9 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --navy:#0D1B2A;--navy-mid:#0F2336;--navy-lite:#1A2F47;--navy-deep:#08111A;
-  --border:#1E3A5F;--border-lite:#243B55;
+  --navy:#101F30;--navy-mid:#122540;--navy-lite:#1C3350;--navy-deep:#08111A;
+  --border:#254470;--border-lite:#2C4A72;
   --teal:#0D9488;--teal-dim:#0B7C72;--teal-bg:rgba(13,148,136,.12);
-  --slate:#94A3B8;--slate-dim:#64748B;
+  --slate:#A0B3C8;--slate-dim:#6E809A;
   --white:#F8FAFC;--off:#E2E8F0;--off2:#CBD5E1;
   --red:#EF4444;--red-dim:#DC2626;--red-bg:rgba(239,68,68,.12);
   --amber:#F59E0B;--amber-dim:#D97706;--amber-bg:rgba(245,158,11,.12);
@@ -90,7 +90,7 @@ button{cursor:pointer;border:none;font-family:inherit;font-size:inherit;backgrou
 .section-title{font-size:13px;font-weight:700;color:var(--white)}
 .section-link{font-size:11px;color:var(--teal)}
 .signals-list{display:flex;flex-direction:column;gap:12px}
-.signal-card{background:var(--navy);border:1px solid var(--border);border-radius:8px;padding:14px 16px;cursor:pointer;transition:all .15s;position:relative;}
+.signal-card{background:var(--navy);border:1px solid var(--border);border-radius:8px;padding:14px 16px;cursor:pointer;transition:all .15s;position:relative;box-shadow:0 2px 8px rgba(0,0,0,.28);}
 .signal-card:hover{border-color:var(--teal);background:var(--navy-mid)}
 .signal-card.high-sev{border-left:3px solid var(--red-dim)}.signal-card.medium-sev{border-left:3px solid var(--amber-dim)}.signal-card.low-sev{border-left:3px solid var(--border)}
 .card-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
