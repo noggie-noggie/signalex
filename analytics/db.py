@@ -58,6 +58,12 @@ CREATE TABLE IF NOT EXISTS signals (
     sentiment_confidence    REAL    DEFAULT 0.0,
     sentiment_reasoning     TEXT,
     ai_summary              TEXT    DEFAULT '',
+    clean_title             TEXT    DEFAULT '',
+    why_it_matters          TEXT    DEFAULT '',
+    recommended_action      TEXT    DEFAULT '',
+    inspection_risk         TEXT    DEFAULT '',
+    is_noise                INTEGER DEFAULT 0,
+    noise_reason            TEXT    DEFAULT '',
     created_at              TEXT,
     digest_sent             INTEGER DEFAULT 0
 );
@@ -79,7 +85,13 @@ def get_conn() -> sqlite3.Connection:
     conn.executescript(_SCHEMA)
     # Migrations: add columns introduced after initial schema
     for col, defn in [
-        ("ai_summary", "TEXT DEFAULT ''"),
+        ("ai_summary",         "TEXT    DEFAULT ''"),
+        ("clean_title",        "TEXT    DEFAULT ''"),
+        ("why_it_matters",     "TEXT    DEFAULT ''"),
+        ("recommended_action", "TEXT    DEFAULT ''"),
+        ("inspection_risk",    "TEXT    DEFAULT ''"),
+        ("is_noise",           "INTEGER DEFAULT 0"),
+        ("noise_reason",       "TEXT    DEFAULT ''"),
     ]:
         try:
             conn.execute(f"ALTER TABLE signals ADD COLUMN {col} {defn}")
@@ -110,7 +122,8 @@ def save_signal(sig: "ClassifiedSignal") -> bool:
                 relevance_to_vms, signal_type, ingredient_relevance,
                 potential_impact, trend_relevance,
                 sentiment, sentiment_confidence, sentiment_reasoning,
-                ai_summary, created_at
+                ai_summary, clean_title, why_it_matters, recommended_action,
+                inspection_risk, is_noise, noise_reason, created_at
             ) VALUES (
                 :source_id, :authority, :url, :title, :scraped_at,
                 :ingredient_name, :event_type, :severity, :summary,
@@ -119,12 +132,14 @@ def save_signal(sig: "ClassifiedSignal") -> bool:
                 :relevance_to_vms, :signal_type, :ingredient_relevance,
                 :potential_impact, :trend_relevance,
                 :sentiment, :sentiment_confidence, :sentiment_reasoning,
-                :ai_summary, :created_at
+                :ai_summary, :clean_title, :why_it_matters, :recommended_action,
+                :inspection_risk, :is_noise, :noise_reason, :created_at
             )
             """,
             {
                 **sig.model_dump(),
                 "competitor_signal": int(sig.competitor_signal),
+                "is_noise": int(sig.is_noise),
                 "created_at": datetime.now(timezone.utc).isoformat(),
             },
         )
