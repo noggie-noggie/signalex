@@ -460,6 +460,9 @@ class SignalClassifier:
             logger.error("Claude API error for signal %s: %s", signal["source_id"], exc)
             return ClassifiedSignal(**base)
 
+        if not response.content:
+            logger.error("Claude API returned empty content for signal %s", signal["source_id"])
+            return ClassifiedSignal(**base)
         raw_text = response.content[0].text.strip()
         logger.debug("Claude raw response for %s: %s", signal["source_id"], raw_text)
 
@@ -521,6 +524,9 @@ class SignalClassifier:
             logger.error("Claude API error (ARTG) for %s: %s", signal["source_id"], exc)
             return ClassifiedSignal(**base, source_label="artg")
 
+        if not response.content:
+            logger.error("Claude API returned empty content for artg %s", signal["source_id"])
+            return ClassifiedSignal(**base, source_label="artg")
         parsed = self._parse_json(response.content[0].text.strip(), signal["source_id"])
         return ClassifiedSignal(
             **base,
@@ -562,6 +568,9 @@ class SignalClassifier:
             logger.error("Claude API error (retail) for %s: %s", signal["source_id"], exc)
             return ClassifiedSignal(**base, source_label=source_label)
 
+        if not response.content:
+            logger.error("Claude API returned empty content for retail %s", signal["source_id"])
+            return ClassifiedSignal(**base, source_label=source_label)
         parsed = self._parse_json(response.content[0].text.strip(), signal["source_id"])
         return ClassifiedSignal(
             **base,
@@ -606,6 +615,9 @@ class SignalClassifier:
             logger.error("Claude API error (FDA-AU) for %s: %s", signal["source_id"], exc)
             return ClassifiedSignal(**base_dict)
 
+        if not response.content:
+            logger.error("Claude API returned empty content for fda_australia %s", signal["source_id"])
+            return ClassifiedSignal(**base_dict)
         parsed = self._parse_json(response.content[0].text.strip(), signal["source_id"])
         base_dict.update(
             australia_relevance = parsed.get("australia_relevance", "low"),
@@ -674,6 +686,9 @@ class SignalClassifier:
             logger.error("Claude API error (tga_consultation) for %s: %s", signal["source_id"], exc)
             return ClassifiedSignal(**base, source_label="tga_consultations")
 
+        if not response.content:
+            logger.error("Claude API returned empty content for tga_consultation %s", signal["source_id"])
+            return ClassifiedSignal(**base, source_label="tga_consultations")
         parsed = self._parse_json(response.content[0].text.strip(), signal["source_id"])
         return ClassifiedSignal(
             **base,
@@ -709,6 +724,9 @@ class SignalClassifier:
             logger.error("Claude API error (advisory) for %s: %s", signal["source_id"], exc)
             return ClassifiedSignal(**base, source_label="advisory_committee")
 
+        if not response.content:
+            logger.error("Claude API returned empty content for advisory_committee %s", signal["source_id"])
+            return ClassifiedSignal(**base, source_label="advisory_committee")
         parsed = self._parse_json(response.content[0].text.strip(), signal["source_id"])
         return ClassifiedSignal(
             **base,
@@ -743,6 +761,9 @@ class SignalClassifier:
             logger.error("Claude API error (adverse_event) for %s: %s", signal["source_id"], exc)
             return ClassifiedSignal(**base, source_label="adverse_events")
 
+        if not response.content:
+            logger.error("Claude API returned empty content for adverse_event %s", signal["source_id"])
+            return ClassifiedSignal(**base, source_label="adverse_events")
         parsed = self._parse_json(response.content[0].text.strip(), signal["source_id"])
         return ClassifiedSignal(
             **base,

@@ -129,6 +129,9 @@ def _classify_one(client: anthropic.Anthropic, sig: dict) -> tuple[str, float, s
             system     = _SENTIMENT_SYSTEM_PROMPT,
             messages   = [{"role": "user", "content": prompt}],
         )
+        if not response.content:
+            logger.error("Claude API returned empty content for sentiment %s", sig.get("source_id", "?"))
+            return "neutral", 0.0, "", ""
         raw = response.content[0].text.strip()
         parsed = _parse_json(raw)
         sentiment  = parsed.get("sentiment", "neutral")
@@ -294,6 +297,9 @@ def backfill_ai_summaries() -> int:
                 system=_AI_SUMMARY_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": prompt}],
             )
+            if not response.content:
+                logger.error("Claude API returned empty content for ai_summary %s", sig.get("source_id", "?"))
+                continue
             parsed = _parse_json(response.content[0].text.strip())
             ai_summary = parsed.get("ai_summary", "")
             if ai_summary:
