@@ -86,6 +86,17 @@ function _extractIngFromTitle(title) {
   return null;
 }
 
+// ── Ingredient validity guard — rejects nulls, placeholders, non-ingredient text ──
+const _INVALID_INGREDIENTS = new Set(['none','n/a','na','unknown','-','–','—','other','tbd','tba','various','multiple']);
+function _isValidIngredient(val) {
+  if (!val) return false;
+  const v = val.trim();
+  if (!v || v.length < 3) return false;
+  if (_INVALID_INGREDIENTS.has(v.toLowerCase())) return false;
+  if (!/[a-zA-Z]/.test(v)) return false;
+  return true;
+}
+
 // ── Ingredient insight helpers ──────────────────────────────────────────────────
 function _computeIngTrend(name) {
   const now=Date.now(),d7=now-7*864e5,d14=now-14*864e5;
@@ -331,19 +342,26 @@ function renderEntities() {
   const q=($('#entity-search')||{value:''}).value.toLowerCase();
   const map={};
   SIGNALS.forEach(s=>{
-    let ing=(s.ingredient_name||'').trim().toLowerCase();
-    if(!ing||ing==='unknown') ing = _extractIngFromTitle(s.title) || '';
-    if(!ing) return;
-    if(!map[ing])map[ing]={name:ing,total:0,high:0,neg:0,pos:0};
-    map[ing].total++;
-    if(s.severity==='high')map[ing].high++;
-    if(s.sentiment==='negative')map[ing].neg++;
-    if(s.sentiment==='positive')map[ing].pos++;
+    let ing=(s.ingredient_name||'').trim();
+    // Fall back to title extraction if field is missing or invalid
+    if(!_isValidIngredient(ing)) ing = _extractIngFromTitle(s.title) || '';
+    if(!_isValidIngredient(ing)) return;
+    const key=ing.toLowerCase();
+    if(!map[key])map[key]={name:ing,total:0,high:0,neg:0,pos:0};
+    map[key].total++;
+    if(s.severity==='high')map[key].high++;
+    if(s.sentiment==='negative')map[key].neg++;
+    if(s.sentiment==='positive')map[key].pos++;
   });
   let items=Object.values(map).sort((a,b)=>b.total-a.total);
-  if(q) items=items.filter(i=>i.name.includes(q));
+  if(q) items=items.filter(i=>i.name.toLowerCase().includes(q));
   const maxT=items[0]?.total||1;
   const grid=$('#entity-grid'); if(!grid) return;
+  if(!q && items.length < 3) {
+    grid.innerHTML='<div class="empty"><div class="empty-icon">&#128200;</div><div class="empty-text">Insufficient ingredient data — building baseline</div></div>';
+    const ec=$('#entity-count'); if(ec) ec.textContent='0 ingredients';
+    return;
+  }
   grid.innerHTML=items.length?items.map(e=>{
     const nm=e.name.replace(/'/g,"\\'");
     return `<div class="entity-card" onclick="showEntitySignals('${nm}')">

@@ -1486,8 +1486,9 @@ details.enf-group[open] .enf-group-arrow { transform: rotate(180deg); }
 .enf-view-all-btn { font-size: 11px; color: #2A3E52; background: none; border: 1px solid rgba(20,50,85,.3); border-radius: 4px; padding: 4px 10px; cursor: pointer; transition: all .12s; align-self: flex-start; margin-top: 2px; }
 .enf-view-all-btn:hover { border-color: rgba(13,148,136,.25); color: rgba(13,148,136,.7); }
 /* Enhanced facility cards */
-.facility-cats  { font-size: 10px; color: #2A3E52; margin-top: 4px; line-height: 1.45; }
-.facility-cos   { font-size: 10px; color: #3A5070; margin-top: 3px; font-style: italic; }
+.facility-cats   { font-size: 10px; color: #2A3E52; margin-top: 4px; line-height: 1.45; }
+.facility-cos    { font-size: 10px; color: #3A5070; margin-top: 3px; font-style: italic; }
+.facility-action { font-size: 10px; color: rgba(13,148,136,.65); margin-top: 6px; padding-top: 5px; border-top: 1px solid rgba(20,50,85,.3); line-height: 1.45; }
 /* Auth bar hover */
 .enf-row { cursor: pointer; border-radius: 4px; transition: background .1s; }
 .enf-row:hover { background: rgba(255,255,255,.03); }
@@ -1917,8 +1918,9 @@ body.reading-mode .filter-chip  { opacity: 0.9; }
 .isb-text b       { color: var(--off2) !important; }
 
 /* ── Facility cards interior ─────────────────────────────────── */
-.facility-cats { color: var(--slate-dim) !important; }
-.facility-cos  { color: var(--slate-dim) !important; font-style: normal !important; }
+.facility-cats   { color: var(--slate-dim) !important; }
+.facility-cos    { color: var(--slate-dim) !important; font-style: normal !important; }
+.facility-action { color: var(--teal) !important; border-top-color: rgba(37,68,112,.4) !important; }
 
 /* ── Facility risk cards ─────────────────────────────────────── */
 .fac-risk-card   { background: var(--navy) !important; border-color: var(--border) !important; }

@@ -374,6 +374,24 @@ function getFacilityRiskProfile(name) {
   return FAC_PROFILES[name] || null;
 }
 
+// ── Action line generator — ensures every facility card has a recommended action ─
+function generateFacilityAction(topIssueCat) {
+  const cat = (topIssueCat || '').toLowerCase();
+  if (cat.includes('gmp') || cat.includes('documentation') || cat.includes('batch') || cat.includes('deviation'))
+    return 'Review SOP compliance, documentation controls, and cleaning validation.';
+  if (cat.includes('steril') || cat.includes('contamination') || cat.includes('aseptic') || cat.includes('container closure'))
+    return 'Audit CCS, EM program, and aseptic behaviour controls.';
+  if (cat.includes('label') || cat.includes('claim') || cat.includes('ingredient safety'))
+    return 'Verify claim substantiation and regulatory alignment across jurisdictions.';
+  if (cat.includes('supply') || cat.includes('import') || cat.includes('procure') || cat.includes('fsvp'))
+    return 'Review supplier qualification and incoming material controls.';
+  if (cat.includes('equipment') || cat.includes('facilit') || cat.includes('maintenance'))
+    return 'Review preventive maintenance programme and equipment qualification lifecycle.';
+  if (cat.includes('csv') || cat.includes('data integrity') || cat.includes('computerised'))
+    return 'Assess CSV documentation currency, audit trail integrity, and access governance.';
+  return 'Review site-specific enforcement profile and prioritise corrective actions.';
+}
+
 
 // === PHARMA OVERVIEW RENDER FUNCTIONS ===
 
@@ -853,41 +871,49 @@ function renderFacilityRiskStrip() {
 }
 
 // ── Facilities ───────────────────────────────────────────────────────
+// TOP: type-level aggregation via renderFacilityRiskStrip() — exposure, top finding, action
+// BOTTOM: per-company individual facilities — name, citations, issues, high sev, action
 function renderFacilities() {
   buildChipBar('fac-chip-bar');
   renderFacilityRiskStrip();
   const q=(document.getElementById('fac-search')||{value:''}).value.toLowerCase();
   const data=filteredCits();
+  // Group by individual company (non-empty only)
   const map={};
   data.forEach(c=>{
-    const ft=c.facility_type||'Unknown';
-    if(!map[ft])map[ft]={name:ft,total:0,high:0,auths:new Set(),cats:{},cos:new Set()};
-    map[ft].total++;
-    if(c.severity==='high')map[ft].high++;
-    map[ft].auths.add(c.authority);
+    const co=(c.company||'').trim();
+    if(!co) return;
+    if(!map[co])map[co]={name:co,factype:c.facility_type||'Unknown',total:0,high:0,auths:new Set(),cats:{}};
+    map[co].total++;
+    if(c.severity==='high')map[co].high++;
+    map[co].auths.add(c.authority);
     const k=c.category||'Other';
-    map[ft].cats[k]=(map[ft].cats[k]||0)+1;
-    if(c.company)map[ft].cos.add(c.company);
+    map[co].cats[k]=(map[co].cats[k]||0)+1;
   });
   let items=Object.values(map).sort((a,b)=>b.total-a.total);
-  if(q)items=items.filter(i=>i.name.toLowerCase().includes(q));
-  const fc=document.getElementById('fac-count'); if(fc)fc.textContent=`${items.length} facility type${items.length!==1?'s':''}`;
+  if(q) items=items.filter(i=>i.name.toLowerCase().includes(q)||i.factype.toLowerCase().includes(q));
+  const fc=document.getElementById('fac-count'); if(fc)fc.textContent=`${items.length} facilit${items.length!==1?'ies':'y'}`;
   const el=document.getElementById('facility-grid'); if(!el)return;
-  el.innerHTML=items.length?items.map(f=>{
-    const safe=f.name.replace(/'/g,"\\'");
-    const topCats=Object.entries(f.cats).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
-    const exCos=[...f.cos].slice(0,3).join(', ');
-    return `<div class="facility-card${pF.factype===f.name?' fc-active':''}" onclick="pFilterByFacType('${safe}')" title="Click to filter — click again to clear">
+  if(!items.length) {
+    el.innerHTML=`<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">${q?'No facilities match':'No individual facility data — enforcement actions are not yet linked to specific companies'}</div></div>`;
+    return;
+  }
+  el.innerHTML=items.map(f=>{
+    const topCatEntry=Object.entries(f.cats).sort((a,b)=>b[1]-a[1])[0];
+    const topCatName=topCatEntry?topCatEntry[0]:'';
+    const topIssues=Object.entries(f.cats).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
+    const action=generateFacilityAction(topCatName);
+    return `<div class="facility-card">
       <div class="facility-name">${f.name}</div>
-      <div class="facility-type-label">${[...f.auths].join(' · ')}</div>
+      <div class="facility-type-label">${f.factype} &middot; ${[...f.auths].join(' / ')}</div>
       <div class="facility-stats">
-        <span class="facility-stat">${f.total} citations</span>
+        <span class="facility-stat">${f.total} citation${f.total!==1?'s':''}</span>
         ${f.high?`<span class="facility-stat fsr">${f.high} high sev</span>`:''}
       </div>
-      ${topCats?`<div class="facility-cats">Top: ${topCats}</div>`:''}
-      ${exCos?`<div class="facility-cos">${exCos}</div>`:''}
+      ${topIssues?`<div class="facility-cats">Top issues: ${topIssues}</div>`:''}
+      <div class="facility-action">&#8594; ${action}</div>
     </div>`;
-  }).join(''):'<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No facilities match</div></div>';
+  }).join('');
 }
 
 // ── Alert card (compact, action-oriented) ────────────────────────────

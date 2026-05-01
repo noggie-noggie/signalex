@@ -22,6 +22,26 @@ function isLowValueContent(item) {
   return noisePatterns.some(p => text.includes(p));
 }
 
+// ── Enforcement quality filter — rejects nav pages and non-enforcement citations ─
+const _ENFORCEMENT_SOURCE_TYPES = new Set(['warning_letter','inspection_finding','recall','import_alert','safety_alert','483']);
+const _ENFORCEMENT_JUNK_PHRASES = ['subscribe to','press release','general information','to the medium','newsletter','comics','more about'];
+const _ENFORCEMENT_ACTION_VERBS = ['warning','inspection','recall','violation','alert','detention','contamination','adulterat','mislabel','misbrand','defect','unsafe','prohibited','unapproved','finding','enforcement','non-compliance','gmp','cgmp','gdp','import'];
+
+function isValidEnforcementItem(c) {
+  if (!_ENFORCEMENT_SOURCE_TYPES.has(c.source_type||'')) return false;
+  const summary = (c.summary||'').trim();
+  const text = (summary + ' ' + (c.category||'')).toLowerCase();
+  // Reject exact junk matches (About, Subscribe, etc.)
+  const JUNK_EXACT = new Set(['about','comics','subscribe','newsletter','publications','resources','other']);
+  if (JUNK_EXACT.has(summary.toLowerCase())) return false;
+  // Reject summaries that start with junk phrases
+  if (_ENFORCEMENT_JUNK_PHRASES.some(p => text.startsWith(p))) return false;
+  // Reject very short summaries with no enforcement context
+  const words = summary.split(/\s+/).filter(Boolean);
+  if (words.length < 5 && !_ENFORCEMENT_ACTION_VERBS.some(v => text.includes(v))) return false;
+  return true;
+}
+
 // ── Unified citation filter — single source of truth for both VMS Evidence
 //    and all Pharma tabs. Pass noiseFilter:false to skip isLowValueContent.
 function unifiedFilteredCitations(opts) {
@@ -42,6 +62,7 @@ function unifiedFilteredCitations(opts) {
   const sortDir   = o.sortDir   !== undefined ? o.sortDir   : -1;
   return CITATIONS.filter(c => {
     if (noiseFilter && isLowValueContent(c)) return false;
+    if (noiseFilter && !isValidEnforcementItem(c)) return false;
     if (auth !== 'all' && c.authority !== auth) return false;
     if (sev !== 'all' && (c.severity||'').toLowerCase() !== sev) return false;
     if (srctype !== 'all' && (c.source_type||'') !== srctype) return false;
