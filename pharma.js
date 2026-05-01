@@ -666,16 +666,18 @@ function renderAuthBars(elId) {
 }
 
 // ── Citation card ────────────────────────────────────────────────────
+const _IMPORT_ALERT_TIP = 'Import Alert: regulatory action preventing products from entering a country due to safety or compliance issues (e.g. FDA Import Alert — Detention Without Physical Examination)';
 function citCard(c) {
   const sc=c.severity==='high'?'high-sev':'medium-sev';
   const st=(c.source_type||'').replace(/_/g,' ');
+  const isImport=(c.source_type||'')==='import_alert';
   const summ=(c.summary||c.category||'Enforcement action').slice(0,140);
   return `<div class="signal-card ${sc}" style="margin-bottom:8px">
     <div class="card-top"><div class="card-title">${summ}</div></div>
     <div class="card-badges">
       ${sevBadge(c.severity||'medium')}
       <span class="badge badge-authority">${c.authority||'—'}</span>
-      <span class="badge badge-type">${st}</span>
+      <span class="badge badge-type"${isImport?` title="${_IMPORT_ALERT_TIP}"`:''} style="${isImport?'cursor:help':''}">${st}</span>
       ${c.facility_type?`<span class="badge" style="background:rgba(139,92,246,.06);color:rgba(139,92,246,.55);border:1px solid rgba(139,92,246,.1)">${c.facility_type}</span>`:''}
     </div>
     ${c.category?`<div class="card-summary">${c.category}</div>`:''}
@@ -872,33 +874,76 @@ function renderFacilityRiskStrip() {
 
 // ── Facilities ───────────────────────────────────────────────────────
 // TOP: type-level aggregation via renderFacilityRiskStrip() — exposure, top finding, action
-// BOTTOM: per-company individual facilities — name, citations, issues, high sev, action
+// BOTTOM: per-company when data available; falls back to type-level if < 5 companies
 function renderFacilities() {
   buildChipBar('fac-chip-bar');
   renderFacilityRiskStrip();
   const q=(document.getElementById('fac-search')||{value:''}).value.toLowerCase();
   const data=filteredCits();
-  // Group by individual company (non-empty only)
-  const map={};
+  const el=document.getElementById('facility-grid'); if(!el)return;
+
+  // ── Try per-company view first ──
+  const coMap={};
   data.forEach(c=>{
     const co=(c.company||'').trim();
     if(!co) return;
-    if(!map[co])map[co]={name:co,factype:c.facility_type||'Unknown',total:0,high:0,auths:new Set(),cats:{}};
-    map[co].total++;
-    if(c.severity==='high')map[co].high++;
-    map[co].auths.add(c.authority);
+    if(!coMap[co])coMap[co]={name:co,factype:c.facility_type||'Unknown',total:0,high:0,auths:new Set(),cats:{}};
+    coMap[co].total++;
+    if(c.severity==='high')coMap[co].high++;
+    coMap[co].auths.add(c.authority);
     const k=c.category||'Other';
-    map[co].cats[k]=(map[co].cats[k]||0)+1;
+    coMap[co].cats[k]=(coMap[co].cats[k]||0)+1;
   });
-  let items=Object.values(map).sort((a,b)=>b.total-a.total);
-  if(q) items=items.filter(i=>i.name.toLowerCase().includes(q)||i.factype.toLowerCase().includes(q));
-  const fc=document.getElementById('fac-count'); if(fc)fc.textContent=`${items.length} facilit${items.length!==1?'ies':'y'}`;
-  const el=document.getElementById('facility-grid'); if(!el)return;
-  if(!items.length) {
-    el.innerHTML=`<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">${q?'No facilities match':'No individual facility data — enforcement actions are not yet linked to specific companies'}</div></div>`;
+  let coItems=Object.values(coMap).sort((a,b)=>b.total-a.total);
+  if(q) coItems=coItems.filter(i=>i.name.toLowerCase().includes(q)||i.factype.toLowerCase().includes(q));
+
+  // ── Fallback: group by facility type when company data is sparse ──
+  if(coItems.length < 5 && !q) {
+    console.warn('[Signalex] Low company count ('+coItems.length+') — using facility-type fallback');
+    const typeMap={};
+    data.forEach(c=>{
+      const ft=c.facility_type||'Unknown';
+      if(!typeMap[ft])typeMap[ft]={name:ft,total:0,high:0,auths:new Set(),cats:{}};
+      typeMap[ft].total++;
+      if(c.severity==='high')typeMap[ft].high++;
+      typeMap[ft].auths.add(c.authority);
+      const k=c.category||'Other';
+      typeMap[ft].cats[k]=(typeMap[ft].cats[k]||0)+1;
+    });
+    const typeItems=Object.values(typeMap).sort((a,b)=>b.total-a.total);
+    const fc=document.getElementById('fac-count'); if(fc)fc.textContent=`${typeItems.length} facility type${typeItems.length!==1?'s':''}`;
+    if(!typeItems.length){
+      el.innerHTML='<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No facility data matches filters</div></div>';
+      return;
+    }
+    const noteHtml='<div class="facility-data-note">Facility-level data not yet structured — showing category-level risk only</div>';
+    el.innerHTML=noteHtml+typeItems.map(f=>{
+      const safe=f.name.replace(/'/g,"\\'");
+      const topCatEntry=Object.entries(f.cats).sort((a,b)=>b[1]-a[1])[0];
+      const topCatName=topCatEntry?topCatEntry[0]:'';
+      const topIssues=Object.entries(f.cats).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
+      const action=generateFacilityAction(topCatName);
+      return `<div class="facility-card${pF.factype===f.name?' fc-active':''}" onclick="pFilterByFacType('${safe}')" title="Click to filter">
+        <div class="facility-name">${f.name}</div>
+        <div class="facility-type-label">${[...f.auths].join(' · ')}</div>
+        <div class="facility-stats">
+          <span class="facility-stat">${f.total} citation${f.total!==1?'s':''}</span>
+          ${f.high?`<span class="facility-stat fsr">${f.high} high sev</span>`:''}
+        </div>
+        ${topIssues?`<div class="facility-cats">Top: ${topIssues}</div>`:''}
+        <div class="facility-action">&#8594; ${action}</div>
+      </div>`;
+    }).join('');
     return;
   }
-  el.innerHTML=items.map(f=>{
+
+  // ── Per-company view ──
+  const fc=document.getElementById('fac-count'); if(fc)fc.textContent=`${coItems.length} facilit${coItems.length!==1?'ies':'y'}`;
+  if(!coItems.length) {
+    el.innerHTML='<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No facilities match</div></div>';
+    return;
+  }
+  el.innerHTML=coItems.map(f=>{
     const topCatEntry=Object.entries(f.cats).sort((a,b)=>b[1]-a[1])[0];
     const topCatName=topCatEntry?topCatEntry[0]:'';
     const topIssues=Object.entries(f.cats).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
@@ -920,6 +965,7 @@ function renderFacilities() {
 function alertCard(c, patterns={}) {
   const isHigh=c.severity==='high';
   const st=(c.source_type||'').replace(/_/g,' ');
+  const isImport=(c.source_type||'')==='import_alert';
   const summ=(c.summary||c.category||'Enforcement action').slice(0,160);
   const cat=c.category||'Other';
   const intel=CAT_INTEL[cat];
@@ -931,7 +977,7 @@ function alertCard(c, patterns={}) {
     <div class="alert-card-meta">
       ${sevBadge(c.severity||'medium')}
       <span class="badge badge-authority">${c.authority||'—'}</span>
-      <span class="badge badge-type">${st}</span>
+      <span class="badge badge-type"${isImport?` title="${_IMPORT_ALERT_TIP}"`:''} style="${isImport?'cursor:help':''}">${st}</span>
       ${c.facility_type?`<span class="badge" style="background:rgba(139,92,246,.06);color:rgba(139,92,246,.5);border:1px solid rgba(139,92,246,.1)">${c.facility_type}</span>`:''}
       ${c.category?`<span class="badge" style="background:rgba(20,50,80,.2);color:#3A5570;border:1px solid rgba(20,50,80,.3)">${c.category}</span>`:''}
       ${pBadge}

@@ -8,6 +8,29 @@ const sevBadge = s => `<span class="badge badge-${s}">${s.toUpperCase()}</span>`
 // ── Unified citation filter — single source of truth for VMS Evidence + all Pharma tabs
 const DI_CAPA_KWS = ['computerised systems validation','data integrity','deviation management','audit trail','capa','csv'];
 
+// ── Clean signals — ingredient-valid only ────────────────────────────────────
+// Use for all ingredient aggregations; never use raw SIGNALS for ingredient math.
+const _INVALID_ING_SET = new Set(['none','n/a','na','unknown','-','–','—','other','tbd','tba','various','multiple']);
+function getCleanSignals() {
+  return SIGNALS.filter(s => {
+    const ing = (s.ingredient_name || '').trim().toLowerCase();
+    if (!ing || ing.length < 3) return false;
+    if (_INVALID_ING_SET.has(ing)) return false;
+    if (!/[a-z]/.test(ing)) return false;
+    return true;
+  });
+}
+
+// ── Citation summary normaliser — collapses boilerplate regulatory text ────────
+function cleanSummary(text) {
+  return (text || '')
+    .replace(/Family Smoking Prevention.*$/i, 'Tobacco compliance violation')
+    .replace(/CGMP in the manufacture.*$/i, 'GMP compliance issue')
+    .replace(/Adulterated or misbranded.*$/i, 'Product quality / contamination issue')
+    .replace(/Detention Without Physical Examination.*$/i, 'Import detention — compliance / safety grounds')
+    .slice(0, 120);
+}
+
 // ── DI/CAPA keyword test — single source of truth ────────────────────────────
 function isDiCapa(c) {
   const hay = [(c.category||''),(c.summary||''),(c.violation_details||'')].join(' ').toLowerCase();

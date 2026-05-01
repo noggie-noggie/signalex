@@ -24,7 +24,7 @@ mk('chart-events',{type:'bar',data:{labels:['Research/Other','Safety Alert','War
 const _catMap8={};CITATIONS.forEach(c=>{const k=c.category||'Other';_catMap8[k]=(_catMap8[k]||0)+1;});
 const _catE8=Object.entries(_catMap8).sort((a,b)=>b[1]-a[1]).slice(0,8);
 mk('chart-categories',{type:'bar',data:{labels:_catE8.map(x=>x[0]),datasets:[{data:_catE8.map(x=>x[1]),backgroundColor:'#0D9488',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:CA,font:{size:11}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:11}},grid:{display:false}}}}});
-const ingMap={};SIGNALS.forEach(s=>{const i=(s.ingredient_name||'').trim();if(!i||i==='unknown')return;ingMap[i]=(ingMap[i]||0)+1});
+const ingMap={};getCleanSignals().forEach(s=>{const i=(s.ingredient_name||'').trim();if(!i)return;ingMap[i]=(ingMap[i]||0)+1});
 const sortedIngs=Object.entries(ingMap).sort((a,b)=>b[1]-a[1]).slice(0,15);
 mk('trend-ingredients',{type:'bar',data:{labels:sortedIngs.map(x=>x[0]),datasets:[{data:sortedIngs.map(x=>x[1]),backgroundColor:'#0D9488',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.parsed.x} signals`}}},scales:{x:{ticks:{color:CA,font:{size:11}},grid:{color:CG}},y:{ticks:{color:CA,font:{size:11}},grid:{display:false}}},onClick:(evt,els)=>{if(els.length){const name=sortedIngs[els[0].index][0];hideTip();filterByIngredient(name);}},onHover:(evt,els)=>{if(evt.native)evt.native.target.style.cursor=els.length?'pointer':'default';}}});
 const auths2=['tga','tga_consultations','fda','artg','pubmed','europe_pmc','clinical_trials','cochrane'];
@@ -68,10 +68,10 @@ mk('report-chart-cats',{type:'bar',data:{labels:_rptCatLabels,datasets:[{data:_r
 function computeIngredientTrends() {
   const now=Date.now(),d7=now-7*864e5,d14=now-14*864e5;
   const curr={},prev={},highM={};
-  SIGNALS.forEach(s=>{
+  getCleanSignals().forEach(s=>{
     const t=new Date(s.scraped_at||s.created_at).getTime();
     const ing=(s.ingredient_name||'').trim().toLowerCase();
-    if(!ing||ing==='unknown') return;
+    if(!ing) return;
     if(t>=d7){curr[ing]=(curr[ing]||0)+1;if(s.severity==='high')highM[ing]=(highM[ing]||0)+1;}
     else if(t>=d14) prev[ing]=(prev[ing]||0)+1;
   });
@@ -151,7 +151,7 @@ function renderTrendPanels() {
   if(ingEl){
     if(!ings.length){
       const allIngs={};
-      SIGNALS.forEach(s=>{const ing=(s.ingredient_name||'').trim().toLowerCase();if(!ing||ing==='unknown')return;allIngs[ing]=(allIngs[ing]||0)+1;});
+      getCleanSignals().forEach(s=>{const ing=(s.ingredient_name||'').trim().toLowerCase();if(!ing)return;allIngs[ing]=(allIngs[ing]||0)+1;});
       const top6=Object.entries(allIngs).sort((a,b)=>b[1]-a[1]).slice(0,6);
       if(!top6.length){ingEl.innerHTML='<div class="trend-none">No significant ingredient trends</div>';}
       else{ingEl.innerHTML=''
