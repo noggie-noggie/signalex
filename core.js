@@ -21,14 +21,47 @@ function getCleanSignals() {
   });
 }
 
-// ── Citation summary normaliser — collapses boilerplate regulatory text ────────
+// ── Pharma citation summary family — maps boilerplate text to a canonical code ──
+function getPharmaSummaryFamily(text) {
+  const t = text || '';
+  if (/family smoking prevention|tobacco control act/i.test(t)) return 'tobacco_compliance';
+  if (/cgmp/i.test(t) && /adulterat/i.test(t)) return 'cgmp_adulterated';
+  if (/adulterated.*misbranded|misbranded.*adulterated/i.test(t)) return 'adulterated_misbranded';
+  if (/adulterated/i.test(t) && !(/cgmp/i.test(t))) return 'adulterated_misbranded';
+  if (/unapproved new drug/i.test(t)) return 'unapproved_new_drug';
+  if (/foreign supplier verification|fsvp/i.test(t)) return 'fsvp';
+  if (/import alert|detention without physical examination/i.test(t)) return 'import_alert_dwpe';
+  return null;
+}
+
+const PHARMA_FAMILY_LABELS = {
+  tobacco_compliance:    'Tobacco compliance / adulterated or misbranded product',
+  cgmp_adulterated:      'cGMP compliance issue / adulterated product',
+  adulterated_misbranded:'Adulterated or misbranded product',
+  unapproved_new_drug:   'Unapproved new drug / misbranding',
+  fsvp:                  'Foreign Supplier Verification Program issue',
+  import_alert_dwpe:     'Import alert / detention without physical examination',
+};
+
+// Builds a stable dedupe key for pharma citation display grouping.
+// Does NOT mutate the raw dataset — used only in filteredCits().
+function normalisePharmaCitationKey(c) {
+  const rawText = (c.summary || '') + ' ' + (c.violation_details || '');
+  const family = getPharmaSummaryFamily(rawText);
+  const summaryPart = family || (c.summary || '').trim().toLowerCase().slice(0, 100);
+  return [
+    c.authority   || '',
+    c.source_type || '',
+    c.category    || '',
+    (c.company    || '').toLowerCase(),
+    summaryPart,
+  ].join('|');
+}
+
+// Legacy alias kept so nothing breaks if still referenced anywhere
 function cleanSummary(text) {
-  return (text || '')
-    .replace(/Family Smoking Prevention.*$/i, 'Tobacco compliance violation')
-    .replace(/CGMP in the manufacture.*$/i, 'GMP compliance issue')
-    .replace(/Adulterated or misbranded.*$/i, 'Product quality / contamination issue')
-    .replace(/Detention Without Physical Examination.*$/i, 'Import detention — compliance / safety grounds')
-    .slice(0, 120);
+  const family = getPharmaSummaryFamily(text || '');
+  return family ? PHARMA_FAMILY_LABELS[family] : (text || '').slice(0, 120);
 }
 
 // ── DI/CAPA keyword test — single source of truth ────────────────────────────

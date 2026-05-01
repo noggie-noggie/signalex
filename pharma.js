@@ -671,9 +671,14 @@ function citCard(c) {
   const sc=c.severity==='high'?'high-sev':'medium-sev';
   const st=(c.source_type||'').replace(/_/g,' ');
   const isImport=(c.source_type||'')==='import_alert';
-  const summ=(c.summary||c.category||'Enforcement action').slice(0,140);
+  // Use clean family label when the raw text is boilerplate; fall back to raw summary
+  const rawText=(c.summary||'') + ' ' + (c.violation_details||'');
+  const family=getPharmaSummaryFamily(rawText);
+  const displaySumm=family
+    ? PHARMA_FAMILY_LABELS[family]
+    : (c.summary||c.category||'Enforcement action').slice(0,140);
   return `<div class="signal-card ${sc}" style="margin-bottom:8px">
-    <div class="card-top"><div class="card-title">${summ}</div></div>
+    <div class="card-top"><div class="card-title">${displaySumm}</div></div>
     <div class="card-badges">
       ${sevBadge(c.severity||'medium')}
       <span class="badge badge-authority">${c.authority||'—'}</span>
@@ -726,7 +731,7 @@ function renderCitations() {
   citPg=Math.min(citPg,pages||1);
   const slice=data.slice((citPg-1)*CIT_PP,citPg*CIT_PP);
   const tb=document.getElementById('cit-tbody'); if(!tb) return;
-  const cc=document.getElementById('cit-count'); if(cc) cc.textContent=`${data.length} citations`;
+  const cc=document.getElementById('cit-count'); if(cc) cc.textContent=`${data.length} grouped citations`;
   if(!slice.length) {
     tb.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:24px 0;color:#2A3E52;font-size:12px">
       <div style="font-size:22px;margin-bottom:6px">&#128270;</div>No citations match the current filters.
@@ -737,6 +742,9 @@ function renderCitations() {
   }
   tb.innerHTML=slice.map(c=>{
     const st=(c.source_type||'').replace(/_/g,' ');
+    const rawText=(c.summary||'')+' '+(c.violation_details||'');
+    const family=getPharmaSummaryFamily(rawText);
+    const displaySumm=family?PHARMA_FAMILY_LABELS[family]:(c.summary||'—').slice(0,100);
     return `<tr onclick="pFilterByCat('${(c.category||'Other').replace(/'/g,"\\'")}')" title="Filter by ${c.category||'this category'}">
       <td><span class="badge badge-authority">${c.authority||'—'}</span></td>
       <td><span class="badge badge-type" style="white-space:nowrap">${st}</span></td>
@@ -744,7 +752,7 @@ function renderCitations() {
       <td style="min-width:110px">${c.category||'—'}</td>
       <td>${sevBadge(c.severity||'medium')}</td>
       <td style="white-space:nowrap;font-size:10px;color:#3D5268">${c.date?c.date.slice(0,10):'—'}</td>
-      <td style="max-width:280px;font-size:11px;color:#7A92A8">${(c.summary||'—').slice(0,100)}</td>
+      <td style="max-width:280px;font-size:11px;color:#7A92A8">${displaySumm}</td>
       <td>${c.url?`<a class="cit-link" href="${c.url}" target="_blank" onclick="event.stopPropagation()">&#8599;</a>`:'—'}</td>
     </tr>`;
   }).join('');
@@ -916,21 +924,22 @@ function renderFacilities() {
       el.innerHTML='<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No facility data matches filters</div></div>';
       return;
     }
-    const noteHtml='<div class="facility-data-note">Facility-level data not yet structured — showing category-level risk only</div>';
+    const noteHtml='<div class="facility-data-note">Facility data is inferred from available enforcement records and may need source verification.</div>';
     el.innerHTML=noteHtml+typeItems.map(f=>{
       const safe=f.name.replace(/'/g,"\\'");
       const topCatEntry=Object.entries(f.cats).sort((a,b)=>b[1]-a[1])[0];
       const topCatName=topCatEntry?topCatEntry[0]:'';
       const topIssues=Object.entries(f.cats).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
-      const action=generateFacilityAction(topCatName);
+      const topDisplay=topIssues||'Not classified';
+      const action=topCatName?generateFacilityAction(topCatName):'Review source record and classify enforcement issue before client use.';
       return `<div class="facility-card${pF.factype===f.name?' fc-active':''}" onclick="pFilterByFacType('${safe}')" title="Click to filter">
-        <div class="facility-name">${f.name}</div>
-        <div class="facility-type-label">${[...f.auths].join(' · ')}</div>
+        <div class="facility-name">${f.name||'Unknown facility'}</div>
+        <div class="facility-type-label">${[...f.auths].join(' · ') || '—'}</div>
         <div class="facility-stats">
           <span class="facility-stat">${f.total} citation${f.total!==1?'s':''}</span>
           ${f.high?`<span class="facility-stat fsr">${f.high} high sev</span>`:''}
         </div>
-        ${topIssues?`<div class="facility-cats">Top: ${topIssues}</div>`:''}
+        <div class="facility-cats">Top issue: ${topDisplay}</div>
         <div class="facility-action">&#8594; ${action}</div>
       </div>`;
     }).join('');
@@ -943,19 +952,21 @@ function renderFacilities() {
     el.innerHTML='<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No facilities match</div></div>';
     return;
   }
-  el.innerHTML=coItems.map(f=>{
+  const coNote='<div class="facility-data-note">Facility data is inferred from available enforcement records and may need source verification.</div>';
+  el.innerHTML=coNote+coItems.map(f=>{
     const topCatEntry=Object.entries(f.cats).sort((a,b)=>b[1]-a[1])[0];
     const topCatName=topCatEntry?topCatEntry[0]:'';
     const topIssues=Object.entries(f.cats).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
-    const action=generateFacilityAction(topCatName);
+    const topDisplay=topIssues||'Not classified';
+    const action=topCatName?generateFacilityAction(topCatName):'Review source record and classify enforcement issue before client use.';
     return `<div class="facility-card">
-      <div class="facility-name">${f.name}</div>
-      <div class="facility-type-label">${f.factype} &middot; ${[...f.auths].join(' / ')}</div>
+      <div class="facility-name">${f.name||'Unknown facility'}</div>
+      <div class="facility-type-label">${f.factype||'Unknown type'} &middot; ${[...f.auths].join(' / ')||'—'}</div>
       <div class="facility-stats">
         <span class="facility-stat">${f.total} citation${f.total!==1?'s':''}</span>
         ${f.high?`<span class="facility-stat fsr">${f.high} high sev</span>`:''}
       </div>
-      ${topIssues?`<div class="facility-cats">Top issues: ${topIssues}</div>`:''}
+      <div class="facility-cats">Top issues: ${topDisplay}</div>
       <div class="facility-action">&#8594; ${action}</div>
     </div>`;
   }).join('');

@@ -1416,10 +1416,11 @@ function filteredCits() {
     dateFrom: pF.dateFrom, dateTo: pF.dateTo,
     sortCol: citSortState.col, sortDir: citSortState.dir,
   });
-  // Deduplicate by authority + category + normalised summary
+  // Deduplicate pharma display using normalisePharmaCitationKey — collapses
+  // boilerplate rows (DWPE, Tobacco Act, CGMP/adulterated) into one per family.
   const _seen = new Map();
   result = result.filter(c => {
-    const key = (c.authority||'') + '|' + (c.category||'') + '|' + cleanSummary(c.summary||'');
+    const key = normalisePharmaCitationKey(c);
     if (_seen.has(key)) return false;
     _seen.set(key, true);
     return true;
