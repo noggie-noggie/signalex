@@ -119,6 +119,7 @@ function unifiedFilteredCitations(opts) {
   return CITATIONS.filter(c => {
     if (noiseFilter && isLowValueContent(c)) return false;
     if (noiseFilter && !isValidEnforcementItem(c)) return false;
+    if (noiseFilter && c.is_noise) return false;
     if (auth !== 'all' && c.authority !== auth) return false;
     if (sev !== 'all' && (c.severity||'').toLowerCase() !== sev) return false;
     if (srctype !== 'all' && (c.source_type||'') !== srctype) return false;

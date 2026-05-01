@@ -78,6 +78,14 @@ class ClassifiedSignal(BaseModel):
     # AI business-impact summary — "Why this matters for a VMS company"
     ai_summary:              str   = ""
 
+    # Quality improvement fields — produced by updated classification prompts
+    clean_title:             str   = ""    # concise human-readable title (≤10 words)
+    why_it_matters:          str   = ""    # one-sentence business impact for a VMS company
+    recommended_action:      str   = ""    # specific, concrete action to take now
+    inspection_risk:         str   = ""    # high | medium | low | none
+    is_noise:                bool  = False # True = no material VMS relevance
+    noise_reason:            str   = ""    # reason if is_noise=True
+
 
 # ---------------------------------------------------------------------------
 # System prompt  (set once, reused for every message)
@@ -93,18 +101,29 @@ Your job is to extract structured data from it.
 Respond with a single JSON object — no markdown fences, no prose, just the
 raw JSON. Use exactly these keys:
 
-  "ingredient_name" : string  — the primary supplement or ingredient involved
-                                (e.g. "melatonin", "collagen", "GLP-1 receptor agonist").
-                                Use "unknown" if none is identifiable.
-  "event_type"      : string  — one of: safety_alert | new_listing | ban | warning | recall | other
-  "severity"        : string  — one of: high | medium | low
-                                high   = immediate consumer risk (contamination, undisclosed drug, ban)
-                                medium = caution warranted (labelling issue, unverified claims)
-                                low    = informational (new listing, minor advisory)
-  "summary"         : string  — one sentence in plain English for a non-expert reader
+  "ingredient_name"    : string  — primary supplement or ingredient (e.g. "melatonin", "collagen").
+                                   Never return "none", "n/a", or "unknown" if an ingredient can be identified from context.
+  "event_type"         : string  — safety_alert | new_listing | ban | warning | recall | other
+  "severity"           : string  — high | medium | low
+                                   high = immediate consumer risk; medium = caution warranted; low = informational
+  "summary"            : string  — one sentence in plain English for a non-expert reader
+  "clean_title"        : string  — concise title ≤10 words summarising the enforcement action.
+                                   Good: "FDA Recall: Vitamin D Tablets — Incorrect Potency"
+                                   Bad: "Voluntary Recall of a Dietary Supplement Due to Mislabeling Issues"
+  "why_it_matters"     : string  — one sentence on business impact for a VMS company.
+                                   Good: "Potency mislabelling in a high-volume OTC category triggers mandatory label review for similar SKUs."
+                                   Bad: "This is relevant to VMS companies."
+  "recommended_action" : string  — specific, concrete action for a VMS company to take now.
+                                   Good: "Audit CoA verification for all imported vitamin D raw materials and verify batch potency matches label claim."
+                                   Bad: "Review SOP compliance."
+  "inspection_risk"    : string  — high | medium | low | none
+                                   high = this finding type directly cited in inspections; none = informational only
+  "is_noise"           : boolean — true ONLY if this notice has no material VMS relevance
+                                   (e.g. pharmaceutical drug with no supplement connection, tobacco, medical device with no ingredient overlap)
+  "noise_reason"       : string  — brief reason if is_noise=true; otherwise ""
 
 Example output:
-{"ingredient_name":"melatonin","event_type":"safety_alert","severity":"high","summary":"The TGA has warned consumers about counterfeit melatonin products imported without regulatory approval, which may contain unknown substances."}
+{"ingredient_name":"melatonin","event_type":"safety_alert","severity":"high","summary":"TGA has warned consumers about counterfeit melatonin imports that may contain unknown substances.","clean_title":"TGA Warning: Counterfeit Melatonin Imports","why_it_matters":"Counterfeit supplements increase scrutiny across all melatonin products — review supply chain documentation immediately.","recommended_action":"Verify all melatonin raw material suppliers hold TGA approval; check import documentation for recent batches and test for undisclosed substances.","inspection_risk":"high","is_noise":false,"noise_reason":""}
 """
 
 _ARTG_SYSTEM_PROMPT = """\
@@ -115,23 +134,26 @@ Your job is to assess the product as a potential competitor signal.
 
 Respond with a single JSON object — no markdown, no prose. Use exactly these keys:
 
-  "ingredient_name"     : string  — the primary active ingredient or supplement type
-                                    (e.g. "omega-3", "vitamin C", "lactoferrin", "probiotics")
+  "ingredient_name"     : string  — primary active ingredient (e.g. "omega-3", "vitamin C", "lactoferrin").
+                                    Never return "none" or "n/a" — extract from product name if needed.
   "event_type"          : string  — always "new_listing" for ARTG entries
-  "severity"            : string  — one of: high | medium | low
-                                    high   = major competitor entering a crowded market segment
-                                    medium = notable new entrant, worth monitoring
-                                    low    = minor or unrelated product
+  "severity"            : string  — high | medium | low
+                                    high = major competitor entering a crowded segment; low = minor/unrelated
   "summary"             : string  — one sentence: what the product is and why it matters
-  "product_category"    : string  — one of: vitamins | minerals | herbal | sports | weight_management | other
-  "competitor_signal"   : boolean — true if this is a competing VMS consumer product, false otherwise
-  "market_significance" : string  — one of: high | medium | low
-                                    high   = significant market impact (major brand, novel ingredient, large category)
-                                    medium = moderate impact
-                                    low    = minimal impact (niche, device, hospital product)
+  "clean_title"         : string  — concise title ≤10 words identifying brand + product type + key ingredient.
+                                    Good: "ARTG: Blackmores High-Strength Omega-3 Fish Oil"
+  "why_it_matters"      : string  — one sentence on market impact for a VMS company.
+                                    Good: "A direct competitor entering the premium omega-3 segment with a similar formulation and TGA registration."
+  "recommended_action"  : string  — specific action for a VMS company.
+                                    Good: "Review omega-3 product positioning against new competitor SKU; assess pricing and formulation differentiation."
+  "product_category"    : string  — vitamins | minerals | herbal | sports | weight_management | other
+  "competitor_signal"   : boolean — true if this is a competing VMS consumer product
+  "market_significance" : string  — high | medium | low
+  "is_noise"            : boolean — true if this is a device, hospital product, or has no consumer VMS relevance
+  "noise_reason"        : string  — brief reason if is_noise=true; otherwise ""
 
 Example output:
-{"ingredient_name":"omega-3","event_type":"new_listing","severity":"medium","summary":"Faroson has listed a high-strength triple fish oil product, entering the competitive omega-3 market segment.","product_category":"vitamins","competitor_signal":true,"market_significance":"medium"}
+{"ingredient_name":"omega-3","event_type":"new_listing","severity":"medium","summary":"Faroson has listed a high-strength triple fish oil product, entering the competitive omega-3 market segment.","clean_title":"ARTG: Faroson Triple Fish Oil — High-Strength Omega-3","why_it_matters":"Direct entry into the high-strength omega-3 category by an active competitor with retail distribution.","recommended_action":"Review omega-3 product positioning and pricing; consider differentiation on EPA/DHA ratio or sustainability claim.","product_category":"vitamins","competitor_signal":true,"market_significance":"medium","is_noise":false,"noise_reason":""}
 """
 
 _RETAIL_SYSTEM_PROMPT = """\
@@ -184,17 +206,24 @@ Assess its relevance to VMS regulation and market intelligence.
 Respond with a single JSON object — no markdown, no prose. Use exactly these keys:
 
   "ingredient_name"   : string  — primary supplement/ingredient (e.g. "omega-3", "vitamin D"). Use "unknown" if none.
-  "event_type"        : string  — one of: safety_alert | warning | other
-  "severity"          : string  — one of: high | medium | low
+  "event_type"        : string  — safety_alert | warning | other
+  "severity"          : string  — high | medium | low
   "summary"           : string  — one sentence plain-English for a non-expert
-  "relevance_to_vms"  : string  — one of: high | medium | low
-                                  high   = directly about supplement safety, efficacy, or regulatory status
-                                  medium = related to an ingredient used in supplements
-                                  low    = tangential or academic only
-  "signal_type"       : string  — one of: safety_concern | efficacy_claim | regulatory_implication | other
+  "clean_title"       : string  — concise title ≤10 words identifying ingredient + key finding.
+                                  Good: "High-Dose Melatonin: Interaction Risk with Antihypertensives"
+  "why_it_matters"    : string  — one sentence on VMS business impact.
+                                  Good: "Drug-supplement interaction data can trigger TGA safety review and force label changes."
+  "recommended_action": string  — specific action for a VMS company.
+                                  Good: "Review melatonin product labels for interaction warnings and update monograph if not already covered."
+  "relevance_to_vms"  : string  — high | medium | low
+                                  high = directly about supplement safety, efficacy, or regulatory status
+                                  low  = tangential or academic only
+  "signal_type"       : string  — safety_concern | efficacy_claim | regulatory_implication | other
+  "is_noise"          : boolean — true if this article has no material VMS relevance (e.g. purely pharmaceutical, no ingredient overlap)
+  "noise_reason"      : string  — brief reason if is_noise=true; otherwise ""
 
 Example:
-{"ingredient_name":"melatonin","event_type":"safety_alert","severity":"medium","summary":"Study finds high-dose melatonin supplements may interfere with blood pressure medications in elderly patients.","relevance_to_vms":"high","signal_type":"safety_concern"}
+{"ingredient_name":"melatonin","event_type":"safety_alert","severity":"medium","summary":"Study finds high-dose melatonin supplements may interfere with blood pressure medications in elderly patients.","clean_title":"High-Dose Melatonin: Antihypertensive Drug Interaction Risk","why_it_matters":"Drug-supplement interactions can trigger TGA safety review and mandatory label warning updates.","recommended_action":"Review melatonin product monograph and label for antihypertensive interaction warnings; add if not already present.","relevance_to_vms":"high","signal_type":"safety_concern","is_noise":false,"noise_reason":""}
 """
 
 _TGA_CONSULTATION_SYSTEM_PROMPT = """\
@@ -491,6 +520,7 @@ class SignalClassifier:
             summary         = parsed.get("summary", ""),
             input_tokens    = response.usage.input_tokens,
             output_tokens   = response.usage.output_tokens,
+            **self._quality_fields(parsed),
         )
 
     def classify_batch(self, signals: list[RawSignal]) -> list[ClassifiedSignal]:
@@ -540,6 +570,7 @@ class SignalClassifier:
             market_significance = parsed.get("market_significance", "low"),
             input_tokens        = response.usage.input_tokens,
             output_tokens       = response.usage.output_tokens,
+            **self._quality_fields(parsed),
         )
 
     def classify_batch_artg(self, signals: list[RawSignal]) -> list[ClassifiedSignal]:
@@ -663,6 +694,7 @@ class SignalClassifier:
             signal_type        = parsed.get("signal_type", ""),
             input_tokens       = response.usage.input_tokens,
             output_tokens      = response.usage.output_tokens,
+            **self._quality_fields(parsed),
         )
 
     def classify_batch_pubmed(self, signals: list[RawSignal]) -> list[ClassifiedSignal]:
@@ -701,6 +733,7 @@ class SignalClassifier:
             potential_impact     = parsed.get("potential_impact", "neutral"),
             input_tokens         = response.usage.input_tokens,
             output_tokens        = response.usage.output_tokens,
+            **self._quality_fields(parsed),
         )
 
     def classify_batch_tga_consultation(self, signals: list[RawSignal]) -> list[ClassifiedSignal]:
@@ -738,6 +771,7 @@ class SignalClassifier:
             ingredient_relevance = parsed.get("ingredient_relevance", "low"),
             input_tokens         = response.usage.input_tokens,
             output_tokens        = response.usage.output_tokens,
+            **self._quality_fields(parsed),
         )
 
     def classify_batch_advisory_committee(self, signals: list[RawSignal]) -> list[ClassifiedSignal]:
@@ -775,6 +809,7 @@ class SignalClassifier:
             trend_relevance = parsed.get("trend_relevance", "low"),
             input_tokens    = response.usage.input_tokens,
             output_tokens   = response.usage.output_tokens,
+            **self._quality_fields(parsed),
         )
 
     def classify_batch_adverse_event(self, signals: list[RawSignal]) -> list[ClassifiedSignal]:
@@ -823,6 +858,7 @@ class SignalClassifier:
             "signal_type":      parsed.get("signal_type", ""),
             "input_tokens":     response.usage.input_tokens,
             "output_tokens":    response.usage.output_tokens,
+            **self._quality_fields(parsed),
         }
         # Stash extra parsed fields that map to known ClassifiedSignal attributes
         for field in (extra_fields or []):
@@ -895,6 +931,17 @@ class SignalClassifier:
             title      = signal["title"],
             scraped_at = signal["scraped_at"],
         )
+
+    def _quality_fields(self, parsed: dict) -> dict:
+        """Extract the new quality fields present in updated classification prompts."""
+        return {
+            "clean_title":        parsed.get("clean_title", ""),
+            "why_it_matters":     parsed.get("why_it_matters", ""),
+            "recommended_action": parsed.get("recommended_action", ""),
+            "inspection_risk":    parsed.get("inspection_risk", ""),
+            "is_noise":           bool(parsed.get("is_noise", False)),
+            "noise_reason":       parsed.get("noise_reason", ""),
+        }
 
     def _parse_json(self, raw_text: str, source_id: str) -> dict:
         try:

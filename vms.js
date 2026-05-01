@@ -131,7 +131,9 @@ function _ingAction(name,trend,high,neg) {
 
 function signalCard(s) {
   const sevClass = s.severity==='high'?'high-sev':s.severity==='medium'?'medium-sev':'low-sev';
-  const why = _uniqueWhy(s);
+  // Prefer LLM-generated fields; fall back to derived equivalents
+  const displayTitle = s.clean_title || s.title || 'Untitled Signal';
+  const why = s.why_it_matters || _uniqueWhy(s);
   const ing = s.ingredient_name&&s.ingredient_name!=='unknown'?s.ingredient_name:'';
   const pp = isPreprint(s.authority);
   const ingSafe = ing.replace(/'/g,"\\'");
@@ -140,7 +142,7 @@ function signalCard(s) {
   const wlTitle = (s.title||'Signal').replace(/'/g,"\\'").slice(0,45);
   const wlActive = isWatched(wlId);
   return `<div class="signal-card ${sevClass}" onclick="openDrawer(${s.id})">
-    <div class="card-top"><div class="card-title">${s.title||'Untitled Signal'}</div></div>
+    <div class="card-top"><div class="card-title">${displayTitle}</div></div>
     <div class="card-badges">
       ${sevBadge(s.severity)}${sentBadge(s.sentiment)}
       <span class="badge badge-authority" style="cursor:pointer" onclick="event.stopPropagation();openEntityPanel('${authSafe}','authority')" title="View ${authLabel(s.authority)} intelligence">${authLabel(s.authority)}</span>
@@ -162,7 +164,7 @@ function signalCard(s) {
 }
 
 function renderSignals() {
-  const data = filteredSignals();
+  const data = filteredSignals().filter(s => !s.is_noise);
   if (activeClaimCat) console.log('[ClaimFilter] filtered results:', data.length, 'for', activeClaimCat);
   const pages = Math.ceil(data.length/PER_PAGE);
   currentPage = Math.min(currentPage, pages||1);
@@ -197,10 +199,10 @@ function renderOverviewSignals() {
   const hasFilters = filters.sev.size||filters.auth.size||filters.sent.size||filters.type.size||filters.market.size||filters.ingredient||activeClaimCat||filters.query;
   let feed;
   if (hasFilters) {
-    feed = filteredSignals().slice(0,12);
+    feed = filteredSignals().filter(s => !s.is_noise).slice(0,12);
   } else {
     const regs=['tga','fda','artg','adverse_events','tga_consultations','efsa','cochrane'];
-    feed=[...SIGNALS.filter(s=>s.severity==='high'),...SIGNALS.filter(s=>s.severity==='medium'&&regs.includes(s.authority))].slice(0,12);
+    feed=[...SIGNALS.filter(s=>s.severity==='high'&&!s.is_noise),...SIGNALS.filter(s=>s.severity==='medium'&&regs.includes(s.authority)&&!s.is_noise)].slice(0,12);
   }
   const el=$('#overview-signals'); if(!el) return;
   if (feed.length) {
@@ -324,8 +326,8 @@ function renderVmsWhatChanged() {
   const actionStyle='font-size:10px;color:rgba(13,148,136,.82);padding-top:5px;margin-top:3px;border-top:1px solid rgba(30,70,110,.4)';
   const actionLbl='<b style="color:rgba(13,148,136,.95)">Action:</b> ';
   const ingCol=(rising.length||falling.length)?[
-    ...rising.map(i=>{const pct=i.prev>0?Math.round((i.curr-i.prev)/i.prev*100):null;return`<div class="wc-vms-bullet"><div class="wc-vms-lbl">${i.name}</div><div class="wc-vms-txt wc-vms-rising">${i.curr} signals${pct!==null?' (+'+pct+'%)':''}</div>${i.high>0?`<div class="wc-vms-why">${i.high} high severity</div>`:''}</div>`;}),
-    ...falling.map(i=>`<div class="wc-vms-bullet"><div class="wc-vms-lbl">${i.name}</div><div class="wc-vms-txt wc-vms-falling">${i.curr} signals (↓ from ${i.prev})</div></div>`)
+    ...rising.map(i=>{const chg=i.curr-i.prev;return`<div class="wc-vms-bullet"><div class="wc-vms-lbl">${i.name}</div><div class="wc-vms-txt wc-vms-rising">${i.curr} signal${i.curr!==1?'s':''}${i.prev>0?' (+'+chg+' vs prior)':' (new this week)'}</div>${i.high>0?`<div class="wc-vms-why">${i.high} high severity</div>`:''}</div>`;}),
+    ...falling.map(i=>{const chg=i.curr-i.prev;return`<div class="wc-vms-bullet"><div class="wc-vms-lbl">${i.name}</div><div class="wc-vms-txt wc-vms-falling">${i.curr} signal${i.curr!==1?'s':''} (${chg} vs prior)</div></div>`;})
   ].join(''):emptyCol('No major changes detected');
   const highCol=newHigh.length?newHigh.map(s=>`<div class="wc-vms-bullet"><div class="wc-vms-lbl" style="cursor:pointer;color:rgba(190,75,75,.65)" onclick="openDrawer(${s.id})">${trunc(s.title||'',52)}</div><div class="wc-vms-txt">${authLabel(s.authority)} · ${fmt(s.scraped_at)}</div></div>`).join(''):emptyCol('No new high-severity signals');
   const enfCol=enfUp.length===1

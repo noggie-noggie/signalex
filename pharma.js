@@ -671,12 +671,11 @@ function citCard(c) {
   const sc=c.severity==='high'?'high-sev':'medium-sev';
   const st=(c.source_type||'').replace(/_/g,' ');
   const isImport=(c.source_type||'')==='import_alert';
-  // Use clean family label when the raw text is boilerplate; fall back to raw summary
+  // Prefer LLM clean_title; fall back to family dedup label, then raw summary
   const rawText=(c.summary||'') + ' ' + (c.violation_details||'');
   const family=getPharmaSummaryFamily(rawText);
-  const displaySumm=family
-    ? PHARMA_FAMILY_LABELS[family]
-    : (c.summary||c.category||'Enforcement action').slice(0,140);
+  const displaySumm=c.clean_title
+    || (family ? PHARMA_FAMILY_LABELS[family] : (c.summary||c.category||'Enforcement action').slice(0,140));
   return `<div class="signal-card ${sc}" style="margin-bottom:8px">
     <div class="card-top"><div class="card-title">${displaySumm}</div></div>
     <div class="card-badges">
@@ -744,7 +743,7 @@ function renderCitations() {
     const st=(c.source_type||'').replace(/_/g,' ');
     const rawText=(c.summary||'')+' '+(c.violation_details||'');
     const family=getPharmaSummaryFamily(rawText);
-    const displaySumm=family?PHARMA_FAMILY_LABELS[family]:(c.summary||'—').slice(0,100);
+    const displaySumm=c.clean_title||(family?PHARMA_FAMILY_LABELS[family]:(c.summary||'—').slice(0,100));
     return `<tr onclick="pFilterByCat('${(c.category||'Other').replace(/'/g,"\\'")}')" title="Filter by ${c.category||'this category'}">
       <td><span class="badge badge-authority">${c.authority||'—'}</span></td>
       <td><span class="badge badge-type" style="white-space:nowrap">${st}</span></td>
@@ -905,44 +904,11 @@ function renderFacilities() {
   let coItems=Object.values(coMap).sort((a,b)=>b.total-a.total);
   if(q) coItems=coItems.filter(i=>i.name.toLowerCase().includes(q)||i.factype.toLowerCase().includes(q));
 
-  // ── Fallback: group by facility type when company data is sparse ──
+  // ── Insufficient company data — show message, facility type strip above handles the rest ──
   if(coItems.length < 5 && !q) {
-    console.warn('[Signalex] Low company count ('+coItems.length+') — using facility-type fallback');
-    const typeMap={};
-    data.forEach(c=>{
-      const ft=c.facility_type||'Unknown';
-      if(!typeMap[ft])typeMap[ft]={name:ft,total:0,high:0,auths:new Set(),cats:{}};
-      typeMap[ft].total++;
-      if(c.severity==='high')typeMap[ft].high++;
-      typeMap[ft].auths.add(c.authority);
-      const k=c.category||'Other';
-      typeMap[ft].cats[k]=(typeMap[ft].cats[k]||0)+1;
-    });
-    const typeItems=Object.values(typeMap).sort((a,b)=>b.total-a.total);
-    const fc=document.getElementById('fac-count'); if(fc)fc.textContent=`${typeItems.length} facility type${typeItems.length!==1?'s':''}`;
-    if(!typeItems.length){
-      el.innerHTML='<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No facility data matches filters</div></div>';
-      return;
-    }
-    const noteHtml='<div class="facility-data-note">Facility data is inferred from available enforcement records and may need source verification.</div>';
-    el.innerHTML=noteHtml+typeItems.map(f=>{
-      const safe=f.name.replace(/'/g,"\\'");
-      const topCatEntry=Object.entries(f.cats).sort((a,b)=>b[1]-a[1])[0];
-      const topCatName=topCatEntry?topCatEntry[0]:'';
-      const topIssues=Object.entries(f.cats).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
-      const topDisplay=topIssues||'Not classified';
-      const action=topCatName?generateFacilityAction(topCatName):'Review source record and classify enforcement issue before client use.';
-      return `<div class="facility-card${pF.factype===f.name?' fc-active':''}" onclick="pFilterByFacType('${safe}')" title="Click to filter">
-        <div class="facility-name">${f.name||'Unknown facility'}</div>
-        <div class="facility-type-label">${[...f.auths].join(' · ') || '—'}</div>
-        <div class="facility-stats">
-          <span class="facility-stat">${f.total} citation${f.total!==1?'s':''}</span>
-          ${f.high?`<span class="facility-stat fsr">${f.high} high sev</span>`:''}
-        </div>
-        <div class="facility-cats">Top issue: ${topDisplay}</div>
-        <div class="facility-action">&#8594; ${action}</div>
-      </div>`;
-    }).join('');
+    console.warn('[Signalex] Low company count ('+coItems.length+') — showing limited data message');
+    const fc=document.getElementById('fac-count'); if(fc)fc.textContent='0 companies';
+    el.innerHTML='<div class="facility-limited-msg">Company-level facility data is limited for current filters. Use the Facility Risk Exposure panel above for type-level analysis.</div>';
     return;
   }
 
@@ -980,7 +946,7 @@ function alertCard(c, patterns={}) {
   const summ=(c.summary||c.category||'Enforcement action').slice(0,160);
   const cat=c.category||'Other';
   const intel=CAT_INTEL[cat];
-  const action=intel?intel.action:`Review exposure for ${cat} and monitor for similar enforcement patterns across your site types.`;
+  const action=c.recommended_action||(intel?intel.action:`Review exposure for ${cat} and monitor for similar enforcement patterns across your site types.`);
   const pBadge=patterns[c.company]?`<span class="pattern-badge">Pattern: recurring ${(c.company||'').slice(0,28)}</span>`
     :patterns[c.category]?`<span class="pattern-badge">Pattern: repeated ${c.category}</span>`:'';
   return `<div class="alert-card${isHigh?' ac-high':' ac-medium'}">
