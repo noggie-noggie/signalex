@@ -219,6 +219,44 @@ const INTEL_ITEMS = [
     authorityTags:['FDA','MHRA'], facilityTypeTags:['General Pharma','API Manufacturer'], topicTags:['CAPA','Deviation','Remediation'] },
 ];
 
+// ── Task 8: Display-label maps for internal field values ─────────────
+const _FM_LABELS = {
+  sterility_assurance:          'Sterility assurance',
+  supplier_qualification:       'Supplier qualification',
+  contamination_chemical:       'Chemical contamination',
+  contamination_microbial:      'Microbial contamination',
+  contamination_cross:          'Cross-contamination',
+  labelling_claims:             'Labelling & claims',
+  documentation_data_integrity: 'Documentation / data integrity',
+  computer_systems_validation:  'Computer systems validation',
+  equipment_facilities:         'Equipment & facilities',
+  batch_release:                'Batch release',
+  deviation_capa:               'Deviation & CAPA',
+  process_validation:           'Process validation',
+  ingredient_safety:            'Ingredient safety',
+  import_controls:              'Import controls',
+  container_closure:            'Container closure integrity',
+  adulteration:                 'Adulteration',
+  mislabelling:                 'Mislabelling',
+  insufficient_detail:          'Limited detail',
+};
+const _AU_LABELS = {
+  direct:    'Direct AU relevance',
+  indirect:  'Indirect AU/supply-chain',
+  reference: 'Global regulatory reference',
+};
+const _PRIORITY_COLORS = { P1:'#c0392b', P2:'#e67e22', P3:'#7f8c8d', P4:'#aab' };
+function _fmLabel(fm) { return _FM_LABELS[fm] || (fm||'').replace(/_/g,' '); }
+function _topFailureMode(cits) {
+  const fm = {};
+  cits.forEach(c => {
+    if (c.failure_mode && c.failure_mode !== 'insufficient_detail' && c.failure_mode !== 'other')
+      fm[c.failure_mode] = (fm[c.failure_mode]||0)+1;
+  });
+  const top = Object.entries(fm).sort((a,b) => b[1]-a[1])[0];
+  return top ? top[0] : null;
+}
+
 // ── detectPattern ──
 // ── Pattern detection — flag repeated company / category (≥3 occurrences) ───
 function detectPattern(cits) {
@@ -264,61 +302,95 @@ function renderSoWhatLine(data) {
 }
 
 function getTopImmediateActions(data) {
-  const actions=[];
-  const catMap=data.reduce((m,c)=>{const k=c.category||'Other';m[k]=(m[k]||0)+1;return m},{});
-  const topCat=Object.entries(catMap).sort((a,b)=>b[1]-a[1])[0];
-  if(topCat){
-    const intel=CAT_INTEL[topCat[0]];
-    const safe=topCat[0].replace(/'/g,"\\'");
+  const actions = [];
+  // Action 1: P1/P2 clusters needing review
+  const p1 = data.filter(c => c.priority==='P1' && c.cluster_primary!==false);
+  const p2 = data.filter(c => c.priority==='P2' && c.cluster_primary!==false);
+  if (p1.length + p2.length > 0) {
+    const topFm = _topFailureMode([...p1, ...p2]);
+    const total = p1.length + p2.length;
     actions.push({
-      priority:'now',
-      title:`Review ${topCat[0]} controls — ${topCat[1]} citation${topCat[1]!==1?'s':''}`,
-      why: intel?intel.action:'Highest citation volume this period',
-      onclick:`pFilterByCat('${safe}')`
+      priority: 'now',
+      title: `Review ${p1.length} P1${p2.length?' + '+p2.length+' P2':''} GMP cluster${total!==1?'s':''} requiring decision`,
+      why: topFm ? `Top issue: ${_fmLabel(topFm)}` : 'High-priority enforcement actions require compliance team review',
+      onclick: `applyPharmaFilter({priority:'P1'}); scrollToCitationsTable()`
+    });
+  } else {
+    // Fallback: top category
+    const catMap = data.reduce((m,c)=>{const k=c.primary_gmp_category||c.category||'Other';m[k]=(m[k]||0)+1;return m},{});
+    const topCat = Object.entries(catMap).filter(([k])=>k!=='Other'&&k!=='Other / Insufficient Detail').sort((a,b)=>b[1]-a[1])[0];
+    if (topCat) {
+      const intel = CAT_INTEL[topCat[0]];
+      actions.push({
+        priority: 'now',
+        title: `Review ${topCat[0]} — ${topCat[1]} citation${topCat[1]!==1?'s':''}`,
+        why: intel ? intel.action : 'Highest citation volume this period',
+        onclick: `applyPharmaFilter({primary_gmp_category:'${topCat[0].replace(/'/g,"\\'")}'}); scrollToCitationsTable()`
+      });
+    }
+  }
+  // Action 2: High severity
+  const highItems = data.filter(c => c.severity==='high');
+  if (highItems.length) {
+    actions.push({
+      priority: 'urgent',
+      title: `${highItems.length} high-severity action${highItems.length!==1?'s':''} require immediate attention`,
+      why: 'High severity citations indicate enforcement escalation risk — act before inspection',
+      onclick: `applyPharmaFilter({severity:'high'}); scrollToCitationsTable()`
     });
   }
-  const highItems=data.filter(c=>c.severity==='high');
-  if(highItems.length){
+  // Action 3: Supplement / Nutraceutical or TGA
+  const suppCt = data.filter(c => c.facility_type==='Supplement / Nutraceutical').length;
+  const tgaCt  = data.filter(c => c.authority==='TGA').length;
+  if (suppCt >= tgaCt && suppCt > 0) {
     actions.push({
-      priority:'urgent',
-      title:`${highItems.length} high-severity action${highItems.length!==1?'s':''} require immediate attention`,
-      why:'High severity citations indicate enforcement escalation risk — act before inspection',
-      onclick:`pF.sev='high';syncPFPills();renderPharmaOverview()`
+      priority: 'this-week',
+      title: `${suppCt} Supplement / Nutraceutical action${suppCt!==1?'s':''}`,
+      why: 'Labelling & claims leads this facility type — audit substantiation packages',
+      onclick: `applyPharmaFilter({facility_type:'Supplement / Nutraceutical'}); scrollToCitationsTable()`
+    });
+  } else if (tgaCt > 0) {
+    actions.push({
+      priority: 'this-week',
+      title: `${tgaCt} TGA action${tgaCt!==1?'s':''} on file — AU market priority`,
+      why: 'Self-audit against AU GMP Code Part 3 for all AU-registered products',
+      onclick: `applyPharmaFilter({authority:'TGA'}); scrollToCitationsTable()`
     });
   }
-  const tgaCt=data.filter(c=>c.authority==='TGA').length;
-  const suppCt=data.filter(c=>c.facility_type==='Supplement / Nutraceutical').length;
-  if(tgaCt>=suppCt&&tgaCt>0){
-    actions.push({
-      priority:'this-week',
-      title:`${tgaCt} TGA action${tgaCt!==1?'s':''} on file — AU market priority`,
-      why:'Self-audit against AU GMP Code Part 3 for all AU-registered products',
-      onclick:`pF.auth='TGA';syncPFPills();renderPharmaOverview()`
-    });
-  } else if(suppCt>0){
-    actions.push({
-      priority:'this-week',
-      title:`${suppCt} Supplement / Nutraceutical action${suppCt!==1?'s':''} on file`,
-      why:'Labelling & claims leads this facility type — audit substantiation packages',
-      onclick:`pF.factype='Supplement / Nutraceutical';syncPFPills();renderPharmaOverview()`
-    });
-  }
-  return actions.slice(0,3);
+  return actions.slice(0, 3);
 }
 
 
 function rankPharmaRisks(data) {
-  const catMap={};
-  data.forEach(c=>{
-    const k=c.category||'Other';
-    if(!catMap[k]) catMap[k]={count:0,high:0};
-    catMap[k].count++;
-    if(c.severity==='high') catMap[k].high++;
+  // Use cluster primaries (or singletons) only — avoids inflating counts with members
+  const primaries = data.filter(c => c.cluster_primary !== false);
+  const _SKIP_FM  = new Set(['', 'insufficient_detail', 'other', 'unknown']);
+  const _SKIP_CAT = new Set(['', 'Other', 'Other / Insufficient Detail']);
+  const riskMap = {};
+  primaries.forEach(c => {
+    const fm  = c.failure_mode || '';
+    const cat = c.primary_gmp_category || c.category || '';
+    let key, label;
+    if (fm && !_SKIP_FM.has(fm) && (c.failure_mode_confidence||0) >= 0.6) {
+      key = 'fm:' + fm; label = _fmLabel(fm);
+    } else if (cat && !_SKIP_CAT.has(cat)) {
+      key = 'cat:' + cat; label = cat;
+    } else {
+      return;
+    }
+    if (!riskMap[key]) riskMap[key] = { key, label, p1:0, p2:0, total:0, withSummary:0, clusterSize:0, exampleSummary:'', exampleAction:'' };
+    const r = riskMap[key];
+    r.total++;
+    if (c.priority === 'P1') r.p1++;
+    if (c.priority === 'P2') r.p2++;
+    if (c.decision_summary) { r.withSummary++; if (!r.exampleSummary) r.exampleSummary = c.decision_summary; }
+    if (c.recommended_action && !r.exampleAction) r.exampleAction = c.recommended_action;
+    r.clusterSize += (c.cluster_size || 1);
   });
-  return Object.entries(catMap)
-    .map(([cat,v])=>({cat,count:v.count,high:v.high,score:v.count+v.high*3}))
-    .sort((a,b)=>b.score-a.score)
-    .slice(0,5);
+  return Object.values(riskMap)
+    .map(r => ({ ...r, score: r.p1*5 + r.p2*2 + r.withSummary + Math.min(r.clusterSize - r.total, 5) }))
+    .sort((a,b) => b.score - a.score)
+    .slice(0, 6);
 }
 
 function getRiskImpact(count, high) {
@@ -457,34 +529,97 @@ function renderPharmaOverview() {
 }
 
 function renderCatGrid(gridId, countId) {
-  const data=filteredCits();
-  const catCounts={};
-  data.forEach(c=>{const k=c.category||'Other';catCounts[k]=(catCounts[k]||0)+1;});
-  const cats=Object.entries(catCounts).sort((a,b)=>b[1]-a[1]);
-  const el=document.getElementById(gridId); if(!el) return;
-  el.innerHTML=cats.map(([cat,ct])=>{
-    const isAct=pCatFilter===cat;
-    const high=data.filter(c=>(c.category||'Other')===cat&&c.severity==='high').length;
-    const safe=cat.replace(/'/g,"\\'");
-    const intel = CAT_INTEL[cat];
-    const intelHtml = intel ? `<div class="cat-cell-intel">
+  const data = filteredCits();
+  const el = document.getElementById(gridId); if (!el) return;
+
+  // Resolve each record to a display label using the new decision-model fields.
+  // Generic primary_gmp_category values ('GMP violations', 'Other') are broken down
+  // by failure_mode where available; otherwise collapsed to 'Limited detail'.
+  const _GENERIC_CATS = new Set(['GMP violations', 'Other / Insufficient Detail', 'Other', '']);
+  const _SKIP_FM      = new Set(['', 'insufficient_detail', 'other', 'unknown']);
+
+  // Cluster-primary records only (singletons included; cluster members excluded)
+  const primaries = data.filter(c => c.cluster_primary !== false);
+
+  const cardMap = {};
+  primaries.forEach(c => {
+    const cat    = c.primary_gmp_category || c.category || '';
+    const fm     = c.failure_mode || '';
+    const fmConf = c.failure_mode_confidence || 0;
+    let type, key, label;
+    if (_GENERIC_CATS.has(cat) && fm && !_SKIP_FM.has(fm) && fmConf >= 0.6) {
+      type = 'fm';  key = fm;              label = _fmLabel(fm);
+    } else if (cat && !_GENERIC_CATS.has(cat)) {
+      type = 'cat'; key = cat;             label = cat;
+    } else {
+      type = 'limited'; key = 'limited_detail'; label = 'Limited detail';
+    }
+    if (!cardMap[key]) cardMap[key] = { type, key, label, p1:0, p2:0, total:0, rawCitCount:0, withSummary:0, exampleAction:'' };
+    const g = cardMap[key];
+    g.total++;
+    g.rawCitCount += (c.cluster_size || 1);
+    if (c.priority === 'P1') g.p1++;
+    if (c.priority === 'P2') g.p2++;
+    if (c.decision_summary || c.ai_summary) g.withSummary++;
+    if (!g.exampleAction && c.recommended_action) g.exampleAction = c.recommended_action;
+  });
+
+  // Sort by priority-weighted score; 'Limited detail' always last
+  const sorted = Object.values(cardMap).sort((a, b) => {
+    if (a.key === 'limited_detail' && b.key !== 'limited_detail') return 1;
+    if (b.key === 'limited_detail' && a.key !== 'limited_detail') return -1;
+    return (b.p1*5 + b.p2*2 + b.withSummary) - (a.p1*5 + a.p2*2 + a.withSummary);
+  });
+
+  el.innerHTML = sorted.map(g => {
+    const intel    = CAT_INTEL[g.label] || null;
+    const isAct    = g.type === 'fm'  ? pF.failureMode === g.key
+                   : g.type === 'cat' ? pCatFilter === g.key : false;
+    const isLimited = g.key === 'limited_detail';
+    const keySafe  = g.key.replace(/'/g, "\\'");
+
+    // Click: FM cards filter by failure_mode; CAT cards filter by primary_gmp_category;
+    // Limited detail cards are passive (no actionable filter).
+    const filterFn = g.type === 'fm'
+      ? `applyPharmaFilter({failure_mode:'${keySafe}'}); scrollToCitationsTable()`
+      : g.type === 'cat'
+      ? `applyPharmaFilter({primary_gmp_category:'${keySafe}'}); scrollToCitationsTable()`
+      : '';
+
+    const rawNote  = g.rawCitCount > g.total
+      ? ` <span style="font-size:9px;color:#7A92A8">(${g.rawCitCount} citations)</span>` : '';
+    const p1html   = g.p1 ? `<span style="color:${_PRIORITY_COLORS.P1};font-size:9px;font-weight:600">${g.p1}&thinsp;P1</span>` : '';
+    const p2html   = g.p2 ? `<span style="color:${_PRIORITY_COLORS.P2};font-size:9px">${g.p2}&thinsp;P2</span>` : '';
+    const p1p2     = [p1html, p2html].filter(Boolean).join(' &middot; ');
+
+    const whyLine  = intel ? `<div class="cat-why-line">${intel.implication.split('.')[0]}.</div>` : '';
+    const intelHtml = (intel && !isLimited) ? `<div class="cat-cell-intel">
       <div class="action-tag ${intel.urgency}">${intel.urgency}</div>
       <div class="cat-implication">${intel.implication}</div>
       <div class="cat-action">${intel.action}</div>
     </div>` : '';
-    const whyLine=intel?`<div class="cat-why-line">${intel.implication.split('.')[0]}.</div>`:'';
-    return `<div class="cat-cell${isAct?' c-active':''}" onclick="pFilterByCat('${safe}')">
+    // Entity panel only meaningful for primary_gmp_category-keyed cards
+    const entityBtn = g.type === 'cat'
+      ? `<button class="ing-ep-btn" onclick="event.stopPropagation();openEntityPanel('${keySafe}','category')" title="Open ${g.label} detail" style="font-size:12px;margin-top:1px;flex-shrink:0">&#9432;</button>`
+      : '';
+
+    const wrapStyle = filterFn
+      ? `cursor:pointer${isLimited ? ';opacity:.55' : ''}`
+      : 'opacity:.5';
+    return `<div class="cat-cell${isAct?' c-active':''}" onclick="${filterFn}" style="${wrapStyle}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px">
-        <div class="cat-cell-name">${cat}</div>
-        <button class="ing-ep-btn" onclick="event.stopPropagation();openEntityPanel('${safe}','category')" title="Open ${cat} detail" style="font-size:12px;margin-top:1px;flex-shrink:0">&#9432;</button>
+        <div class="cat-cell-name">${g.label}</div>
+        ${entityBtn}
       </div>
-      <div class="cat-cell-ct">${ct}</div>
-      <div class="cat-cell-sub">${high?high+' high sev':'all medium'}</div>
+      <div class="cat-cell-ct">${g.total} group${g.total!==1?'s':''}${rawNote}</div>
+      <div class="cat-cell-sub">${p1p2 || '<span style="font-size:9px;color:#7A92A8">no priority flags</span>'}</div>
       ${whyLine}
       ${intelHtml}
     </div>`;
   }).join('');
-  const cc=document.getElementById(countId); if(cc) cc.textContent=`${data.length} citations`;
+
+  const cc = document.getElementById(countId);
+  if (cc) cc.textContent = `${primaries.length} decision record${primaries.length!==1?'s':''}`;
 }
 // ── Pharma AI insights ────────────────────────────────────────────────
 function renderPharmaInsights() {
@@ -567,33 +702,37 @@ function renderStartHereActions(data) {
 function renderTopRiskBlocks(risks) {
   const el=document.getElementById('pharma-top-risks'); if(!el) return;
   if(!risks.length){
-    el.innerHTML='<div class="empty"><div class="empty-text">No data — adjust filters</div></div>';
+    el.innerHTML='<div class="empty"><div class="empty-text">No prioritised risk groups found — adjust filters or check AI summary coverage</div></div>';
     return;
   }
   el.innerHTML=risks.map((r,i)=>{
-    const intel=CAT_INTEL[r.cat];
-    const meaning=intel?intel.implication.split('.')[0]+'.':'';
-    const action=intel?intel.action:'Review enforcement pattern';
-    const impact=getRiskImpact(r.count,r.high);
-    const vol=formatVolumeBucket(r.count);
-    const safe=r.cat.replace(/'/g,"\\'");
-    return `<div class="top-risk-block" onclick="pFilterByCat('${safe}')">
+    const intel = CAT_INTEL[r.label];
+    const meaning = r.exampleSummary
+      ? r.exampleSummary.slice(0,160)
+      : (intel ? intel.implication.split('.')[0]+'.' : '');
+    const action = r.exampleAction || (intel ? intel.action : 'Review enforcement pattern and assess site exposure');
+    const p1p2 = (r.p1||r.p2) ? `${r.p1} P1 · ${r.p2} P2` : '';
+    const keyParts = r.key.split(':');
+    const filterFn = keyParts[0]==='fm'
+      ? `applyPharmaFilter({failure_mode:'${keyParts[1].replace(/'/g,"\\'")}'}); scrollToCitationsTable()`
+      : `applyPharmaFilter({primary_gmp_category:'${r.label.replace(/'/g,"\\'")}'}); scrollToCitationsTable()`;
+    return `<div class="top-risk-block" onclick="${filterFn}" style="cursor:pointer" title="Click to view ${r.label} records in Citations table">
       <div class="trb-rank">#${i+1}</div>
       <div class="trb-body">
         <div class="trb-hd">
-          <span class="trb-cat">${r.cat}</span>
-          <span class="risk-impact-badge ${impact.cls}">${impact.label}</span>
-          <span class="vol-bucket">${vol} volume</span>
+          <span class="trb-cat">${r.label}</span>
+          ${r.p1>0?`<span class="risk-impact-badge risk-critical">P1&times;${r.p1}</span>`:''}
+          ${r.p2>0?`<span class="risk-impact-badge risk-high">P2&times;${r.p2}</span>`:''}
+          <span class="vol-bucket">${r.total} group${r.total!==1?'s':''}</span>
         </div>
-        <div class="trb-meaning">${meaning}</div>
-        <div class="trb-action">&#8594; ${action}</div>
-        <div class="trb-stats">${r.count} citation${r.count!==1?'s':''} &middot; ${r.high} high severity</div>
+        ${meaning?`<div class="trb-meaning">${meaning}</div>`:''}
+        <div class="trb-action">&#8594; ${action.slice(0,180)}</div>
+        <div class="trb-stats">${r.total} visible group${r.total!==1?'s':''} &middot; ${r.clusterSize} total citations${p1p2?' &middot; '+p1p2:''} &middot; <span style="color:#0d9488">View records &rarr;</span></div>
       </div>
     </div>`;
   }).join('');
-  const allCats=new Set(filteredCits().map(c=>c.category||'Other')).size;
   const countEl=document.getElementById('top-risks-count');
-  if(countEl) countEl.textContent=`(${risks.length} of ${allCats} categories)`;
+  if(countEl) countEl.textContent=`(${risks.length} risk groups)`;
 }
 
 function renderAllCategoriesCollapsed(data) {
@@ -634,16 +773,20 @@ function renderWhatChanged() {
     .sort((a,b)=>Math.abs(b.d)-Math.abs(a.d)).slice(0,4);
   const upChanges=changes.filter(x=>x.d>0);
   const dnChanges=changes.filter(x=>x.d<0);
-  const mkItem=(arrow,cls,label,delta)=>
-    `<div class="wc-item"><span class="wc-arrow ${cls}">${arrow}</span><span class="wc-label">${label}</span><span class="wc-delta">${delta>0?'+'+delta:delta}</span></div>`;
+  const mkItem=(arrow,cls,label,delta,filterFn)=>
+    `<div class="wc-item" style="cursor:pointer" onclick="${filterFn}" title="Click to filter to ${label}">
+      <span class="wc-arrow ${cls}">${arrow}</span><span class="wc-label">${label}</span><span class="wc-delta">${delta>0?'+'+delta:delta}</span>
+    </div>`;
+  const catFn  = k => `applyPharmaFilter({primary_gmp_category:'${k.replace(/'/g,"\\'")}'}); scrollToCitationsTable()`;
+  const authFn = k => `applyPharmaFilter({authority:'${k}'}); scrollToCitationsTable()`;
   const col1=`<div class="wc-col-hd">Rising categories</div>`
-    +upChanges.map(x=>mkItem('▲','up',x.k,x.d)).join('')
-    +(newCats.length?newCats.map(k=>`<div class="wc-item"><span class="wc-arrow new">★</span><span class="wc-label">${k}</span><span class="wc-delta">new</span></div>`).join(''):'');
+    +upChanges.map(x=>mkItem('▲','up',x.k,x.d,catFn(x.k))).join('')
+    +(newCats.length?newCats.map(k=>`<div class="wc-item" style="cursor:pointer" onclick="${catFn(k)}" title="Click to filter"><span class="wc-arrow new">&#9733;</span><span class="wc-label">${k}</span><span class="wc-delta">new</span></div>`).join(''):'');
   const col2=`<div class="wc-col-hd">Decreasing categories</div>`
-    +(dnChanges.length?dnChanges.map(x=>mkItem('▼','down',x.k,x.d)).join('')
+    +(dnChanges.length?dnChanges.map(x=>mkItem('▼','down',x.k,x.d,catFn(x.k))).join('')
       :'<div class="wc-item" style="color:#2F4558;font-size:10px">No significant decreases</div>');
   const col3=`<div class="wc-col-hd">Authority activity</div>`
-    +authChanges.map(x=>mkItem(x.d>0?'▲':'▼',x.d>0?'up':'down',x.k,x.d)).join('');
+    +authChanges.map(x=>mkItem(x.d>0?'▲':'▼',x.d>0?'up':'down',x.k,x.d,authFn(x.k))).join('');
   el.innerHTML=col1?`<div>${col1}</div><div>${col2}</div><div>${col3}</div>`
     :'<div class="wc-item" style="color:#2F4558">Insufficient data for comparison</div>';
 }
@@ -665,7 +808,7 @@ function renderAuthBars(elId) {
     const topCats=Object.entries(catByAuth[auth]||{}).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>`${k} (${v})`).join(', ');
     const tip=`${auth}: ${ct} citation${ct!==1?'s':''}. Top: ${topCats}. Click to filter — click again to clear.`;
     const isActive=pF.auth===auth;
-    return `<div class="enf-row${isActive?' er-active':''}" onclick="pFilterByAuth('${auth}')" title="${tip}">
+    return `<div class="enf-row${isActive?' er-active':''}" onclick="applyPharmaFilter({authority:'${auth}'}); scrollToCitationsTable()" style="cursor:pointer" title="${tip}">
       <span class="enf-name">${auth}</span>
       <div class="enf-bar-wrap"><div class="enf-bar-fill" style="width:${Math.round(ct/mx*100)}%"></div></div>
       <span class="enf-ct">${ct}</span>
@@ -673,7 +816,45 @@ function renderAuthBars(elId) {
   }).join('');
 }
 
-// ── Display-level citation grouping ──────────────────────────────────
+// ── Cluster-aware citation grouping ──────────────────────────────────
+// Uses cluster_id / cluster_primary / cluster_size fields written by compute_clusters()
+// (Python Step 7) to collapse multi-record clusters into a single primary row with
+// a _clusterMembers array.  Falls back to the legacy coarse grouping for singletons.
+function _pharmaClusterGroupCits(cits) {
+  const clusterMap = {};   // cluster_id -> { primary, members }
+  const result = [];
+  const seenClusters = new Set();
+
+  // First pass: organise clustered records
+  cits.forEach(c => {
+    if (!c.cluster_id || (c.cluster_size || 1) <= 1) return;
+    if (!clusterMap[c.cluster_id]) clusterMap[c.cluster_id] = { primary: null, members: [] };
+    if (c.cluster_primary) clusterMap[c.cluster_id].primary = c;
+    clusterMap[c.cluster_id].members.push(c);
+  });
+
+  // If primary was filtered out, promote the best available member
+  Object.values(clusterMap).forEach(g => {
+    if (!g.primary && g.members.length) g.primary = g.members[0];
+  });
+
+  // Second pass: output in original order, collapsing clusters
+  cits.forEach(c => {
+    if (!c.cluster_id || (c.cluster_size || 1) <= 1) {
+      result.push({ ...c, _clusterMembers: [] });
+      return;
+    }
+    if (seenClusters.has(c.cluster_id)) return;
+    seenClusters.add(c.cluster_id);
+    const g = clusterMap[c.cluster_id];
+    const primary = g.primary;
+    const others  = g.members.filter(m => m !== primary);
+    result.push({ ...primary, _clusterMembers: others });
+  });
+  return result;
+}
+
+// ── Display-level citation grouping (legacy fallback) ─────────────────
 // Groups filteredCits() output by (authority, source_type, month, facility_type, category)
 // so that rows with the same category in the same period collapse to one
 // visible row with a ×N count badge.  Does NOT touch the raw data.
@@ -695,8 +876,81 @@ function _groupCitsForDisplay(cits) {
   return order.map(k => groupMap[k]);
 }
 
-// ── Citation card ────────────────────────────────────────────────────
+// ── Citation card helpers (new fields — all additive, all null-guarded) ──
 const _IMPORT_ALERT_TIP = 'Import Alert: regulatory action preventing products from entering a country due to safety or compliance issues (e.g. FDA Import Alert — Detention Without Physical Examination)';
+
+function _citPriorityBadge(c) {
+  if (!c.priority) return '';
+  const cols = {P1:'#c0392b',P2:'#e67e22',P3:'#7f8c8d',P4:'#aab'};
+  const col = cols[c.priority] || '#7f8c8d';
+  return `<span class="badge" style="background:transparent;color:${col};border:1px solid ${col};font-size:9px;padding:1px 4px">${c.priority}</span>`;
+}
+
+function _citRecurrenceBadge(c) {
+  const n = c.recurrence_count_company_90d || 0;
+  if (n < 2 || !c.company) return '';
+  return `<span title="${n} citations for ${c.company} in last 90 days" style="color:#c0392b;font-size:9px;margin-left:4px">&#9679; ${n} in 90d</span>`;
+}
+
+function _citDirectionBadge(c) {
+  if (c.signal_direction === 'escalating')
+    return `<span style="color:#e67e22;font-size:9px;margin-left:6px">&#8593; Escalating</span>`;
+  if (c.signal_direction === 'resolving')
+    return `<span style="color:#27ae60;font-size:9px;margin-left:6px">&#8595; Resolving</span>`;
+  return '';
+}
+
+function _citSecondaryCategories(c) {
+  const cats = Array.isArray(c.secondary_gmp_categories) ? c.secondary_gmp_categories : [];
+  if (!cats.length) return '';
+  return cats.slice(0,3).map(cat =>
+    `<span class="badge" style="background:rgba(47,69,88,.05);color:#4a6278;border:1px solid rgba(47,69,88,.12);font-size:9px">${cat}</span>`
+  ).join('');
+}
+
+function _citFailureMode(c) {
+  if (!c.failure_mode || (c.failure_mode_confidence || 0) < 0.7) return '';
+  return `<div style="margin-top:3px"><span style="font-size:9px;color:#c0392b;opacity:.75">&#9888; ${c.failure_mode.replace(/_/g,' ')}</span></div>`;
+}
+
+// NOTE: c.regulatory_pressure is intentionally not rendered at citation-card level.
+// Citation-level trend direction is not reliable enough for user-facing display
+// (84% of records show "decreasing" on a full corpus run due to baseline skew).
+// The field is audit/debug data only — see citation_audit.json regulatory_pressure section.
+
+function _citAiBox(c) {
+  // Only render when accepted AI output is present (classification_confidence is AI-only).
+  // Fall back to ai_confidence for records written before this schema change.
+  // For cluster primaries with no AI, fall back to best-confidence member AI (conf >= 0.7).
+  let conf = c.classification_confidence || c.ai_confidence || 0;
+  let summary = c.decision_summary || c.ai_summary;
+  let fromMember = false;
+
+  if ((!summary || conf < 0.5) && Array.isArray(c._clusterMembers) && c._clusterMembers.length) {
+    let bestConf = 0.7;  // minimum threshold for member fallback
+    c._clusterMembers.forEach(m => {
+      const mc = m.classification_confidence || m.ai_confidence || 0;
+      const ms = m.decision_summary || m.ai_summary;
+      if (ms && mc >= bestConf) { bestConf = mc; conf = mc; summary = ms; fromMember = true; }
+    });
+  }
+
+  if (!summary || conf < 0.5) return '';
+  const lowConf = conf < 0.7;
+  const style = lowConf
+    ? 'background:rgba(47,69,88,.04);border:1px solid rgba(47,69,88,.1);border-radius:4px;padding:6px 8px;margin-top:5px;font-size:10px;color:#6b8099;font-style:italic'
+    : 'background:rgba(41,128,185,.06);border:1px solid rgba(41,128,185,.12);border-radius:4px;padding:6px 8px;margin-top:5px;font-size:10px;color:#2c4a63';
+  const suffix = lowConf ? ' <em style="opacity:.6">(low confidence)</em>'
+    : fromMember ? ' <em style="opacity:.55;font-size:9px">(best available summary from related record)</em>'
+    : '';
+  const actionText = c.recommended_action || (!lowConf && c.ai_recommended_action) || '';
+  const action = (!lowConf && actionText && !fromMember)
+    ? `<div style="margin-top:3px;font-size:9px;color:#1a6b8a"><b>Action:</b> ${actionText}</div>`
+    : '';
+  return `<div style="${style}"><span style="font-size:9px;opacity:.6;font-weight:600;font-style:normal">Intelligence</span> ${summary}${suffix}${action}</div>`;
+}
+
+// ── Citation card ────────────────────────────────────────────────────
 function citCard(c) {
   const sc=c.severity==='high'?'high-sev':'medium-sev';
   const st=(c.source_type||'').replace(/_/g,' ');
@@ -706,19 +960,30 @@ function citCard(c) {
   const family=getPharmaSummaryFamily(rawText);
   const displaySumm=c.clean_title
     || (family ? PHARMA_FAMILY_LABELS[family] : (c.summary||c.category||'Enforcement action').slice(0,140));
-  const groupBadge = (c._groupCount||1) > 1
+  const clusterMembers = c._clusterMembers || [];
+  const groupBadge = clusterMembers.length > 0
+    ? `<span class="cit-group-badge" title="${clusterMembers.length+1} related records grouped (${c.cluster_reason||''})">×${clusterMembers.length+1}</span>`
+    : (c._groupCount||1) > 1
     ? `<span class="cit-group-badge" title="${c._groupCount} similar citations grouped">×${c._groupCount}</span>`
     : '';
-  return `<div class="signal-card ${sc}" style="margin-bottom:8px">
+  // primary_gmp_category preferred; falls back to legacy category field
+  const primaryCat = c.primary_gmp_category || c.category || '';
+  // Debug tooltip shows enrichment status when window.SIGNALEX_DEBUG = true
+  const debugTip = (typeof SIGNALEX_DEBUG !== 'undefined' && SIGNALEX_DEBUG)
+    ? ` title="enrichment: ${c.enrichment_status||'—'} | ${c.enrichment_source||'—'} | priority: ${c.priority||'—'}"` : '';
+  return `<div class="signal-card ${sc}" style="margin-bottom:8px"${debugTip}>
     <div class="card-top"><div class="card-title">${displaySumm}${groupBadge}</div></div>
     <div class="card-badges">
       ${sevBadge(c.severity||'medium')}
+      ${_citPriorityBadge(c)}
       <span class="badge badge-authority">${c.authority||'—'}</span>
       <span class="badge badge-type"${isImport?` title="${_IMPORT_ALERT_TIP}"`:''} style="${isImport?'cursor:help':''}">${st}</span>
       ${c.facility_type?`<span class="badge" style="background:rgba(139,92,246,.06);color:rgba(139,92,246,.55);border:1px solid rgba(139,92,246,.1)">${c.facility_type}</span>`:''}
     </div>
-    ${c.category?`<div class="card-summary">${c.category}</div>`:''}
-    ${c.company?`<div class="card-summary" style="color:#3D5268;font-size:10px">Company: ${c.company}</div>`:''}
+    ${primaryCat?`<div class="card-summary">${primaryCat} ${_citSecondaryCategories(c)}</div>`:''}
+    ${_citFailureMode(c)}
+    ${c.company?`<div class="card-summary" style="color:#3D5268;font-size:10px">Company: ${c.company}${_citRecurrenceBadge(c)}${_citDirectionBadge(c)}</div>`:''}
+    ${_citAiBox(c)}
     <div class="card-footer">
       <div class="card-meta">${c.date?c.date.slice(0,10):'—'} &middot; ${c.country||c.authority||''}</div>
       <div class="card-actions">
@@ -755,39 +1020,112 @@ function renderCitationsInsightStrip() {
 }
 
 // ── Citations table ──────────────────────────────────────────────────
+function _citTableRow(c, isExpanded) {
+  const st = (c.source_type||'').replace(/_/g,' ');
+  const entity = (c.company || c.cluster_label || c.authority || '').slice(0, 45);
+  const fm = (c.failure_mode && (c.failure_mode_confidence||0) >= 0.6 && c.failure_mode !== 'insufficient_detail')
+    ? _fmLabel(c.failure_mode) : '';
+  const cat = c.primary_gmp_category || c.category || '';
+  const auRel = c.market_relevance_au;
+  const auBadge = (auRel && auRel !== 'none' && auRel !== 'not_applicable')
+    ? `<span style="font-size:8px;color:#0d9488" title="${_AU_LABELS[auRel]||auRel}">AU</span>` : '';
+  const ds = (c.decision_summary || '').slice(0,130) || (c.raw_listing_summary || c.summary || '').slice(0,110);
+  const members = c._clusterMembers || [];
+  const hasCluster = members.length > 0;
+  const clusterBadge = hasCluster
+    ? ` <span class="cit-group-badge" title="${members.length+1} related records — ${c.cluster_reason||''}">&#215;${members.length+1}</span>`
+    : '';
+  const toggleBtn = hasCluster
+    ? `<button class="cit-cluster-toggle" onclick="event.stopPropagation();_toggleClusterRow(this)" data-expanded="0" style="background:none;border:none;cursor:pointer;font-size:9px;color:#4a6278;padding:0 4px;vertical-align:middle" title="Expand related records">&#9654;</button>`
+    : '';
+  const prio = c.priority || '';
+  const prioHtml = prio
+    ? `<span style="color:${_PRIORITY_COLORS[prio]||'#7f8c8d'};font-weight:700;font-size:10px">${prio}</span>` : '—';
+  const filterFn = cat
+    ? `applyPharmaFilter({primary_gmp_category:'${cat.replace(/'/g,"\\'")}'}); scrollToCitationsTable()`
+    : `scrollToCitationsTable()`;
+  return `<tr class="cit-row${hasCluster?' cit-cluster-primary':''}" onclick="${filterFn}" title="Filter by ${cat||'category'}">
+    <td>${prioHtml}</td>
+    <td><span class="badge badge-authority">${c.authority||'—'}</span></td>
+    <td><span class="badge badge-type" style="white-space:nowrap">${st}</span></td>
+    <td style="color:#3D5268;font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${entity}">${entity||'—'}</td>
+    <td style="font-size:10px;color:#c0392b;white-space:nowrap">${fm}</td>
+    <td style="font-size:10px;max-width:120px">${cat}</td>
+    <td style="font-size:9px;text-align:center">${auBadge}</td>
+    <td style="white-space:nowrap;font-size:10px;color:#3D5268">${c.date?c.date.slice(0,10):'—'}</td>
+    <td style="max-width:260px;font-size:11px;color:#7A92A8">${toggleBtn}${ds}${clusterBadge}</td>
+    <td>${c.url?`<a class="cit-link" href="${c.url}" target="_blank" onclick="event.stopPropagation()">&#8599;</a>`:'—'}</td>
+  </tr>`;
+}
+
+function _citMemberRow(m) {
+  const st = (m.source_type||'').replace(/_/g,' ');
+  const entity = (m.company || m.authority || '').slice(0, 40);
+  const fm = (m.failure_mode && m.failure_mode !== 'insufficient_detail') ? _fmLabel(m.failure_mode) : '';
+  const cat = m.primary_gmp_category || m.category || '';
+  const ds = (m.decision_summary || m.raw_listing_summary || m.summary || '').slice(0, 110);
+  const prio = m.priority || '';
+  const prioHtml = prio ? `<span style="color:${_PRIORITY_COLORS[prio]||'#7f8c8d'};font-size:9px">${prio}</span>` : '';
+  return `<tr class="cit-cluster-member" style="background:rgba(74,98,120,.035);font-size:10px">
+    <td>${prioHtml}</td>
+    <td><span class="badge badge-authority" style="opacity:.7">${m.authority||'—'}</span></td>
+    <td><span class="badge badge-type" style="white-space:nowrap;opacity:.7">${st}</span></td>
+    <td style="color:#6b8099;font-size:9px;padding-left:14px" title="${entity}">${entity||'—'}</td>
+    <td style="font-size:9px;color:#c0392b;opacity:.75">${fm}</td>
+    <td style="font-size:9px;color:#6b8099">${cat}</td>
+    <td></td>
+    <td style="white-space:nowrap;font-size:9px;color:#6b8099">${m.date?m.date.slice(0,10):'—'}</td>
+    <td style="max-width:260px;font-size:10px;color:#9aacbb">${ds}</td>
+    <td>${m.url?`<a class="cit-link" href="${m.url}" target="_blank" onclick="event.stopPropagation()">&#8599;</a>`:'—'}</td>
+  </tr>`;
+}
+
+function _toggleClusterRow(btn) {
+  const expanded = btn.dataset.expanded === '1';
+  const newState = !expanded;
+  btn.dataset.expanded = newState ? '1' : '0';
+  btn.textContent = newState ? '▼' : '▶';
+  // Show/hide sibling member rows following this primary row
+  let sibling = btn.closest('tr').nextElementSibling;
+  while (sibling && sibling.classList.contains('cit-cluster-member')) {
+    sibling.style.display = newState ? '' : 'none';
+    sibling = sibling.nextElementSibling;
+  }
+}
+
 function renderCitations() {
   buildChipBar('cit-chip-bar');
   renderCitationsInsightStrip();
-  const grouped=_groupCitsForDisplay(filteredCits());
-  const data=grouped;
+  const clustered = _pharmaClusterGroupCits(filteredCits());
+  const data = clustered;
   const pages=Math.ceil(data.length/CIT_PP);
   citPg=Math.min(citPg,pages||1);
   const slice=data.slice((citPg-1)*CIT_PP,citPg*CIT_PP);
   const tb=document.getElementById('cit-tbody'); if(!tb) return;
-  const cc=document.getElementById('cit-count'); if(cc) cc.textContent=`${data.length} grouped citation rows`;
+  const cc=document.getElementById('cit-count');
+  if(cc) {
+    const clusterCount = data.filter(c=>(c._clusterMembers||[]).length>0).length;
+    cc.textContent = clusterCount
+      ? `${data.length} citation rows (${clusterCount} clusters)`
+      : `${data.length} citation rows`;
+  }
   if(!slice.length) {
-    tb.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:24px 0;color:#2A3E52;font-size:12px">
+    tb.innerHTML=`<tr><td colspan="10" style="text-align:center;padding:24px 0;color:#2A3E52;font-size:12px">
       <div style="font-size:22px;margin-bottom:6px">&#128270;</div>No citations match the current filters.
       <button class="btn-secondary" style="display:block;margin:10px auto 0" onclick="resetPharmaFilters()">Clear filters</button>
     </td></tr>`;
     document.getElementById('cit-pagination').innerHTML='';
     return;
   }
-  tb.innerHTML=slice.map(c=>{
-    const st=(c.source_type||'').replace(/_/g,' ');
-    const displaySumm=c.category||c.clean_title||(c.summary||'—').slice(0,100);
-    const gcBadge=(c._groupCount||1)>1?` <span class="cit-group-badge">×${c._groupCount}</span>`:'';
-    return `<tr onclick="pFilterByCat('${(c.category||'Other').replace(/'/g,"\\'")}')" title="Filter by ${c.category||'this category'}">
-      <td><span class="badge badge-authority">${c.authority||'—'}</span></td>
-      <td><span class="badge badge-type" style="white-space:nowrap">${st}</span></td>
-      <td style="color:#3D5268;font-size:10px;min-width:90px">${c.facility_type||'—'}</td>
-      <td style="min-width:110px">${c.category||'—'}</td>
-      <td>${sevBadge(c.severity||'medium')}</td>
-      <td style="white-space:nowrap;font-size:10px;color:#3D5268">${c.date?c.date.slice(0,10):'—'}</td>
-      <td style="max-width:280px;font-size:11px;color:#7A92A8">${displaySumm}${gcBadge}</td>
-      <td>${c.url?`<a class="cit-link" href="${c.url}" target="_blank" onclick="event.stopPropagation()">&#8599;</a>`:'—'}</td>
-    </tr>`;
-  }).join('');
+  const rows = [];
+  slice.forEach(c => {
+    rows.push(_citTableRow(c, false));
+    // Render member rows hidden; toggled by _toggleClusterRow
+    (c._clusterMembers || []).forEach(m => {
+      rows.push(_citMemberRow(m).replace('<tr ', '<tr style="display:none" '));
+    });
+  });
+  tb.innerHTML = rows.join('');
   const pg=document.getElementById('cit-pagination'); if(!pg) return; pg.innerHTML='';
   if(pages>1){
     const mkB=(l,p,a)=>{const b=document.createElement('button');b.className='page-btn'+(a?' active':'');b.textContent=l;b.onclick=()=>{citPg=p;renderCitations()};return b};
@@ -836,12 +1174,14 @@ function renderEnfPage() {
   const sc={};
   data.forEach(c=>{const k=(c.source_type||'other').replace(/_/g,' ');sc[k]=(sc[k]||0)+1;});
   const mx=Math.max(...Object.values(sc),1);
-  el.innerHTML=Object.entries(sc).sort((a,b)=>b[1]-a[1]).map(([st,ct])=>
-    `<div class="enf-row">
+  el.innerHTML=Object.entries(sc).sort((a,b)=>b[1]-a[1]).map(([st,ct])=>{
+    const stRaw = st.replace(/ /g,'_');
+    return `<div class="enf-row" onclick="applyPharmaFilter({source_type:'${stRaw}'}); scrollToCitationsTable()" style="cursor:pointer" title="Filter to ${st}">
       <span class="enf-name">${st}</span>
       <div class="enf-bar-wrap"><div class="enf-bar-fill" style="width:${Math.round(ct/mx*100)}%"></div></div>
       <span class="enf-ct">${ct}</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   renderGroupedEnforcement('enf-grouped-feed');
 }
 
@@ -898,7 +1238,8 @@ function renderFacilityRiskStrip() {
   const cards=items.map(([name,d])=>{
     const profile=getFacilityRiskProfile(name);
     const topCat=Object.entries(d.cats).sort((a,b)=>b[1]-a[1])[0];
-    return `<div class="fac-risk-card">
+    const nameSafe = name.replace(/'/g,"\\'");
+    return `<div class="fac-risk-card" onclick="applyPharmaFilter({facility_type:'${nameSafe}'}); scrollToCitationsTable()" style="cursor:pointer" title="Filter to ${name}">
       <div class="fac-risk-name">${name} <span style="font-size:10px;color:#2A3E52;font-weight:400">(${d.total} citation${d.total!==1?'s':''})</span></div>
       ${topCat?`<div class="fac-risk-row"><div class="fac-risk-lbl">Top finding</div><div class="fac-risk-val">${topCat[0]}</div></div>`:''}
       ${profile?`<div class="fac-risk-row"><div class="fac-risk-lbl">Exposure</div><div class="fac-risk-val">${profile.exposure}</div></div>`:''}
@@ -913,74 +1254,76 @@ function renderFacilityRiskStrip() {
 }
 
 // ── Facilities ───────────────────────────────────────────────────────
-// TOP: type-level aggregation via renderFacilityRiskStrip() — exposure, top finding, action
-// BOTTOM: per-company when data available; falls back to type-level if < 5 companies
+// TOP: facility type cards (clickable) via renderFacilityRiskStrip()
+// BOTTOM: per-company/entity list using cluster + priority data
 function renderFacilities() {
   buildChipBar('fac-chip-bar');
   renderFacilityRiskStrip();
-  const q=(document.getElementById('fac-search')||{value:''}).value.toLowerCase();
-  const data=filteredCits();
-  const el=document.getElementById('facility-grid'); if(!el)return;
+  const q = (document.getElementById('fac-search')||{value:''}).value.toLowerCase();
+  const data = filteredCits();
+  const el = document.getElementById('facility-grid'); if (!el) return;
 
-  // ── Try per-company view first ──
-  const _UNINFORMATIVE_CO = new Set(['unknown','n/a','na','various','multiple','other','—','-']);
-  const coMap={};
-  data.forEach(c=>{
-    const co=(c.company||'').trim();
-    if(!co || _UNINFORMATIVE_CO.has(co.toLowerCase())) return;
-    if(!coMap[co])coMap[co]={name:co,factype:'',total:0,high:0,auths:new Set(),cats:{},factypes:{}};
-    coMap[co].total++;
-    if(c.severity==='high')coMap[co].high++;
-    coMap[co].auths.add(c.authority);
-    const k=c.category||'Other';
-    coMap[co].cats[k]=(coMap[co].cats[k]||0)+1;
-    const ft=c.facility_type||'';
-    if(ft) coMap[co].factypes[ft]=(coMap[co].factypes[ft]||0)+1;
+  const _SKIP = new Set(['unknown','n/a','na','various','multiple','other','—','-','']);
+  const coMap = {};
+  data.forEach(c => {
+    // Prefer explicit company; fall back to cluster_label entity
+    const co = (c.company || c.cluster_label || '').trim();
+    if (!co || _SKIP.has(co.toLowerCase())) return;
+    if (!coMap[co]) coMap[co] = { name:co, total:0, p1:0, p2:0, auths:new Set(), fms:{}, cats:{}, factypes:{}, clusters:new Set(), latestDate:'' };
+    const e = coMap[co];
+    e.total++;
+    if (c.priority==='P1') e.p1++;
+    if (c.priority==='P2') e.p2++;
+    e.auths.add(c.authority);
+    const fm = c.failure_mode; if (fm && fm!=='insufficient_detail') e.fms[fm] = (e.fms[fm]||0)+1;
+    const cat = c.primary_gmp_category||c.category; if (cat) e.cats[cat] = (e.cats[cat]||0)+1;
+    const ft = c.facility_type; if (ft) e.factypes[ft] = (e.factypes[ft]||0)+1;
+    if (c.cluster_id) e.clusters.add(c.cluster_id);
+    if (c.date && (!e.latestDate || c.date > e.latestDate)) e.latestDate = c.date;
   });
-  // Resolve best facility type (most common non-empty value)
-  Object.values(coMap).forEach(f=>{
-    const sorted=Object.entries(f.factypes).sort((a,b)=>b[1]-a[1]);
-    f.factype=sorted.length?sorted[0][0]:'Unknown';
-    delete f.factypes;
-  });
-  // Filter to meaningful companies only: volume, severity, or breadth signal
-  let coItems=Object.values(coMap)
-    .filter(f=>f.total>=3||f.high>=1||Object.keys(f.cats).length>1)
-    .sort((a,b)=>b.total-a.total);
-  if(q) coItems=coItems.filter(i=>i.name.toLowerCase().includes(q)||i.factype.toLowerCase().includes(q));
 
-  // ── Insufficient company data — show message, facility type strip above handles the rest ──
-  if(coItems.length < 3 && !q) {
-    console.warn('[Signalex] Low meaningful company count ('+coItems.length+') — showing limited data message');
-    const fc=document.getElementById('fac-count'); if(fc)fc.textContent='0 companies';
-    el.innerHTML='<div class="facility-limited-msg">Most company-level records are single citations. Use facility-type exposure above for now.</div>';
+  Object.values(coMap).forEach(e => {
+    const sorted = Object.entries(e.factypes).sort((a,b)=>b[1]-a[1]);
+    e.factype = sorted.length ? sorted[0][0] : 'Unknown';
+    delete e.factypes;
+  });
+
+  let coItems = Object.values(coMap)
+    .filter(e => e.total >= 2 || e.p1 >= 1 || e.clusters.size >= 1)
+    .sort((a,b) => (b.p1*3 + b.p2 + b.total) - (a.p1*3 + a.p2 + a.total));
+
+  if (q) coItems = coItems.filter(e => e.name.toLowerCase().includes(q) || e.factype.toLowerCase().includes(q));
+
+  const fc = document.getElementById('fac-count');
+  if (fc) fc.textContent = coItems.length ? `${coItems.length} compan${coItems.length!==1?'ies':'y'}` : '0 companies';
+
+  if (!coItems.length) {
+    el.innerHTML = q
+      ? '<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No companies match search</div></div>'
+      : '<div class="facility-limited-msg">No company-level records available for current filters. Click a facility type above to filter, or clear filters to see all.</div>';
     return;
   }
 
-  // ── Per-company view ──
-  const fc=document.getElementById('fac-count'); if(fc)fc.textContent=`${coItems.length} facilit${coItems.length!==1?'ies':'y'}`;
-  if(!coItems.length) {
-    el.innerHTML='<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No facilities match</div></div>';
-    return;
-  }
-  const coNote='<div class="facility-data-note">Repeated company/facility signals — shown where citation count ≥ 3, high-severity citation present, or multiple categories matched. Data inferred from enforcement records.</div>';
-  el.innerHTML=coNote+coItems.map(f=>{
-    const sortedCats=Object.entries(f.cats).sort((a,b)=>b[1]-a[1]);
-    const topCatName=sortedCats.length?sortedCats[0][0]:'';
-    const top2Cats=sortedCats.slice(0,2).map(([k,v])=>`${k} (${v})`).join(', ');
-    const topDisplay=top2Cats||'Not classified';
-    const action=topCatName?generateFacilityAction(topCatName):'Review source record and classify enforcement issue before client use.';
-    return `<div class="facility-card">
-      <div class="facility-name">${f.name||'Unknown facility'}</div>
-      <div class="facility-type-label">${f.factype||'Unknown type'} &middot; ${[...f.auths].join(' / ')||'—'}</div>
-      <div class="facility-stats">
-        <span class="facility-stat">${f.total} citation${f.total!==1?'s':''}</span>
-        ${f.high?`<span class="facility-stat fsr">${f.high} high sev</span>`:''}
-      </div>
-      <div class="facility-cats">Top categories: ${topDisplay}</div>
-      <div class="facility-action">&#8594; ${action}</div>
-    </div>`;
-  }).join('');
+  el.innerHTML = '<div class="facility-data-note">Company/entity list — click any row to filter the Citations table. Data inferred from enforcement records.</div>'
+    + coItems.map(e => {
+      const sortedFm = Object.entries(e.fms).sort((a,b)=>b[1]-a[1]);
+      const topFmLabel = sortedFm.length ? _fmLabel(sortedFm[0][0]) : '';
+      const authStr = [...e.auths].join(' / ');
+      const clusterStr = e.clusters.size > 1 ? ` · ${e.clusters.size} clusters` : '';
+      const nSafe = e.name.replace(/'/g, "\\'");
+      return `<div class="facility-card" onclick="applyPharmaFilter({entity:'${nSafe}'}); scrollToCitationsTable()" style="cursor:pointer" title="View citations for ${e.name}">
+        <div class="facility-name">${e.name}</div>
+        <div class="facility-type-label">${e.factype} &middot; ${authStr}</div>
+        <div class="facility-stats">
+          <span class="facility-stat">${e.total} citation${e.total!==1?'s':''}</span>
+          ${e.p1>0?`<span class="facility-stat fsr">${e.p1} P1</span>`:''}
+          ${e.p2>0?`<span class="facility-stat" style="color:#e67e22">${e.p2} P2</span>`:''}
+          ${clusterStr?`<span class="facility-stat">${clusterStr}</span>`:''}
+        </div>
+        ${topFmLabel?`<div class="facility-cats">Top issue: ${topFmLabel}</div>`:''}
+        ${e.latestDate?`<div style="font-size:9px;color:#2F4558;margin-top:2px">Latest: ${e.latestDate.slice(0,10)}</div>`:''}
+      </div>`;
+    }).join('');
 }
 
 // ── Alert card (compact, action-oriented) ────────────────────────────
@@ -1148,7 +1491,7 @@ function renderIntelligencePage() {
 }
 
 function resetPharmaFilters() {
-  pF={auth:'all',factype:'all',srctype:'all',sev:'all',company:'',query:'',dateFrom:'',dateTo:'',dicapa:false};
+  pF={auth:'all',factype:'all',srctype:'all',sev:'all',priority:'all',failureMode:'',company:'',query:'',dateFrom:'',dateTo:'',dicapa:false};
   pCatFilter=null;
   ['cit-search','p-company'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   _setPActiveKpi(null);
@@ -1163,7 +1506,7 @@ function _setPActiveKpi(id) {
 function pKpiClick(kpiId, dim, val) {
   pCatFilter=null;
   const toggling = pActiveKpi===kpiId;
-  pF={auth:'all',factype:'all',srctype:'all',sev:'all',company:'',query:'',dateFrom:'',dateTo:'',dicapa:false};
+  pF={auth:'all',factype:'all',srctype:'all',sev:'all',priority:'all',failureMode:'',company:'',query:'',dateFrom:'',dateTo:'',dicapa:false};
   if(!toggling) {
     if(dim==='dicapa') pF.dicapa=true;
     else if(dim) pF[dim]=val;
@@ -1195,28 +1538,48 @@ function pFilterByAuth(v)    { pF.auth    = pF.auth===v     ? 'all' : v; syncPFP
 function pFilterByFacType(v) { pF.factype = pF.factype===v  ? 'all' : v; syncPFPills(); renderPAll(); }
 function pFilterByCat(cat) {
   pCatFilter = pCatFilter===cat ? null : cat;
+  _dirty = true;
   syncPFPills();
-  const activeTab = document.querySelector('#pharma-nav .nav-tab.active');
-  const tab = activeTab ? activeTab.dataset.ptab : 'pharma-overview';
-  if(tab==='pharma-overview') {
-    renderPharmaOverview();
-    const feed=document.getElementById('pharma-ov-feed');
-    if(feed) feed.scrollIntoView({behavior:'smooth',block:'start'});
-  } else {
-    renderPAll(); // stays on current tab — no tab switch
+  scrollToCitationsTable();
+}
+
+// ── Task 7: Shared filter + navigation helpers ────────────────────────
+function applyPharmaFilter(filterObj) {
+  if (filterObj.authority      !== undefined) pF.auth        = filterObj.authority;
+  if (filterObj.source_type    !== undefined) pF.srctype     = filterObj.source_type;
+  if (filterObj.severity       !== undefined) pF.sev         = filterObj.severity;
+  if (filterObj.facility_type  !== undefined) pF.factype     = filterObj.facility_type;
+  if (filterObj.priority       !== undefined) pF.priority    = filterObj.priority;
+  if (filterObj.failure_mode   !== undefined) pF.failureMode = filterObj.failure_mode;
+  if (filterObj.primary_gmp_category !== undefined) pCatFilter = filterObj.primary_gmp_category;
+  if (filterObj.entity !== undefined) {
+    pF.company = filterObj.entity;
+    const el = document.getElementById('p-company'); if(el) el.value = filterObj.entity;
   }
+  syncPFPills();
+  _dirty = true;
+}
+function scrollToCitationsTable() {
+  showPTab('pharma-citations');
+  requestAnimationFrame(() => {
+    const el = document.getElementById('pharma-page-citations');
+    if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+  });
 }
 
 // ── Shared chip bar renderer ─────────────────────────────────────────
 function buildChipBar(elId) {
   const el=document.getElementById(elId); if(!el) return;
   const chips=[];
-  if(pF.sev!=='all')     chips.push({label:`Severity: ${pF.sev}`,                    fn:`pF.sev='all';_setPActiveKpi(null);syncPFPills();renderPAll()`});
-  if(pF.srctype!=='all') chips.push({label:`Type: ${pF.srctype.replace(/_/g,' ')}`,  fn:`pF.srctype='all';_setPActiveKpi(null);syncPFPills();renderPAll()`});
-  if(pF.auth!=='all')    chips.push({label:`Authority: ${pF.auth}`,                  fn:`pF.auth='all';syncPFPills();renderPAll()`});
-  if(pF.factype!=='all') chips.push({label:`Facility: ${pF.factype}`,                fn:`pF.factype='all';syncPFPills();renderPAll()`});
-  if(pF.dicapa)          chips.push({label:'DI / CAPA / CSV',                        fn:`pF.dicapa=false;_setPActiveKpi(null);syncPFPills();renderPAll()`});
-  if(pCatFilter)         chips.push({label:`Category: ${pCatFilter}`,                fn:`pCatFilter=null;_dirty=true;renderPAll()`});
+  if(pF.sev!=='all')        chips.push({label:`Severity: ${pF.sev}`,                         fn:`pF.sev='all';_setPActiveKpi(null);syncPFPills();renderPAll()`});
+  if(pF.srctype!=='all')    chips.push({label:`Type: ${pF.srctype.replace(/_/g,' ')}`,        fn:`pF.srctype='all';_setPActiveKpi(null);syncPFPills();renderPAll()`});
+  if(pF.auth!=='all')       chips.push({label:`Authority: ${pF.auth}`,                        fn:`pF.auth='all';syncPFPills();renderPAll()`});
+  if(pF.factype!=='all')    chips.push({label:`Facility: ${pF.factype}`,                      fn:`pF.factype='all';syncPFPills();renderPAll()`});
+  if(pF.priority!=='all')   chips.push({label:`Priority: ${pF.priority}`,                     fn:`pF.priority='all';_dirty=true;syncPFPills();renderPAll()`});
+  if(pF.failureMode)        chips.push({label:`Issue: ${_fmLabel(pF.failureMode)}`,            fn:`pF.failureMode='';_dirty=true;syncPFPills();renderPAll()`});
+  if(pF.company)            chips.push({label:`Entity: ${pF.company.slice(0,28)}`,             fn:`pF.company='';const e=document.getElementById('p-company');if(e)e.value='';_dirty=true;syncPFPills();renderPAll()`});
+  if(pF.dicapa)             chips.push({label:'DI / CAPA / CSV',                              fn:`pF.dicapa=false;_setPActiveKpi(null);syncPFPills();renderPAll()`});
+  if(pCatFilter)            chips.push({label:`Category: ${pCatFilter}`,                      fn:`pCatFilter=null;_dirty=true;renderPAll()`});
   if(!chips.length){el.innerHTML='';return;}
   el.innerHTML=chips.map(ch=>
     `<span class="pharma-chip">${ch.label}<button class="pharma-chip-x" onclick="${ch.fn}">&#10005;</button></span>`

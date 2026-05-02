@@ -103,19 +103,22 @@ function isValidEnforcementItem(c) {
 function unifiedFilteredCitations(opts) {
   const o = opts || {};
   const noiseFilter = o.noiseFilter !== false;
-  const auth      = o.auth      !== undefined ? o.auth      : 'all';
-  const sev       = o.sev       !== undefined ? o.sev       : 'all';
-  const srctype   = o.srctype   !== undefined ? o.srctype   : 'all';
-  const factype   = o.factype   !== undefined ? o.factype   : 'all';
-  const catFilter = o.catFilter !== undefined ? o.catFilter : null;
-  const dicapa    = o.dicapa    || false;
-  const company   = o.company   || '';
-  const query     = o.query     || '';
+  const auth        = o.auth      !== undefined ? o.auth      : 'all';
+  const sev         = o.sev       !== undefined ? o.sev       : 'all';
+  const srctype     = o.srctype   !== undefined ? o.srctype   : 'all';
+  const factype     = o.factype   !== undefined ? o.factype   : 'all';
+  const catFilter   = o.catFilter !== undefined ? o.catFilter : null;
+  const dicapa      = o.dicapa    || false;
+  const company     = o.company   || '';
+  const query       = o.query     || '';
   const queryFields = o.queryFields || null;
-  const dateFrom  = o.dateFrom  || '';
-  const dateTo    = o.dateTo    || '';
-  const sortCol   = o.sortCol   || 'date';
-  const sortDir   = o.sortDir   !== undefined ? o.sortDir   : -1;
+  const dateFrom    = o.dateFrom  || '';
+  const dateTo      = o.dateTo    || '';
+  const sortCol     = o.sortCol   || 'date';
+  const sortDir     = o.sortDir   !== undefined ? o.sortDir   : -1;
+  // New decision-model filters
+  const priority    = o.priority  || 'all';   // 'all'|'P1'|'P2'|'P3'|'P4'|array
+  const failureMode = o.failureMode || '';
   return CITATIONS.filter(c => {
     if (noiseFilter && isLowValueContent(c)) return false;
     if (noiseFilter && !isValidEnforcementItem(c)) return false;
@@ -124,17 +127,28 @@ function unifiedFilteredCitations(opts) {
     if (sev !== 'all' && (c.severity||'').toLowerCase() !== sev) return false;
     if (srctype !== 'all' && (c.source_type||'') !== srctype) return false;
     if (factype !== 'all' && (c.facility_type||'') !== factype) return false;
-    if (catFilter && (c.category||'Other') !== catFilter) return false;
+    // catFilter matches either legacy category or primary_gmp_category
+    if (catFilter) {
+      const legacyCat = c.category || 'Other';
+      const newCat    = c.primary_gmp_category || '';
+      if (legacyCat !== catFilter && newCat !== catFilter) return false;
+    }
     if (dicapa && !isDiCapa(c)) return false;
     if (company) {
       const q = company.toLowerCase();
-      if (!((c.company||'').toLowerCase().includes(q)||(c.facility_type||'').toLowerCase().includes(q))) return false;
+      const hay = [(c.company||''),(c.cluster_label||''),(c.facility_type||'')].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
     }
+    if (priority !== 'all') {
+      const pArr = Array.isArray(priority) ? priority : [priority];
+      if (!pArr.includes(c.priority||'')) return false;
+    }
+    if (failureMode && (c.failure_mode||'') !== failureMode) return false;
     if (query) {
       const q = query.toLowerCase();
       const hay = queryFields
         ? queryFields.map(f => c[f]||'').join(' ').toLowerCase()
-        : [c.summary,c.category,c.company,c.authority,c.source_type,c.facility_type,c.violation_details].filter(Boolean).join(' ').toLowerCase();
+        : [c.summary,c.category,c.primary_gmp_category,c.failure_mode,c.company,c.authority,c.source_type,c.facility_type,c.violation_details,c.decision_summary].filter(Boolean).join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     if (dateFrom && c.date && c.date < dateFrom) return false;

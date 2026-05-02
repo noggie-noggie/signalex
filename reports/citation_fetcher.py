@@ -34,13 +34,25 @@ import logging
 import os
 import re
 import time
-from dataclasses import asdict, dataclass
+import argparse
+import concurrent.futures
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
 import requests
 from bs4 import BeautifulSoup
+
+# ---------------------------------------------------------------------------
+# Ensure project root is on sys.path so 'reports' package is importable
+# whether this file is run directly (python reports/citation_fetcher.py)
+# or imported as a module.
+# ---------------------------------------------------------------------------
+import sys as _sys
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_PROJECT_ROOT))
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -60,6 +72,10 @@ OUTPUT_JSON = REPORTS_DIR / "citation_database.json"
 
 NOW        = datetime.now(timezone.utc)
 CUTOFF_12M = NOW - timedelta(days=365)
+CUTOFF_90D = NOW - timedelta(days=90)
+
+ENRICH_CACHE_PATH = REPORTS_DIR / "enrichment_cache.json"
+ENRICH_CACHE_TTL_DAYS = 30
 
 # ---------------------------------------------------------------------------
 # Classification categories (expanded from VMS-only to full pharma scope)
@@ -156,14 +172,66 @@ class Citation:
                             # inspection_finding | recall | safety_alert
     company:          str
     date:             str   # "YYYY-MM-DD" or ""
-    category:         str   # one of CATEGORIES
-    severity:         str   # high | medium | low
+    category:         str   # one of CATEGORIES (kept for backwards compat)
+    severity:         str   # high | medium | low (kept for backwards compat)
     summary:          str
     url:              str
     product_type:     str   # human-readable product descriptor
     country:          str
     facility_type:    str   # one of FACILITY_TYPES
-    violation_details: str  # raw text, ≤500 chars
+    violation_details: str  # raw text, ≤500 chars (kept for backwards compat)
+    # ── Enrichment fields ─────────────────────────────────────────────
+    raw_listing_summary:   str   = ""    # original violation_details preserved here
+    enriched_text:         str   = ""    # body text from detail page (up to 2000 chars)
+    enrichment_status:     str   = ""    # success | cached | not_applicable | failed
+    enrichment_source:     str   = ""    # fda_detail_page | tga_notice | none
+    enrichment_confidence: float = 0.0
+    enrichment_error:      str   = ""
+    enriched_text_hash:    str   = ""    # sha256[:16] of enriched_text[:100]
+    # ── Multi-label classification ────────────────────────────────────
+    primary_gmp_category:      str  = ""
+    secondary_gmp_categories:  list = field(default_factory=list)
+    failure_mode:              str  = ""
+    failure_mode_confidence:   float = 0.0
+    # ── Multi-dimensional severity ────────────────────────────────────
+    regulatory_severity: str   = ""   # critical | high | medium | low
+    operational_severity: str  = ""   # critical | high | medium | low
+    inspection_risk:     str   = ""   # immediate | elevated | standard | informational
+    market_relevance_au: str   = ""   # direct | indirect | reference
+    priority:            str   = ""   # P1 | P2 | P3 | P4
+    severity_reason:     str   = ""
+    # ── Risk direction (deterministic, no AI) ────────────────────────
+    regulatory_pressure:               str = ""  # increasing | stable | decreasing
+    signal_direction:                  str = ""  # escalating | holding | resolving
+    recurrence_count_company_90d:      int = 0
+    recurrence_count_category_90d:     int = 0
+    recurrence_count_failure_mode_90d: int = 0
+    # ── AI intelligence fields (set by pharma_intelligence.py) ───────
+    ai_summary:            str   = ""
+    ai_what_matters:       str   = ""
+    ai_recommended_action: str   = ""
+    ai_confidence:         float = 0.0
+    ai_run_at:             str   = ""
+    # ── Derived intelligence fields ───────────────────────────────────
+    decision_summary:          str   = ""   # human-readable combined verdict
+    recommended_action:        str   = ""   # top compliance action for AU VMS teams
+    classification_confidence: float = 0.0  # overall confidence in classification
+    is_noise:                  bool  = False  # True if record has insufficient detail
+    # ── Clustering fields (set by compute_clusters(), Step 7) ────────
+    cluster_id:       str  = ""   # sha256[:12] of grouping key
+    cluster_size:     int  = 1    # number of records in cluster (1 = singleton)
+    cluster_primary:  bool = True # True for the representative record
+    cluster_label:    str  = ""   # display label, e.g. "Medline Industries — sterility_failure"
+    cluster_reason:   str  = ""   # short explanation, e.g. "5 records, 2025-03–2025-04"
+    cluster_priority: str  = ""   # highest priority among cluster members
+
+    def __post_init__(self) -> None:
+        # Guarantee raw_listing_summary is always populated at construction.
+        # Priority: explicit value > summary > violation_details.
+        if not self.raw_listing_summary:
+            self.raw_listing_summary = (
+                self.summary or self.violation_details or ""
+            )[:500]
 
 
 # ---------------------------------------------------------------------------
@@ -345,6 +413,170 @@ Citation text:
 
 Reply with ONLY the category name, nothing else."""
 
+# ---------------------------------------------------------------------------
+# Tobacco / ENDS guard
+# Tobacco Control Act WLs use legal terms ("adulterated", "misbranded",
+# "seizure", "injunction") that look like GMP/recall keywords but carry no
+# pharmaceutical product-safety meaning.  Any record flagged by _TOBACCO_RE
+# is treated as low-detail unless _PHARMA_SAFETY_RE also fires.
+# ---------------------------------------------------------------------------
+_TOBACCO_RE = re.compile(
+    r"tobacco control act|family smoking prevention|tobacco product\b|"
+    r"\bends\b|electronic nicotine delivery|nicotine delivery system|"
+    r"\be-cigarette|\bvape\b|vaping|e-vapor|e-liquid|hookah|cigar\b|"
+    r"menthol cigarette|modified risk tobacco",
+    re.I,
+)
+
+# Concrete pharmaceutical/product-safety terms required to escape tobacco override
+_PHARMA_SAFETY_RE = re.compile(
+    r"class\s+i\s+recall|class\s+ii\s+recall|mandatory recall|urgent recall|"
+    r"sterility failure|microbial contamination|salmonella|listeria|"
+    r"heavy metal|lead content|arsenic|nitrosamine|undeclared drug|"
+    r"sildenafil|tadalafil|sibutramine|serious adverse event|patient harm|"
+    r"hospitaliz|death|fatal|carcinogen|genotoxic",
+    re.I,
+)
+
+
+def _is_tobacco_only(text: str) -> bool:
+    """Return True when text signals a tobacco/ENDS WL with no pharma safety content."""
+    return bool(_TOBACCO_RE.search(text)) and not bool(_PHARMA_SAFETY_RE.search(text))
+
+
+def get_context_text(c: "Citation") -> str:
+    """Return all available text fields combined — used for exclusion guards (tobacco, safety).
+    Unlike get_best_classification_text(), this never discards raw_listing_summary even when
+    enriched_text is present, so the 'Family Smoking Prevention' header is always visible."""
+    parts = [
+        c.raw_listing_summary or "",
+        c.summary or "",
+        c.violation_details or "",
+        c.enriched_text or "",
+    ]
+    return " ".join(p for p in parts if p)
+
+
+def get_entity_label(c: "Citation") -> str:
+    """Return the best available display label for a citation's responsible entity.
+    Falls back through progressively less specific fields so blank-company records
+    (TGA/MHRA programme notices, import alerts, authority-level actions) are still
+    identifiable without mutating the original company field."""
+    return (
+        c.company
+        or getattr(c, "facility_name", "")
+        or c.product_type
+        or f"Unknown entity — {c.authority} {c.source_type}"
+    )
+
+
+def _date_bucket_for_clustering(c: Citation) -> str:
+    """Return a deterministic date bucket string for cluster grouping.
+
+    - import_alert: never grouped — use record id as unique bucket
+    - warning_letter: 14-day buckets (YYYY-MM-E for days 1–14, YYYY-MM-L for 15+)
+    - all others (enforcement, etc.): 30-day bucket = YYYY-MM
+    """
+    if c.source_type == "import_alert":
+        return c.id
+    date = c.date or ""
+    if len(date) < 7:
+        return date or c.id
+    ym = date[:7]
+    if c.source_type == "warning_letter":
+        try:
+            day = int(date[8:10]) if len(date) >= 10 else 1
+        except ValueError:
+            day = 1
+        return f"{ym}-{'E' if day <= 14 else 'L'}"
+    return ym
+
+
+_CLUSTER_PRIORITY_ORDER: dict[str, int] = {"P1": 0, "P2": 1, "P3": 2, "P4": 3, "": 4}
+
+
+def compute_clusters(citations: list[Citation]) -> list[Citation]:
+    """Assign cluster fields to every citation.
+
+    Grouping key: entity_label + authority + source_type + failure_mode + date_bucket.
+    Single-record groups stay cluster_size=1 with cluster_primary=True and no cluster_id.
+    Primary selection: highest priority > has AI summary > newest date > stable id.
+    """
+    from collections import defaultdict as _dd
+
+    groups: dict[str, list[Citation]] = _dd(list)
+    id_to_key: dict[str, str] = {}
+
+    for c in citations:
+        label = get_entity_label(c).lower().strip()
+        bucket = _date_bucket_for_clustering(c)
+        key = "|".join([
+            label,
+            (c.authority or "").lower(),
+            (c.source_type or "").lower(),
+            (c.failure_mode or "").lower(),
+            bucket,
+        ])
+        groups[key].append(c)
+        id_to_key[c.id] = key
+
+    def _primary_sort_key(c: Citation) -> tuple:
+        prio = _CLUSTER_PRIORITY_ORDER.get(c.priority or "", 4)
+        no_ai = 0 if (c.classification_confidence >= 0.5 and c.decision_summary) else 1
+        date_neg = -_date_sort_key(c.date)
+        return (prio, no_ai, date_neg, c.id)
+
+    result_map: dict[str, Citation] = {}
+
+    for key, members in groups.items():
+        cluster_size = len(members)
+
+        if cluster_size == 1:
+            # Singleton — leave cluster fields at defaults
+            result_map[members[0].id] = members[0]
+            continue
+
+        cluster_id = hashlib.sha256(key.encode()).hexdigest()[:12]
+        sorted_members = sorted(members, key=_primary_sort_key)
+        primary = sorted_members[0]
+
+        # Label: entity + failure mode (skip generic/empty modes)
+        entity = get_entity_label(primary)
+        fm_str = (primary.failure_mode or "").replace("_", " ")
+        cluster_label = (
+            f"{entity} — {fm_str}"
+            if fm_str and fm_str not in ("insufficient detail", "")
+            else entity
+        )[:120]
+
+        # Cluster priority = best among members
+        cluster_priority = min(
+            (m.priority or "P4" for m in members),
+            key=lambda p: _CLUSTER_PRIORITY_ORDER.get(p, 4),
+            default="",
+        )
+
+        dates = sorted(m.date for m in members if m.date)
+        if len(dates) >= 2:
+            cluster_reason = f"{cluster_size} records, {dates[0][:7]}–{dates[-1][:7]}"
+        elif dates:
+            cluster_reason = f"{cluster_size} records, {dates[0][:7]}"
+        else:
+            cluster_reason = f"{cluster_size} records"
+
+        for c in members:
+            updated = asdict(c)
+            updated["cluster_id"]       = cluster_id
+            updated["cluster_size"]     = cluster_size
+            updated["cluster_primary"]  = (c.id == primary.id)
+            updated["cluster_label"]    = cluster_label
+            updated["cluster_reason"]   = cluster_reason
+            updated["cluster_priority"] = cluster_priority
+            result_map[c.id] = Citation(**updated)
+
+    return [result_map[c.id] for c in citations]
+
+
 _KEYWORD_RULES: list[tuple[str, list[str]]] = [
     ("Sterility assurance",         ["sterility", "sterile assurance", "sar", "sterility failure"]),
     ("Aseptic processing",          ["aseptic", "aseptic technique", "aseptic fill", "grade a", "grade b", "cleanroom"]),
@@ -362,13 +594,134 @@ _KEYWORD_RULES: list[tuple[str, list[str]]] = [
     ("Training & competency",       ["training", "competency", "qualified person", "qualification", "personnel"]),
     ("Documentation & record keeping", ["documentation", "record", "batch record", "sop", "logbook", "data integrity"]),
     ("GMP violations",              ["cgmp", "good manufacturing practice", "gmp violation"]),
-    ("Labelling & claims",          ["label", "misbranding", "mislabeled", "claim", "misleading"]),
+    ("Labelling & claims",          ["label", "claim", "misleading", "unapproved claim", "false claim"]),
     ("Contamination & sterility",   ["contamination", "microbial", "salmonella", "listeria", "foreign material", "particulate"]),
     ("Supply chain & procurement",  ["supplier", "vendor", "procurement", "raw material", "fsvp", "contract"]),
     ("Equipment & facilities",      ["equipment", "facility", "calibration", "sanitation", "cleaning", "maintenance"]),
     ("Quality management system",   ["quality system", "qms", "quality management", "audit", "pharmaceutical quality"]),
     ("Ingredient safety",           ["undeclared", "adulterant", "identity", "purity", "potency", "nitrosamine", "impurity"]),
 ]
+
+
+_FAILURE_MODE_RULES: list[tuple[str, list[str]]] = [
+    ("contamination_microbial",  ["microbial contamination", "bioburden", "salmonella", "listeria",
+                                  "e. coli", "mold", "yeast", "bacterial", "microbial limits",
+                                  "microbial testing"]),
+    ("contamination_chemical",   ["chemical contamination", "nitrosamine", "solvent residue",
+                                  "heavy metal", "heavy metals", "lead contamination",
+                                  "lead impurity", "blood lead", "lead levels",
+                                  "arsenic contamination", "arsenic impurity",
+                                  "mercury contamination", "cadmium contamination",
+                                  "genotoxic impurity", "elemental impurity",
+                                  "residual solvent", "benzene contamination",
+                                  "toxic element", "ndma", "ndea", "nmba"]),
+    ("contamination_foreign",    ["foreign material", "foreign matter", "particulate",
+                                  "glass particle", "metal fragment", "visible particle",
+                                  "foreign body"]),
+    ("inadequate_testing",       ["out-of-specification", "oos", "failed testing",
+                                  "inadequate testing", "analytical method", "method validation",
+                                  "purity", "potency", "identity test", "lab investigation"]),
+    ("inadequate_stability",     ["stability", "shelf life", "expiry", "degradation",
+                                  "accelerated stability", "stability data", "stability programme",
+                                  "stability testing"]),
+    ("inadequate_documentation", ["data integrity", "audit trail", "falsification",
+                                  "data manipulation", "batch record incomplete", "logbook",
+                                  "electronic record", "sop not followed", "records not maintained"]),
+    ("equipment_calibration",    ["calibration", "equipment qualification", "iq oq pq",
+                                  "instrument calibration", "equipment maintenance",
+                                  "preventive maintenance", "unqualified equipment"]),
+    ("cleaning_validation",      ["cleaning validation", "cleaning procedure",
+                                  "cross-contamination prevention", "cleaning effectiveness",
+                                  "equipment cleaning", "cleaning agent"]),
+    ("sterility_assurance",      ["sterility assurance", "sterility failure", "sterility testing",
+                                  "sterile manufacturing", "terminal sterilization", "sterility",
+                                  "endotoxin", "aseptic"]),
+    ("supplier_qualification",   ["supplier qualification", "vendor qualification", "supplier audit",
+                                  "raw material supplier", "contract manufacturer qualification",
+                                  "fsvp", "foreign supplier", "unqualified supplier"]),
+    ("out_of_specification",     ["out of specification", "oos result", "non-conforming",
+                                  "failed release", "batch failure", "spec exceedance",
+                                  "release failure"]),
+    ("process_validation",       ["process validation", "validation failure", "unvalidated process",
+                                  "process control", "in-process testing", "cpv",
+                                  "validation protocol"]),
+    ("labelling_error",          ["labelling error", "misbranding", "mislabeled", "false claim",
+                                  "misleading label", "incorrect label", "unapproved claim",
+                                  "label mix-up", "undeclared"]),
+    ("import_detention",         ["import alert", "import detention", "detention without examination",
+                                  "automatic detention", "dwpe", "import refusal"]),
+    ("recall_voluntary",         ["voluntary recall", "class iii recall", "voluntary removal",
+                                  "market withdrawal", "precautionary recall"]),
+    ("recall_mandatory",         ["class i recall", "class ii recall", "mandatory recall",
+                                  "urgent recall"]),
+    ("adverse_event_cluster",    ["adverse event", "serious adverse", "hospitaliz", "death",
+                                  "injury report", "adr cluster", "medwatch", "serious injury"]),
+    ("facility_hygiene",         ["facility sanitation", "pest control", "facility maintenance",
+                                  "building maintenance", "facility hygiene", "sanitation failure",
+                                  "pest infestation"]),
+]
+
+
+def multi_label_classify(text: str) -> tuple[str, list[str]]:
+    """
+    Return (primary_category, secondary_categories) using keyword match counts.
+    Primary = highest-scoring category; secondary = next up to 3 with any match.
+    """
+    lower = text.lower()
+    scores: dict[str, int] = {}
+    for cat, keywords in _KEYWORD_RULES:
+        count = sum(1 for kw in keywords if kw in lower)
+        if count > 0:
+            scores[cat] = scores.get(cat, 0) + count
+    if not scores:
+        return "Other / Insufficient Detail", []
+    ranked = sorted(scores.items(), key=lambda x: -x[1])
+    primary = ranked[0][0]
+    secondary = [cat for cat, _ in ranked[1:4]]
+    return primary, secondary
+
+
+# Word-boundary patterns for single-token chemical contaminant terms that would
+# produce substring false positives if matched with plain `in lower` (e.g. "lead"
+# matching "could lead to", "benzene" is safe but kept here for consistency).
+_CHEM_BOUNDARY_RE = re.compile(
+    r"\bbenzene\b|\bndma\b|\bndea\b|\bnmba\b|\barsenic\b|\bmercury\b|\bcadmium\b",
+    re.I,
+)
+
+
+def classify_failure_mode(text: str, context_text: str = "") -> tuple[str, float]:
+    """
+    Return (failure_mode, confidence) from deterministic keyword rules.
+    Confidence = matched_count / (total_keywords * 0.3), capped at 1.0.
+
+    context_text — combined all-field text used for tobacco/exclusion guards.
+    If omitted, text is used for both positive matching and guard checks
+    (backward-compatible default).
+    """
+    guard_text = context_text if context_text else text
+    if _is_tobacco_only(guard_text):
+        return "insufficient_detail", 0.1
+
+    lower = text.lower()
+    best_mode = ""
+    best_score = 0.0
+    for mode, keywords in _FAILURE_MODE_RULES:
+        if mode == "contamination_chemical":
+            # Multi-word terms: plain substring match is safe (no ambiguous substrings).
+            # Single-token chemical names: require word-boundary match to avoid
+            # "lead" → "could lead to" style false positives.
+            matched = sum(1 for kw in keywords if " " in kw and kw in lower)
+            if _CHEM_BOUNDARY_RE.search(text):
+                matched += 1
+        else:
+            matched = sum(1 for kw in keywords if kw in lower)
+        if matched > 0:
+            confidence = min(1.0, matched / max(len(keywords) * 0.3, 1))
+            if confidence > best_score:
+                best_score = confidence
+                best_mode = mode
+    return best_mode, round(best_score, 2)
 
 
 def classify_with_claude(text: str, fallback: str = "GMP violations") -> str:
@@ -401,6 +754,344 @@ def keyword_classify(text: str, fallback: str = "GMP violations") -> str:
         if any(kw in lower for kw in keywords):
             return cat
     return fallback
+
+
+# ---------------------------------------------------------------------------
+# AI call tracker — global counter enforced across all pipeline phases
+# ---------------------------------------------------------------------------
+
+class AiCallTracker:
+    """
+    Single source of truth for all Claude API calls in the pipeline.
+    Scrapers must NOT call Claude — all classification is keyword-only at
+    scrape time. This tracker records calls only from the intelligence pass.
+    """
+
+    def __init__(
+        self,
+        no_ai:        bool          = False,
+        max_ai_calls: int           = 25,
+        sample:       Optional[int] = None,
+    ) -> None:
+        self.no_ai        = no_ai
+        self.max_ai_calls = max_ai_calls
+        self.sample       = sample
+        # Phase-level call counts (scraping must always remain 0)
+        self.scraping_phase_ai_calls     = 0
+        self.enrichment_phase_ai_calls   = 0
+        self.intelligence_phase_ai_calls = 0
+        # Skip accounting
+        self.ai_skipped_due_to_no_ai     = 0
+        self.ai_skipped_due_to_max_calls = 0
+        self.ai_skipped_due_to_sample    = 0
+        self.ai_skipped_cached           = 0
+        self.ai_eligible_count           = 0
+        # Result accounting
+        self.ai_results_accepted                  = 0
+        self.ai_results_discarded_low_confidence  = 0
+        # Queue composition (set by pharma_intelligence after sorting)
+        self.ai_queue_p1_count              = 0
+        self.ai_queue_p2_count              = 0
+        self.ai_queue_cluster_primary_count = 0
+        self.ai_queue_au_relevant_count     = 0
+        self.ai_queue_warning_letter_count  = 0
+        self.ai_queue_low_priority_count    = 0
+        # Per-tier accepted / discarded
+        self.ai_accepted_by_tier:   dict[str, int] = {}
+        self.ai_discarded_by_tier:  dict[str, int] = {}
+
+    @property
+    def total_ai_calls(self) -> int:
+        return (
+            self.scraping_phase_ai_calls
+            + self.enrichment_phase_ai_calls
+            + self.intelligence_phase_ai_calls
+        )
+
+    def log_call(self, citation_id: str, phase: str) -> None:
+        """Record a Claude call, print a tagged console line, and increment phase counter."""
+        n = self.total_ai_calls + 1
+        msg = f"[AI] Calling Claude for citation {citation_id}, phase={phase}, call {n}/{self.max_ai_calls}"
+        print(msg)
+        logger.info(msg)
+        if phase == "scraping":
+            self.scraping_phase_ai_calls += 1
+        elif phase == "enrichment":
+            self.enrichment_phase_ai_calls += 1
+        else:
+            self.intelligence_phase_ai_calls += 1
+
+    def as_dict(self) -> dict:
+        return {
+            "scraping_phase_ai_calls":     self.scraping_phase_ai_calls,
+            "enrichment_phase_ai_calls":   self.enrichment_phase_ai_calls,
+            "intelligence_phase_ai_calls": self.intelligence_phase_ai_calls,
+            "total_ai_calls":              self.total_ai_calls,
+            "ai_skipped_due_to_no_ai":     self.ai_skipped_due_to_no_ai,
+            "ai_skipped_due_to_max_calls": self.ai_skipped_due_to_max_calls,
+            "ai_skipped_due_to_sample":    self.ai_skipped_due_to_sample,
+            "ai_skipped_cached":                         self.ai_skipped_cached,
+            "ai_eligible_count":                         self.ai_eligible_count,
+            "ai_results_accepted":                       self.ai_results_accepted,
+            "ai_results_discarded_low_confidence":       self.ai_results_discarded_low_confidence,
+            "ai_queue_p1_count":              self.ai_queue_p1_count,
+            "ai_queue_p2_count":              self.ai_queue_p2_count,
+            "ai_queue_cluster_primary_count": self.ai_queue_cluster_primary_count,
+            "ai_queue_au_relevant_count":     self.ai_queue_au_relevant_count,
+            "ai_queue_warning_letter_count":  self.ai_queue_warning_letter_count,
+            "ai_queue_low_priority_count":    self.ai_queue_low_priority_count,
+            "ai_accepted_by_tier":            self.ai_accepted_by_tier,
+            "ai_discarded_by_tier":           self.ai_discarded_by_tier,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Enrichment cache helpers
+# ---------------------------------------------------------------------------
+
+def _load_enrich_cache() -> dict:
+    if ENRICH_CACHE_PATH.exists():
+        try:
+            return json.loads(ENRICH_CACHE_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
+
+
+def _save_enrich_cache(cache: dict) -> None:
+    ENRICH_CACHE_PATH.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+
+
+def _cache_entry_valid(entry: dict) -> bool:
+    try:
+        fetched = datetime.fromisoformat(entry["fetched_at"])
+        if fetched.tzinfo is None:
+            fetched = fetched.replace(tzinfo=timezone.utc)
+        return (NOW - fetched).days < ENRICH_CACHE_TTL_DAYS
+    except Exception:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Detail-page fetching (ported from citation_report.py)
+# ---------------------------------------------------------------------------
+
+_VIOLATION_ANCHOR = re.compile(
+    r"(?:significant violations?|violations? are as follows|findings? are as follows"
+    r"|observations? are as follows|during (?:our|the) inspection"
+    r"|we observed the following|the following observations?"
+    r"|you failed to|failure to|failed to (?:establish|maintain|implement|develop|document)"
+    r"|were not in compliance|is not in compliance|did not (?:develop|establish|maintain)"
+    r"|you have not|following deficiencies)[:\s]+",
+    re.I,
+)
+
+
+def _fetch_fda_wl_text(url: str) -> tuple[str, str]:
+    """
+    Fetch FDA warning letter detail page and extract violation text.
+    Returns (enriched_text, error_message). Timeout is 10s (conservative).
+    """
+    try:
+        resp = get_session().get(url, timeout=10)
+        if resp.status_code != 200:
+            return "", f"HTTP {resp.status_code}"
+        soup = BeautifulSoup(resp.text, "lxml")
+        main = soup.select_one("main, article, .main-content, #main-content")
+        if not main:
+            return "", "no main content element"
+        text = main.get_text(" ", strip=True)
+        text = re.sub(r"\(b\)\(\d+\)", "[redacted]", text)
+        text = re.sub(r"\s{2,}", " ", text)
+
+        m = _VIOLATION_ANCHOR.search(text)
+        if m:
+            start = max(0, m.start())
+            snippet = text[start:start + 2000].strip()
+            sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z])", snippet)
+            return " ".join(sentences[:8]).strip()[:2000], ""
+
+        for keyword in ("violation", "inspection finding", "failed to", "you have not"):
+            idx = text.lower().find(keyword)
+            if idx >= 0:
+                start = max(0, text.rfind(". ", max(0, idx - 200), idx) + 2)
+                return text[start:start + 2000].strip(), ""
+
+        dear_idx = text.find("Dear ")
+        if dear_idx >= 0:
+            return text[dear_idx:dear_idx + 2000].strip(), ""
+
+        return text[:2000], ""
+    except Exception as exc:
+        return "", str(exc)
+
+
+def _fetch_tga_text(url: str) -> tuple[str, str]:
+    """
+    Fetch TGA alert/compliance page and extract substantive body text.
+    Returns (enriched_text, error_message).
+    """
+    try:
+        resp = get_session().get(url, timeout=10)
+        if resp.status_code != 200:
+            return "", f"HTTP {resp.status_code}"
+        soup = BeautifulSoup(resp.text, "lxml")
+        main = soup.select_one("main, article, .field--name-body, .node__content")
+        if not main:
+            return "", "no main content element"
+        paragraphs = [
+            p.get_text(" ", strip=True)
+            for p in main.find_all("p")
+            if len(p.get_text(strip=True)) > 60
+        ]
+        return " ".join(paragraphs[:6])[:2000], ""
+    except Exception as exc:
+        return "", str(exc)
+
+
+def _enrich_one(c: Citation, cache: dict) -> dict:
+    """
+    Enrich a single citation. Returns a dict of enrichment field values.
+    Cache-first: if a valid cache entry exists, return it immediately.
+    """
+    # Cache hit
+    if c.id in cache and _cache_entry_valid(cache[c.id]):
+        entry = cache[c.id]
+        return {
+            "enriched_text":         entry.get("enriched_text", ""),
+            "enrichment_status":     "cached",
+            "enrichment_source":     entry.get("enrichment_source", ""),
+            "enrichment_confidence": entry.get("enrichment_confidence", 0.0),
+            "enrichment_error":      "",
+            "enriched_text_hash":    entry.get("enriched_text_hash", ""),
+        }
+
+    # Determine enrichment path
+    if c.source_type == "warning_letter" and c.authority == "FDA":
+        text, error = _fetch_fda_wl_text(c.url)
+        if text:
+            h = hashlib.sha256(text[:100].encode()).hexdigest()[:16]
+            entry = {
+                "enriched_text": text, "enrichment_status": "success",
+                "enrichment_source": "fda_detail_page", "enrichment_confidence": 1.0,
+                "enrichment_error": "", "enriched_text_hash": h,
+                "fetched_at": NOW.isoformat(),
+            }
+        else:
+            entry = {
+                "enriched_text": "", "enrichment_status": "failed",
+                "enrichment_source": "fda_detail_page", "enrichment_confidence": 0.0,
+                "enrichment_error": error or "unknown", "enriched_text_hash": "",
+                "fetched_at": NOW.isoformat(),
+            }
+    elif c.authority == "TGA" and c.source_type in ("compliance_action", "safety_alert", "recall"):
+        text, error = _fetch_tga_text(c.url)
+        if text:
+            h = hashlib.sha256(text[:100].encode()).hexdigest()[:16]
+            entry = {
+                "enriched_text": text, "enrichment_status": "success",
+                "enrichment_source": "tga_notice", "enrichment_confidence": 0.85,
+                "enrichment_error": "", "enriched_text_hash": h,
+                "fetched_at": NOW.isoformat(),
+            }
+        else:
+            entry = {
+                "enriched_text": "", "enrichment_status": "failed",
+                "enrichment_source": "tga_notice", "enrichment_confidence": 0.0,
+                "enrichment_error": error or "unknown", "enriched_text_hash": "",
+                "fetched_at": NOW.isoformat(),
+            }
+    else:
+        entry = {
+            "enriched_text": "", "enrichment_status": "not_applicable",
+            "enrichment_source": "none", "enrichment_confidence": 0.2,
+            "enrichment_error": "", "enriched_text_hash": "",
+            "fetched_at": NOW.isoformat(),
+        }
+
+    cache[c.id] = entry
+    return {k: v for k, v in entry.items() if k != "fetched_at"}
+
+
+def enrich_batch_parallel(
+    citations: list[Citation],
+    cache: dict,
+    max_workers: int = 3,
+) -> list[Citation]:
+    """
+    Enrich citations with detail-page text. Cache-first for all sources.
+    Uses conservative parallelism (default 3 workers) to avoid rate limits.
+    """
+    to_enrich = [
+        c for c in citations
+        if (c.source_type == "warning_letter" and c.authority == "FDA")
+        or (c.authority == "TGA" and c.source_type in ("compliance_action", "safety_alert", "recall"))
+    ]
+
+    cached_count  = sum(1 for c in to_enrich if c.id in cache and _cache_entry_valid(cache[c.id]))
+    to_fetch      = [c for c in to_enrich if c.id not in cache or not _cache_entry_valid(cache[c.id])]
+    not_applicable = [c for c in citations if c not in to_enrich]
+
+    logger.info(
+        "Enrichment: %d to process (%d cached, %d to fetch), %d not applicable",
+        len(to_enrich), cached_count, len(to_fetch), len(not_applicable),
+    )
+
+    results: dict[str, dict] = {}
+
+    # Cached entries — instant
+    for c in to_enrich:
+        if c.id in cache and _cache_entry_valid(cache[c.id]):
+            results[c.id] = _enrich_one(c, cache)
+
+    # Uncached — parallel fetch
+    if to_fetch:
+        done = 0
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = {pool.submit(_enrich_one, c, cache): c for c in to_fetch}
+            for fut in concurrent.futures.as_completed(futures):
+                c = futures[fut]
+                try:
+                    results[c.id] = fut.result()
+                except Exception as exc:
+                    results[c.id] = {
+                        "enriched_text": "", "enrichment_status": "failed",
+                        "enrichment_source": "unknown", "enrichment_confidence": 0.0,
+                        "enrichment_error": str(exc), "enriched_text_hash": "",
+                    }
+                done += 1
+                if done % 25 == 0:
+                    logger.info("  … enriched %d/%d", done, len(to_fetch))
+                if done < len(to_fetch):
+                    time.sleep(0.5)   # polite pacing — avoid FDA 429
+
+    # Apply enrichment fields back to Citation objects
+    enriched_citations: list[Citation] = []
+    for c in citations:
+        if c.id in results:
+            r = results[c.id]
+            updated = asdict(c)
+            updated.update({
+                "raw_listing_summary":   c.violation_details,
+                "enriched_text":         r.get("enriched_text", ""),
+                "enrichment_status":     r.get("enrichment_status", ""),
+                "enrichment_source":     r.get("enrichment_source", ""),
+                "enrichment_confidence": r.get("enrichment_confidence", 0.0),
+                "enrichment_error":      r.get("enrichment_error", ""),
+                "enriched_text_hash":    r.get("enriched_text_hash", ""),
+            })
+            enriched_citations.append(Citation(**updated))
+        else:
+            updated = asdict(c)
+            updated.update({
+                "raw_listing_summary":   c.violation_details,
+                "enrichment_status":     "not_applicable",
+                "enrichment_source":     "none",
+                "enrichment_confidence": 0.2,
+            })
+            enriched_citations.append(Citation(**updated))
+
+    return enriched_citations
 
 
 # ---------------------------------------------------------------------------
@@ -505,7 +1196,7 @@ def _fda_wl_ajax(dom_id: str, view_name: str, display_id: str) -> list[Citation]
             seen.add(url)
             raw      = " ".join(filter(None, [title, company, excerpt]))
             ftype    = infer_facility_type(raw)
-            cat      = classify_with_claude(raw)
+            cat      = keyword_classify(raw)
             sev      = infer_severity(raw, "warning_letter")
             results.append(Citation(
                 id=make_id("FDA_WL", url),
@@ -545,7 +1236,7 @@ def _fda_wl_html(html: str) -> list[Citation]:
             break
         raw   = " ".join(filter(None, [title, company, excerpt]))
         ftype = infer_facility_type(raw)
-        cat   = classify_with_claude(raw)
+        cat   = keyword_classify(raw)
         sev   = infer_severity(raw, "warning_letter")
         results.append(Citation(
             id=make_id("FDA_WL", url),
@@ -605,11 +1296,14 @@ def _openfda_enforcement(
                 dt = dt.replace(tzinfo=timezone.utc)
             if dt and dt < CUTOFF_12M:
                 continue
-            rec_url = (
-                f"https://www.accessdata.fda.gov/scripts/ires/"
-                f"?action=RecallAction&RecallNumber={recall_n}"
-                if recall_n else url
-            )
+            _rn_clean = (recall_n or "").strip()
+            if _rn_clean and _rn_clean.upper() != "N/A":
+                rec_url = (
+                    f"https://www.accessdata.fda.gov/scripts/ires/"
+                    f"?action=RecallAction&RecallNumber={_rn_clean}"
+                )
+            else:
+                rec_url = url  # fall back to the API query URL
             raw   = f"{title} {reason} {company}"
             ftype = infer_facility_type(raw) if default_facility_type == "auto" else default_facility_type
             # Override with auto if raw signals a different type
@@ -626,7 +1320,7 @@ def _openfda_enforcement(
             else:
                 sev = infer_severity(raw, f"{endpoint.split('/')[0]}_enforcement")
 
-            cat = classify_with_claude(raw)
+            cat = keyword_classify(raw)
             results.append(Citation(
                 id=make_id(f"FDA_{endpoint.split('/')[0].upper()}", recall_n or rec_url),
                 authority="FDA",
@@ -726,7 +1420,7 @@ def scrape_fda_import_alerts() -> list[Citation]:
                 elif alert_num.startswith("63-"):
                     ftype = "Medical Device"
 
-            cat = classify_with_claude(raw)
+            cat = keyword_classify(raw)
             sev = infer_severity(raw, "import_alert")
             results.append(Citation(
                 id=make_id("FDA_IA", alert_num),
@@ -812,7 +1506,7 @@ def scrape_tga() -> list[Citation]:
                     src_type = default_src
 
                 ftype = infer_facility_type(raw)
-                cat   = classify_with_claude(raw)
+                cat   = keyword_classify(raw)
                 sev   = infer_severity(raw, src_type)
 
                 # Extract company from title heuristic
@@ -912,7 +1606,7 @@ def scrape_mhra() -> list[Citation]:
                     continue
                 seen.add(item_url)
                 ftype = infer_facility_type(raw)
-                cat   = classify_with_claude(raw)
+                cat   = keyword_classify(raw)
                 sev   = infer_severity(raw, "compliance_action")
                 results.append(Citation(
                     id=make_id("MHRA_DSU", item_url),
@@ -960,7 +1654,7 @@ def scrape_mhra() -> list[Citation]:
                     continue
                 seen.add(item_url)
                 ftype = infer_facility_type(raw)
-                cat   = classify_with_claude(raw)
+                cat   = keyword_classify(raw)
                 results.append(Citation(
                     id=make_id("MHRA_GMP", item_url),
                     authority="MHRA", source_type=src_type,
@@ -1056,7 +1750,7 @@ def scrape_efsa() -> list[Citation]:
                 )
                 pub_type = type_m.group(1) if type_m else "Scientific Output"
                 src_type = "compliance_action" if "News" in pub_type else "inspection_finding"
-                cat      = classify_with_claude(raw)
+                cat      = keyword_classify(raw)
                 sev      = infer_severity(raw, src_type)
                 results.append(Citation(
                     id=make_id("EFSA", item_url),
@@ -1150,7 +1844,7 @@ def scrape_bfr() -> list[Citation]:
                     if any(w in src_label.lower() for w in ["press", "faq", "comms"])
                     else "inspection_finding"
                 )
-                cat   = classify_with_claude(raw)
+                cat   = keyword_classify(raw)
                 sev   = infer_severity(raw, src_type)
                 ftype = infer_facility_type(raw)
                 results.append(Citation(
@@ -1170,6 +1864,742 @@ def scrape_bfr() -> list[Citation]:
 
     logger.info("BfR: %d citations", len(results))
     return results
+
+
+# ---------------------------------------------------------------------------
+# Best-text selector for post-enrichment classification
+# ---------------------------------------------------------------------------
+
+def get_best_classification_text(c: Citation) -> str:
+    """
+    Return the richest available text for deterministic classification.
+    Prefer enriched_text when meaningful; fall back to raw listing text.
+    """
+    if c.enrichment_status in ("success", "cached") and len(c.enriched_text or "") > 250:
+        return c.enriched_text
+    return c.raw_listing_summary or c.violation_details or c.summary or ""
+
+
+# ---------------------------------------------------------------------------
+# Multi-dimensional severity computation
+# ---------------------------------------------------------------------------
+
+# Failure modes that indicate direct patient/product safety risk
+_HIGH_RISK_FAILURE_MODES = frozenset({
+    "sterility_assurance",
+    "contamination_microbial",
+    "contamination_chemical",
+    "contamination_foreign",
+    "adverse_event_cluster",
+    "recall_mandatory",
+    "out_of_specification",
+})
+
+_CRITICAL_RE = re.compile(
+    r"\brecall\b|injunction|seizure|class.?i\b(?!.*class.?ii)|death|fatal|"
+    r"counterfeit|falsified|carcinogen|genotoxic",
+    re.I,
+)
+_CONTRACT_MFG_RE = re.compile(r"contract manufactur|cmo|cdmo|outsourc", re.I)
+_SEV_ORDER = ["low", "medium", "high", "critical"]
+
+
+def compute_multidim_severity(c: Citation) -> dict:
+    """
+    Return severity-dimension fields from deterministic rules. No AI calls.
+    Original c.severity field is preserved; new fields are additive.
+    """
+    text = f"{c.summary} {c.violation_details} {c.enriched_text}"
+    tl   = text.lower()
+
+    # regulatory_severity
+    if c.source_type == "warning_letter":
+        reg_sev = "critical" if _CRITICAL_RE.search(text) else "high"
+    elif c.source_type in ("drug_enforcement", "device_enforcement", "food_enforcement"):
+        if "class i" in tl and "class ii" not in tl:
+            reg_sev = "critical"
+        elif "class ii" in tl:
+            reg_sev = "high"
+        else:
+            reg_sev = "medium"
+    elif c.source_type == "import_alert":
+        reg_sev = "high" if "automatic detention" in tl else "medium"
+    elif c.source_type == "recall":
+        if _CRITICAL_RE.search(text) or ("class i" in tl and "class ii" not in tl):
+            reg_sev = "critical"
+        elif "class ii" in tl:
+            reg_sev = "high"
+        else:
+            reg_sev = "medium"
+    elif c.source_type == "safety_alert":
+        reg_sev = "high" if any(w in tl for w in ("urgent", "immediate", "serious")) else "medium"
+    else:
+        reg_sev = c.severity or "medium"
+
+    # operational_severity: elevate one level for contract manufacturers
+    op_sev = reg_sev
+    if _CONTRACT_MFG_RE.search(f"{c.company} {c.facility_type}"):
+        idx = _SEV_ORDER.index(reg_sev)
+        op_sev = _SEV_ORDER[min(idx + 1, len(_SEV_ORDER) - 1)]
+
+    # inspection_risk
+    if c.source_type == "warning_letter":
+        insp_risk = "immediate"
+    elif c.source_type in ("import_alert", "inspection_finding", "compliance_action"):
+        insp_risk = "elevated"
+    else:
+        insp_risk = "standard"
+
+    # market_relevance_au
+    if c.authority in ("TGA", "MHRA", "BfR"):
+        mkt_au = "direct"
+    elif c.authority == "EFSA":
+        mkt_au = "reference"
+    elif c.facility_type == "Supplement / Nutraceutical":
+        mkt_au = "indirect"
+    else:
+        mkt_au = "reference"
+
+    # ── Priority ──────────────────────────────────────────────────────────
+    # "low detail" = no specific category OR failure mode identified —
+    # prevents weak/boilerplate records from inheriting high priority.
+    is_low_detail = (
+        c.primary_gmp_category in ("Other / Insufficient Detail", "")
+        and c.failure_mode in ("insufficient_detail", "")
+    )
+    au_relevant = mkt_au in ("direct", "indirect")
+
+    # P1 trigger A: high-confidence safety-critical failure mode.
+    # recall_mandatory on a warning_letter is a legal classification term, not
+    # a product-safety event — only treat it as high-risk when a pharma-safety
+    # signal is also present in the text.
+    _is_wl_recall_mandatory = (
+        c.failure_mode == "recall_mandatory"
+        and c.source_type == "warning_letter"
+    )
+    has_critical_failure = (
+        c.failure_mode in _HIGH_RISK_FAILURE_MODES
+        and c.failure_mode_confidence >= 0.7
+        and not (_is_wl_recall_mandatory and not _PHARMA_SAFETY_RE.search(text))
+    )
+    # P1 trigger B: critical-classification recall/enforcement action
+    is_critical_recall = (
+        reg_sev == "critical"
+        and c.source_type in (
+            "recall", "drug_enforcement", "device_enforcement", "food_enforcement",
+        )
+    )
+
+    if has_critical_failure or is_critical_recall:
+        priority = "P1"
+    elif op_sev in ("high", "critical") and au_relevant and not is_low_detail:
+        # High operational impact AND directly AU-relevant product/authority
+        priority = "P1"
+    elif reg_sev == "critical":
+        priority = "P2"  # critical reg severity but detail or AU relevance is limited
+    elif reg_sev == "high" and not is_low_detail:
+        priority = "P2"  # solid regulatory signal with meaningful classification
+    elif (reg_sev == "high" or insp_risk == "immediate") and is_low_detail:
+        priority = "P3"  # WL/immediate-risk source but no actionable detail
+    elif reg_sev == "medium" and not is_low_detail:
+        priority = "P3"
+    else:
+        priority = "P4"
+
+    # severity_reason
+    parts: list[str] = []
+    src_label = {
+        "warning_letter": "Warning Letter",
+        "import_alert": "Import Alert",
+        "drug_enforcement": "Drug Enforcement",
+        "device_enforcement": "Device Enforcement",
+        "food_enforcement": "Food Enforcement",
+        "recall": "Recall",
+        "compliance_action": "Compliance Action",
+        "inspection_finding": "Inspection Finding",
+        "safety_alert": "Safety Alert",
+    }.get(c.source_type, c.source_type)
+    parts.append(f"{c.authority} {src_label}")
+    if c.facility_type and c.facility_type != "General Pharma":
+        parts.append(c.facility_type)
+    if mkt_au == "direct":
+        parts.append("direct AU relevance")
+    elif mkt_au == "indirect":
+        parts.append("indirect AU relevance")
+    if has_critical_failure:
+        parts.append(f"{c.failure_mode} (conf={c.failure_mode_confidence:.2f})")
+    if is_low_detail:
+        parts.append("low detail")
+
+    return {
+        "regulatory_severity": reg_sev,
+        "operational_severity": op_sev,
+        "inspection_risk": insp_risk,
+        "market_relevance_au": mkt_au,
+        "priority": priority,
+        "severity_reason": "; ".join(parts)[:200],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Low-detail priority cap
+# Applied after AI fields are settled (post Step 5).
+# Records with failure_mode=insufficient_detail and no AI confidence should
+# not inherit P1/P2 from source-type severity alone.
+# ---------------------------------------------------------------------------
+
+# Explicit product-safety terms that justify keeping a low-detail record at P1/P2
+# even without a confirmed failure mode.
+_LOW_DETAIL_HIGH_RISK_RE = re.compile(
+    r"\bsterility\b|\bmicrobial\b|\bcontamination\b"
+    r"|\bbenzene\b|\bnitrosamine\b|\bndma\b|\bndea\b|\bnmba\b"
+    r"|\bheavy metal|\btoxic element"
+    r"|\bundeclared drug\b|\bsildenafil\b|\btadalafil\b|\bsibutramine\b"
+    r"|\bsarms\b|\bdmaa\b"
+    r"|class\s+i\s+recall"
+    r"|\bserious adverse event\b|\bpatient harm\b|\bdeath\b"
+    r"|\bhospitali[sz]",
+    re.I,
+)
+
+
+def apply_low_detail_priority_cap(citations: list[Citation]) -> list[Citation]:
+    """
+    Cap low-detail records at P3 unless explicit high-risk evidence is present.
+
+    A record is subject to the cap when ALL of:
+      - failure_mode == "insufficient_detail"
+      - failure_mode_confidence <= 0.10
+      - no accepted AI: decision_summary blank AND classification_confidence < 0.5
+
+    Exceptions — record may remain at P1/P2 if ANY of:
+      1. AI accepted: classification_confidence >= 0.7 AND decision_summary populated
+      2. Source text contains an explicit high-risk product-safety term
+         (sterility, microbial, contamination, NDMA, benzene, heavy metal, …)
+      3. source_type in enforcement/recall AND operational_severity in (high, critical)
+      4. market_relevance_au == "direct" AND regulatory_severity == "high"
+
+    Generic legal boilerplate (adulterated, misbranded, CGMP, violation,
+    seizure, injunction) and warning_letter source_type alone do NOT override.
+    """
+    result: list[Citation] = []
+    for c in citations:
+        if c.priority not in ("P1", "P2"):
+            result.append(c)
+            continue
+
+        # Only apply to true low-detail records
+        is_low_detail = (
+            c.failure_mode == "insufficient_detail"
+            and c.failure_mode_confidence <= 0.10
+        )
+        if not is_low_detail:
+            result.append(c)
+            continue
+
+        has_ai = (
+            c.classification_confidence >= 0.5
+            and bool(c.decision_summary)
+        )
+        if has_ai:
+            result.append(c)
+            continue
+
+        # Check exceptions against full context text
+        context = get_context_text(c)
+
+        # Exception 1: high-confidence AI (>=0.7 already covered by has_ai above,
+        # but explicit here for clarity)
+        ai_exception = (
+            c.classification_confidence >= 0.7
+            and bool(c.decision_summary)
+        )
+
+        # Exception 2: explicit high-risk safety terms in source text
+        text_exception = bool(_LOW_DETAIL_HIGH_RISK_RE.search(context))
+
+        # Exception 3: enforcement/recall source with high/critical operational severity
+        enforcement_exception = (
+            c.source_type in (
+                "drug_enforcement", "device_enforcement",
+                "food_enforcement", "recall",
+            )
+            and c.operational_severity in ("high", "critical")
+        )
+
+        # Exception 4: direct AU relevance + high regulatory severity
+        au_exception = (
+            c.market_relevance_au == "direct"
+            and c.regulatory_severity == "high"
+        )
+
+        if ai_exception or text_exception or enforcement_exception or au_exception:
+            result.append(c)
+            continue
+
+        # Cap to P3
+        updated = asdict(c)
+        reason = updated.get("severity_reason", c.severity_reason or "")
+        updated["priority"] = "P3"
+        updated["severity_reason"] = (reason + "; capped P3 — low detail, no safety signal")[:200]
+        result.append(Citation(**updated))
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Recurrence counts and risk direction
+# ---------------------------------------------------------------------------
+
+def compute_recurrence(citations: list[Citation]) -> list[Citation]:
+    """
+    Post-classification pass: compute 90-day recurrence counts and
+    per-company signal direction. Purely deterministic.
+    """
+    cutoff_90_str = CUTOFF_90D.strftime("%Y-%m-%d")
+    cutoff_45_str = (NOW - timedelta(days=45)).strftime("%Y-%m-%d")
+    cutoff_60_str = (NOW - timedelta(days=60)).strftime("%Y-%m-%d")
+
+    # Build 90-day lookup tables
+    company_dates:  dict[str, list[str]] = {}
+    cat_counts_90:  dict[str, int] = {}
+    fm_counts_90:   dict[str, int] = {}
+    cat_recent_45:  dict[str, int] = {}
+    cat_prior_45:   dict[str, int] = {}
+
+    for c in citations:
+        if not c.date or c.date < cutoff_90_str:
+            continue
+        co_key = (c.company or "").strip().lower()
+        if co_key:
+            company_dates.setdefault(co_key, []).append(c.date)
+        if c.primary_gmp_category:
+            cat_counts_90[c.primary_gmp_category] = cat_counts_90.get(c.primary_gmp_category, 0) + 1
+            if c.date >= cutoff_45_str:
+                cat_recent_45[c.primary_gmp_category] = cat_recent_45.get(c.primary_gmp_category, 0) + 1
+            else:
+                cat_prior_45[c.primary_gmp_category] = cat_prior_45.get(c.primary_gmp_category, 0) + 1
+        if c.failure_mode:
+            fm_counts_90[c.failure_mode] = fm_counts_90.get(c.failure_mode, 0) + 1
+
+    def _reg_pressure(cat: str) -> str:
+        if not cat:
+            return "stable"
+        r = cat_recent_45.get(cat, 0)
+        p = cat_prior_45.get(cat, 0)
+        if p == 0:
+            return "stable"
+        ratio = r / p
+        return "increasing" if ratio > 1.3 else ("decreasing" if ratio < 0.7 else "stable")
+
+    result: list[Citation] = []
+    for c in citations:
+        co_key = (c.company or "").strip().lower()
+        company_cit_dates = company_dates.get(co_key, [])
+
+        rec_company = max(0, len(company_cit_dates) - 1) if co_key else 0
+        rec_cat = max(0, cat_counts_90.get(c.primary_gmp_category, 0) - 1) if c.primary_gmp_category else 0
+        rec_fm  = max(0, fm_counts_90.get(c.failure_mode, 0) - 1)           if c.failure_mode          else 0
+
+        if co_key and len(company_cit_dates) >= 2:
+            sig_dir = "escalating"
+        elif co_key and c.date and c.date < cutoff_60_str:
+            sig_dir = "resolving"
+        else:
+            sig_dir = "holding"
+
+        updated = asdict(c)
+        updated.update({
+            "recurrence_count_company_90d":      rec_company,
+            "recurrence_count_category_90d":     rec_cat,
+            "recurrence_count_failure_mode_90d": rec_fm,
+            "signal_direction":                  sig_dir,
+            "regulatory_pressure":               _reg_pressure(c.primary_gmp_category),
+        })
+
+        # Escalate to P1 for companies with repeat violations in 90 days
+        if rec_company >= 2 and c.regulatory_severity == "high" and c.priority in ("P2", "P3"):
+            updated["priority"] = "P1"
+            reason = updated.get("severity_reason", c.severity_reason or "")
+            updated["severity_reason"] = (reason + "; repeat company recurrence (escalated to P1)")[:200]
+
+        result.append(Citation(**updated))
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Audit report
+# ---------------------------------------------------------------------------
+
+_REQUIRED_INTEL_FIELDS = (
+    "primary_gmp_category", "regulatory_severity", "operational_severity",
+    "inspection_risk", "market_relevance_au", "priority",
+)
+
+
+def _build_audit_report(
+    citations: list[Citation],
+    failed: list[str],
+    tracker: Optional[AiCallTracker] = None,
+    ai_import_error: str = "",
+    ai_pass_attempted: bool = False,
+    ai_pass_completed: bool = False,
+    sample_stats: Optional[dict] = None,
+) -> dict:
+    from collections import Counter
+    enrich_status = Counter(c.enrichment_status for c in citations)
+    priority_dist = Counter(c.priority          for c in citations if c.priority)
+    cat_dist      = Counter(c.primary_gmp_category for c in citations if c.primary_gmp_category)
+    fm_dist       = Counter(c.failure_mode       for c in citations if c.failure_mode)
+    pres_dist     = Counter(c.regulatory_pressure for c in citations if c.regulatory_pressure)
+    ai_total      = sum(1 for c in citations if c.ai_summary)
+    ai_high_conf  = sum(1 for c in citations if c.ai_confidence >= 0.7)
+    missing_intel = sum(
+        1 for c in citations
+        if any(not getattr(c, f, "") for f in _REQUIRED_INTEL_FIELDS)
+    )
+    raw_populated = sum(1 for c in citations if c.raw_listing_summary)
+    ds_populated  = sum(1 for c in citations if c.decision_summary)
+    ra_populated  = sum(1 for c in citations if c.recommended_action)
+    ai_accepted   = tracker.ai_results_accepted if tracker else ai_total
+    ai_discarded  = tracker.ai_results_discarded_low_confidence if tracker else 0
+
+    # P1/P2 company+failure_mode clusters — using get_entity_label so blank-company
+    # records (TGA/MHRA notices, import alerts) are identifiable in the output.
+    cluster_counts: dict[tuple, dict] = {}
+    for c in citations:
+        if c.priority not in ("P1", "P2"):
+            continue
+        label = get_entity_label(c)
+        key   = (label, c.authority, c.source_type, c.failure_mode or "")
+        if key not in cluster_counts:
+            cluster_counts[key] = {"P1": 0, "P2": 0}
+        cluster_counts[key][c.priority] += 1
+
+    clusters = [
+        {
+            "entity_label":  k[0],
+            "authority":     k[1],
+            "source_type":   k[2],
+            "failure_mode":  k[3],
+            "count_p1":      v["P1"],
+            "count_p2":      v["P2"],
+            "total":         v["P1"] + v["P2"],
+        }
+        for k, v in cluster_counts.items()
+        if v["P1"] + v["P2"] >= 2
+    ]
+    clusters.sort(key=lambda x: -x["total"])
+
+    # ── Citation clustering statistics ────────────────────────────────────
+    from collections import defaultdict as _dd2
+    _cluster_groups: dict[str, list[Citation]] = _dd2(list)
+    for c in citations:
+        if c.cluster_id and c.cluster_size > 1:
+            _cluster_groups[c.cluster_id].append(c)
+
+    total_clusters     = len(_cluster_groups)
+    grouped_records    = sum(len(v) for v in _cluster_groups.values())
+    p1_cluster_count   = sum(
+        1 for v in _cluster_groups.values()
+        if any(m.priority == "P1" for m in v)
+    )
+    p2_cluster_count   = sum(
+        1 for v in _cluster_groups.values()
+        if any(m.priority == "P2" for m in v) and not any(m.priority == "P1" for m in v)
+    )
+
+    top_clusters_list = []
+    for cid, members in sorted(_cluster_groups.items(), key=lambda x: -len(x[1]))[:10]:
+        primary = next((m for m in members if m.cluster_primary), members[0])
+        dates   = sorted(m.date for m in members if m.date)
+        top_clusters_list.append({
+            "cluster_id":   cid,
+            "size":         len(members),
+            "label":        primary.cluster_label,
+            "authority":    primary.authority,
+            "source_type":  primary.source_type,
+            "failure_mode": primary.failure_mode or "",
+            "priority":     primary.cluster_priority or primary.priority or "",
+            "date_range":   f"{dates[0][:10]}–{dates[-1][:10]}" if len(dates) >= 2 else (dates[0][:10] if dates else ""),
+            "p1_count":     sum(1 for m in members if m.priority == "P1"),
+            "p2_count":     sum(1 for m in members if m.priority == "P2"),
+        })
+
+    return {
+        "generated_at":    NOW.isoformat(),
+        "total_citations": len(citations),
+        "enrichment": {
+            "success":        enrich_status.get("success",        0),
+            "cached":         enrich_status.get("cached",         0),
+            "failed":         enrich_status.get("failed",         0),
+            "not_applicable": enrich_status.get("not_applicable", 0),
+        },
+        "ai_pass": {
+            "attempted":       ai_pass_attempted,
+            "completed":       ai_pass_completed,
+            "import_error":    ai_import_error or None,
+            "total_with_ai":   ai_total,
+            "confidence_high": ai_high_conf,
+            "confidence_low":  ai_total - ai_high_conf,
+        },
+        "ai_call_tracking":     tracker.as_dict() if tracker else {},
+        "sample":               sample_stats or {},
+        "data_quality": {
+            "missing_required_intelligence_fields_count": missing_intel,
+            "raw_listing_summary_populated":              raw_populated,
+            "raw_listing_summary_blank":                  len(citations) - raw_populated,
+            "decision_summary_populated_count":           ds_populated,
+            "recommended_action_populated_count":         ra_populated,
+            "ai_results_accepted_count":                  ai_accepted,
+            "ai_results_discarded_low_confidence_count":  ai_discarded,
+        },
+        "priority_breakdown":   dict(priority_dist),
+        "top_categories":       dict(cat_dist.most_common(10)),
+        "top_failure_modes":    dict(fm_dist.most_common(5)),
+        "regulatory_pressure":  dict(pres_dist),
+        "p1p2_clusters":        clusters[:20],
+        "clustering": {
+            "total_clusters":          total_clusters,
+            "multi_record_clusters":   total_clusters,
+            "grouped_records_count":   grouped_records,
+            "p1_clusters":             p1_cluster_count,
+            "p2_clusters":             p2_cluster_count,
+            "top_10_clusters":         top_clusters_list,
+        },
+        "failed_sources":       failed,
+    }
+
+
+def _print_audit_report(audit: dict) -> None:
+    SEP = "=" * 65
+    print(f"\n{SEP}")
+    print("  CITATION ENRICHMENT AUDIT")
+    print(f"  {audit['generated_at']}")
+    print(SEP)
+    print(f"  Total citations:  {audit['total_citations']}")
+
+    e = audit["enrichment"]
+    total_attempted = e["success"] + e["cached"] + e["failed"]
+    pct = lambda n: f"{round(n / total_attempted * 100, 1)}%" if total_attempted else "—"
+    print(f"\n  Enrichment (FDA WL + TGA):")
+    print(f"    attempted:       {total_attempted}")
+    print(f"    success:         {e['success']:>4}  ({pct(e['success'])})")
+    print(f"    cached:          {e['cached']:>4}  ({pct(e['cached'])})")
+    print(f"    failed:          {e['failed']:>4}  ({pct(e['failed'])})")
+    print(f"    not applicable:  {e['not_applicable']:>4}")
+
+    ai = audit["ai_pass"]
+    print(f"\n  AI intelligence pass:")
+    print(f"    attempted:       {ai.get('attempted', False)}")
+    print(f"    completed:       {ai.get('completed', False)}")
+    if ai.get("import_error"):
+        print(f"    import_error:    {ai['import_error']}")
+    print(f"    total with AI:   {ai['total_with_ai']}")
+    print(f"    confidence ≥0.7: {ai['confidence_high']}")
+    print(f"    confidence <0.7: {ai['confidence_low']}")
+
+    ct = audit.get("ai_call_tracking", {})
+    if ct:
+        print(f"\n  AI call tracking:")
+        print(f"    total_ai_calls:              {ct.get('total_ai_calls', 0):>4}  ← MUST BE 0 in --no-ai/--dry-run")
+        print(f"    scraping_phase_ai_calls:     {ct.get('scraping_phase_ai_calls', 0):>4}  ← MUST ALWAYS BE 0")
+        print(f"    enrichment_phase_ai_calls:   {ct.get('enrichment_phase_ai_calls', 0):>4}")
+        print(f"    intelligence_phase_ai_calls: {ct.get('intelligence_phase_ai_calls', 0):>4}")
+        print(f"    ai_eligible_count:           {ct.get('ai_eligible_count', 0):>4}")
+        print(f"    ai_skipped_cached:           {ct.get('ai_skipped_cached', 0):>4}")
+        print(f"    ai_skipped_due_to_no_ai:     {ct.get('ai_skipped_due_to_no_ai', 0):>4}")
+        print(f"    ai_skipped_due_to_max_calls: {ct.get('ai_skipped_due_to_max_calls', 0):>4}")
+        print(f"    ai_skipped_due_to_sample:    {ct.get('ai_skipped_due_to_sample', 0):>4}")
+        if ct.get("ai_queue_p1_count") is not None:
+            print(f"\n  AI queue composition (after filtering + sorting):")
+            print(f"    tier 1 — P1 no-AI with enriched text:  {ct.get('ai_queue_p1_count', 0):>4}")
+            print(f"    tier 2 — P2 no-AI with enriched text:  {ct.get('ai_queue_p2_count', 0):>4}")
+            print(f"    tier 3 — cluster primary, no AI:       {ct.get('ai_queue_cluster_primary_count', 0):>4}")
+            print(f"    tier 4 — AU-relevant P1/P2:            {ct.get('ai_queue_au_relevant_count', 0):>4}")
+            print(f"    tier 5 — warning letters enriched:     {ct.get('ai_queue_warning_letter_count', 0):>4}")
+            print(f"    tier 6 — lower priority / fallback:    {ct.get('ai_queue_low_priority_count', 0):>4}")
+        abt = ct.get("ai_accepted_by_tier", {})
+        dbt = ct.get("ai_discarded_by_tier", {})
+        if abt or dbt:
+            print(f"\n  Accepted / discarded by tier:")
+            tiers = {"t1":"P1 enriched","t2":"P2 enriched","t3":"cluster primary",
+                     "t4":"AU-relevant","t5":"warning letter","t6":"low priority"}
+            print(f"    {'tier':<20}  {'accept':>7}  {'discard':>8}")
+            for k, lbl in tiers.items():
+                a = abt.get(k, 0); d = dbt.get(k, 0)
+                if a or d:
+                    print(f"    {lbl:<20}  {a:>7}  {d:>8}")
+
+    ss = audit.get("sample", {})
+    if ss:
+        print(f"\n  Sample ({ss.get('sample_strategy','?')}):")
+        print(f"    input_count:         {ss.get('sample_input_count', 0):>5}")
+        print(f"    output_count:        {ss.get('sample_output_count', 0):>5}")
+        print(f"    warning_letters:     {ss.get('sample_warning_letter_count', 0):>5}")
+        print(f"    import_alerts:       {ss.get('sample_import_alert_count', 0):>5}")
+        print(f"    enrichable_total:    {ss.get('sample_enrichable_count', 0):>5}")
+        print(f"    future_dated_total:  {ss.get('sample_future_dated_count', 0):>5}")
+
+    dq = audit.get("data_quality", {})
+    if dq:
+        print(f"\n  Data quality (processed sample):")
+        print(f"    raw_listing_summary populated:             {dq.get('raw_listing_summary_populated', 0):>4}")
+        print(f"    raw_listing_summary blank:                 {dq.get('raw_listing_summary_blank', 0):>4}")
+        print(f"    missing required intel fields:             {dq.get('missing_required_intelligence_fields_count', 0):>4}")
+        print(f"    decision_summary populated:                {dq.get('decision_summary_populated_count', 0):>4}")
+        print(f"    recommended_action populated:              {dq.get('recommended_action_populated_count', 0):>4}")
+        print(f"    ai_results_accepted:                       {dq.get('ai_results_accepted_count', 0):>4}")
+        print(f"    ai_results_discarded (low confidence):     {dq.get('ai_results_discarded_low_confidence_count', 0):>4}")
+
+    print(f"\n  Priority breakdown:")
+    for p in ("P1", "P2", "P3", "P4"):
+        print(f"    {p}:  {audit['priority_breakdown'].get(p, 0):>4}")
+
+    print(f"\n  Top categories (primary_gmp_category):")
+    for cat, n in list(audit["top_categories"].items())[:8]:
+        print(f"    {n:>4}  {cat}")
+
+    print(f"\n  Top failure modes:")
+    for fm, n in list(audit["top_failure_modes"].items())[:5]:
+        print(f"    {n:>4}  {fm}")
+
+    clusters = audit.get("p1p2_clusters", [])
+    if clusters:
+        print(f"\n  P1/P2 entity+failure_mode clusters (≥2 records):")
+        hdr = f"  {'n':>3}  {'entity':<42}  {'auth':<5}  {'source_type':<20}  {'failure_mode':<28}  P1  P2"
+        print(f"  {hdr}")
+        print(f"  {'-'*len(hdr)}")
+        for cl in clusters:
+            label = cl["entity_label"][:42]
+            # Format blank-company records as "Unknown entity — AUTH source_type"
+            if not label or label.startswith("Unknown entity"):
+                label = f"Unknown entity — {cl['authority']} {cl['source_type']}"
+            label = label[:42]
+            print(
+                f"  {cl['total']:>3}  {label:<42}  {cl['authority']:<5}  "
+                f"{cl['source_type']:<20}  {cl['failure_mode']:<28}  "
+                f"{cl['count_p1']:>2}  {cl['count_p2']:>2}"
+            )
+
+    cl_stats = audit.get("clustering", {})
+    if cl_stats:
+        print(f"\n  Citation clustering (Step 7):")
+        print(f"    multi-record clusters:  {cl_stats.get('total_clusters', 0):>4}")
+        print(f"    records grouped:        {cl_stats.get('grouped_records_count', 0):>4}")
+        print(f"    P1 clusters:            {cl_stats.get('p1_clusters', 0):>4}")
+        print(f"    P2 clusters:            {cl_stats.get('p2_clusters', 0):>4}")
+        top10 = cl_stats.get("top_10_clusters", [])
+        if top10:
+            print(f"\n    Top clusters by size:")
+            print(f"    {'sz':>3}  {'label':<50}  {'pri':<3}  {'date_range':<23}  P1  P2")
+            print(f"    {'-'*100}")
+            for tc in top10:
+                lbl = tc.get("label", "")[:50]
+                print(
+                    f"    {tc.get('size',0):>3}  {lbl:<50}  {tc.get('priority',''):<3}  "
+                    f"{tc.get('date_range',''):<23}  {tc.get('p1_count',0):>2}  {tc.get('p2_count',0):>2}"
+                )
+
+    pres = audit.get("regulatory_pressure", {})
+    if pres:
+        print(f"\n  Regulatory pressure (90d category trend):")
+        for label in ("increasing", "stable", "decreasing"):
+            print(f"    {label:<12}  {pres.get(label, 0):>4}")
+
+    if audit.get("failed_sources"):
+        print(f"\n  Failed sources ({len(audit['failed_sources'])}):")
+        for f in audit["failed_sources"]:
+            print(f"    ✗ {f}")
+
+    print(SEP + "\n")
+
+
+# ---------------------------------------------------------------------------
+# Sample strategy helpers
+# ---------------------------------------------------------------------------
+
+_ENRICH_SOURCE_TYPES = frozenset({
+    "warning_letter", "compliance_action", "inspection_finding", "recall", "safety_alert",
+})
+_WL_URL_MARKER  = "/warning-letters/"
+_TGA_URL_MARKER = "tga.gov.au"
+
+
+def _date_sort_key(date_str: str) -> int:
+    """Return YYYYMMDD int for sorting; 0 for missing/invalid dates."""
+    if not date_str:
+        return 0
+    try:
+        return int(date_str.replace("-", ""))
+    except ValueError:
+        return 0
+
+
+def _sample_enrichment_tier(c: Citation) -> int:
+    """
+    Priority tier for 'enrichable' sample strategy.
+    Lower value = sampled first. Future-dated records are pushed to the back.
+    """
+    today_str = NOW.strftime("%Y-%m-%d")
+    is_future = bool(c.date) and c.date > today_str
+
+    if c.source_type == "warning_letter" and _WL_URL_MARKER in c.url:
+        tier = 0
+    elif c.source_type in ("compliance_action", "inspection_finding") and _TGA_URL_MARKER in c.url:
+        tier = 1
+    elif c.source_type in ("drug_enforcement", "device_enforcement", "food_enforcement"):
+        tier = 2
+    elif c.source_type in ("recall", "safety_alert", "compliance_action", "inspection_finding"):
+        tier = 3
+    elif c.source_type == "import_alert":
+        tier = 4
+    else:
+        tier = 5
+
+    return tier + (10 if is_future else 0)
+
+
+def _apply_sample_strategy(
+    citations: list[Citation],
+    n: int,
+    strategy: str,
+) -> tuple[list[Citation], dict]:
+    """
+    Return (work_set[:n], stats_dict) according to the chosen strategy.
+
+    Strategies:
+      recent     — most-recent-first (backwards-compatible default)
+      enrichable — FDA WLs and TGA records first; future-dated records last
+      mixed      — blend of enrichable tiers and recency
+    """
+    today_str = NOW.strftime("%Y-%m-%d")
+
+    if strategy == "enrichable":
+        ordered = sorted(
+            citations,
+            key=lambda c: (_sample_enrichment_tier(c), -_date_sort_key(c.date)),
+        )
+    elif strategy == "mixed":
+        ordered = sorted(
+            citations,
+            key=lambda c: (_sample_enrichment_tier(c) // 3, -_date_sort_key(c.date)),
+        )
+    else:  # "recent" — default; backwards-compatible
+        ordered = sorted(citations, key=lambda c: c.date or "0000-00-00", reverse=True)
+
+    work_set = ordered[:n]
+
+    stats = {
+        "sample_strategy":             strategy,
+        "sample_input_count":          len(citations),
+        "sample_output_count":         len(work_set),
+        "sample_enrichable_count":     sum(1 for c in citations if c.source_type in _ENRICH_SOURCE_TYPES),
+        "sample_warning_letter_count": sum(1 for c in work_set if c.source_type == "warning_letter"),
+        "sample_import_alert_count":   sum(1 for c in work_set if c.source_type == "import_alert"),
+        "sample_future_dated_count":   sum(1 for c in citations if c.date and c.date > today_str),
+    }
+    return work_set, stats
 
 
 # ---------------------------------------------------------------------------
@@ -1197,13 +2627,40 @@ def _inject_data_into_html(data: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Main pipeline
 # ---------------------------------------------------------------------------
-def run() -> None:
+
+def run(
+    dry_run:         bool          = False,
+    no_ai:           bool          = False,
+    sample:          Optional[int] = None,
+    max_ai_calls:    int           = 25,
+    enrich_workers:  int           = 3,
+    sample_strategy: str           = "recent",
+) -> None:
+    """
+    Full citation pipeline.
+
+    Args:
+        dry_run:         Run all steps but do NOT overwrite citation_database.json.
+        no_ai:           Skip the AI intelligence pass entirely.
+        sample:          Limit enrichment + AI to the first N citations (for testing).
+        max_ai_calls:    Safety cap on total Claude API calls in the AI pass.
+        enrich_workers:  Parallel workers for detail-page fetching (default 3).
+        sample_strategy: How to pick the sample — recent | enrichable | mixed.
+    """
     from collections import Counter
 
-    logger.info("=== Citation Fetcher starting — full pharma scope, 12-month window ===")
+    mode_tags = []
+    if dry_run:           mode_tags.append("DRY-RUN")
+    if no_ai:             mode_tags.append("NO-AI")
+    if sample is not None: mode_tags.append(f"SAMPLE={sample}")
+    mode_str = " ".join(mode_tags) or "FULL"
+
+    logger.info("=== Citation Fetcher — %s | 12-month window ===", mode_str)
     logger.info("Cutoff: %s", CUTOFF_12M.strftime("%Y-%m-%d"))
+
+    tracker = AiCallTracker(no_ai=no_ai, max_ai_calls=max_ai_calls, sample=sample)
 
     scrapers = [
         ("FDA Warning Letters",        scrape_fda_warning_letters),
@@ -1229,63 +2686,265 @@ def run() -> None:
             logger.error("%-30s FAILED — %s", name + ":", exc)
             failed.append(f"{name}: {exc}")
 
-    # Deduplicate
+    # Deduplicate + sort
     seen_ids: set[str] = set()
     unique: list[Citation] = []
     for c in all_citations:
         if c.id not in seen_ids:
             seen_ids.add(c.id)
             unique.append(c)
-
-    # Sort: most recent first
     unique.sort(key=lambda c: c.date or "0000-00-00", reverse=True)
+    logger.info("Deduplicated: %d unique citations", len(unique))
+
+    # Sample slice for enrichment/classification (full corpus always scraped)
+    sample_stats: dict = {}
+    if sample is not None:
+        work_set, sample_stats = _apply_sample_strategy(unique, sample, sample_strategy)
+        tracker.ai_skipped_due_to_sample = len(unique) - len(work_set)
+        logger.info(
+            "Sample mode (%s): %d of %d citations (WL=%d IA=%d enrichable_total=%d future=%d)",
+            sample_strategy,
+            len(work_set), len(unique),
+            sample_stats.get("sample_warning_letter_count", 0),
+            sample_stats.get("sample_import_alert_count", 0),
+            sample_stats.get("sample_enrichable_count", 0),
+            sample_stats.get("sample_future_dated_count", 0),
+        )
+    else:
+        work_set = unique
+
+    # ── Step 1: Enrichment (cache-first; FDA WL + TGA detail pages) ─────────
+    # Run before classification so classify_failure_mode sees full violation text.
+    logger.info("Step 1/5: Detail-page enrichment (cache-first, %d workers)…", enrich_workers)
+    enrich_cache = _load_enrich_cache()
+    enriched_raw = enrich_batch_parallel(work_set, enrich_cache, max_workers=enrich_workers)
+    _save_enrich_cache(enrich_cache)
+    logger.info("Enrichment cache saved (%d entries)", len(enrich_cache))
+
+    # ── Step 2: Multi-label classification + failure mode (best available text) ──
+    logger.info("Step 2/5: Multi-label GMP classification + failure mode…")
+    classified: list[Citation] = []
+    for c in enriched_raw:
+        text         = get_best_classification_text(c)
+        context_text = get_context_text(c)  # all fields combined — for exclusion guards
+
+        # Tobacco/ENDS guard: uses context_text (all fields) so the
+        # "Family Smoking Prevention" header is visible even when enriched_text
+        # is selected as the positive-classification input.
+        if _is_tobacco_only(context_text):
+            primary      = "Other / Insufficient Detail"
+            secondary    = []
+            fm           = "insufficient_detail"
+            fm_conf      = 0.1
+            is_noise_flag = False
+        else:
+            primary, secondary = multi_label_classify(text)
+            fm, fm_conf = classify_failure_mode(text, context_text=context_text)
+
+            # Fallbacks: never leave processed records with empty intelligence fields
+            is_thin = len(text.strip()) < 30
+            if not primary or primary == "Other / Insufficient Detail":
+                primary = "Other / Insufficient Detail"
+                is_noise_flag = is_thin
+            else:
+                is_noise_flag = False
+            if not fm:
+                fm      = "insufficient_detail"
+                fm_conf = 0.1
+
+        updated = asdict(c)
+        updated.update({
+            "primary_gmp_category":     primary,
+            "secondary_gmp_categories": secondary,
+            "failure_mode":             fm,
+            "failure_mode_confidence":  fm_conf,
+            "is_noise":                 is_noise_flag,
+            # classification_confidence is AI-only; leave at dataclass default (0.0)
+        })
+        classified.append(Citation(**updated))
+
+    # ── Step 3: Multi-dimensional severity (now has failure_mode available) ──
+    logger.info("Step 3/5: Multi-dimensional severity…")
+    severity_applied: list[Citation] = []
+    for c in classified:
+        sev_fields = compute_multidim_severity(c)
+        updated = asdict(c)
+        updated.update(sev_fields)
+        severity_applied.append(Citation(**updated))
+
+    # ── Step 4: Recurrence + risk direction (may escalate priority) ──────────
+    logger.info("Step 4/5: Recurrence counts + risk direction…")
+    final = compute_recurrence(severity_applied)
+
+    # ── Step 4b: Pre-cluster (before AI) so cluster_primary is available ─────
+    # compute_clusters() is deterministic — run here to set cluster_primary so the
+    # AI queue can prioritise cluster representative records.  Step 7 re-runs it
+    # after AI fields are settled (priority can shift the primary selection).
+    final = compute_clusters(final)
+
+    # ── Step 5: AI intelligence pass (gated, optional) ────────────────────
+    ai_import_error   = ""
+    ai_pass_attempted = False
+    ai_pass_completed = False
+
+    if not no_ai and not dry_run:
+        logger.info("Step 5/5: AI intelligence pass (max_calls=%d)…", max_ai_calls)
+        ai_pass_attempted = True
+        try:
+            from reports.pharma_intelligence import PharmaIntelligenceEnricher
+            enricher = PharmaIntelligenceEnricher(max_calls=max_ai_calls)
+            final = enricher.enrich_batch(final, dry_run=False, tracker=tracker)
+            ai_pass_completed = True
+        except ImportError as exc:
+            ai_import_error = str(exc)
+            logger.error(
+                "[AI] Import failed — %s. "
+                "Ensure project root is on sys.path. AI pass skipped.",
+                exc,
+            )
+        except Exception as exc:
+            ai_import_error = str(exc)
+            logger.warning("AI intelligence pass failed: %s", exc)
+    elif dry_run and not no_ai:
+        logger.info("Step 5/5: AI intelligence pass skipped (--dry-run)")
+        tracker.ai_skipped_due_to_no_ai = len(work_set)
+    else:
+        logger.info("Step 5/5: AI intelligence pass skipped (--no-ai)")
+        tracker.ai_skipped_due_to_no_ai = len(work_set)
+
+    # ── Step 6: Low-detail priority cap ───────────────────────────────────
+    # Applied after AI fields are settled so the AI-exception path fires correctly.
+    from collections import Counter as _Counter
+    before_cap = _Counter(c.priority for c in final)
+    final = apply_low_detail_priority_cap(final)
+    after_cap  = _Counter(c.priority for c in final)
+    capped = sum(
+        max(before_cap.get(p, 0) - after_cap.get(p, 0), 0)
+        for p in ("P1", "P2")
+    )
+    if capped:
+        logger.info(
+            "Step 6: Low-detail cap applied — %d records moved to P3 "
+            "(P1: %d→%d, P2: %d→%d)",
+            capped,
+            before_cap.get("P1", 0), after_cap.get("P1", 0),
+            before_cap.get("P2", 0), after_cap.get("P2", 0),
+        )
+
+    # ── Step 7: Citation clustering ────────────────────────────────────────
+    before_cluster = len(final)
+    final = compute_clusters(final)
+    multi = sum(1 for c in final if c.cluster_size > 1 and c.cluster_primary)
+    grouped = sum(1 for c in final if c.cluster_size > 1)
+    if multi:
+        logger.info(
+            "Step 7: Clustering — %d multi-record clusters (%d records grouped) from %d total",
+            multi, grouped, before_cluster,
+        )
+
+    # ── Audit report ───────────────────────────────────────────────────────
+    audit = _build_audit_report(
+        final, failed, tracker,
+        ai_import_error=ai_import_error,
+        ai_pass_attempted=ai_pass_attempted,
+        ai_pass_completed=ai_pass_completed,
+        sample_stats=sample_stats if sample is not None else None,
+    )
+    _print_audit_report(audit)
+    audit_path = REPORTS_DIR / "citation_audit.json"
+    audit_path.write_text(json.dumps(audit, indent=2))
+    logger.info("Audit written to %s", audit_path)
+
+    if dry_run:
+        logger.info("DRY-RUN: citation_database.json NOT written. Use --write to persist.")
+        return
+
+    # ── Write output ──────────────────────────────────────────────────────
+    # Merge sample back into full corpus (unenriched entries get original fields)
+    if sample is not None:
+        enriched_map = {c.id: c for c in final}
+        output_set = [enriched_map.get(c.id, c) for c in unique]
+    else:
+        output_set = final
 
     output = {
         "generated_at": NOW.isoformat(),
         "cutoff":        CUTOFF_12M.strftime("%Y-%m-%d"),
-        "total":         len(unique),
-        "citations":     [asdict(c) for c in unique],
+        "total":         len(output_set),
+        "citations":     [asdict(c) for c in output_set],
     }
     OUTPUT_JSON.write_text(json.dumps(output, indent=2))
-    logger.info("Wrote %d citations to %s", len(unique), OUTPUT_JSON)
+    logger.info("Wrote %d citations to %s", len(output_set), OUTPUT_JSON)
     _inject_data_into_html(output)
 
-    # ── Summary report ────────────────────────────────────────────────────
-    by_auth  = Counter(c.authority      for c in unique)
-    by_ftype = Counter(c.facility_type  for c in unique)
-    by_cat   = Counter(c.category       for c in unique)
-    by_sev   = Counter(c.severity       for c in unique)
+    # Legacy summary (authority / facility / category / severity)
+    by_auth  = Counter(c.authority     for c in output_set)
+    by_ftype = Counter(c.facility_type for c in output_set)
+    by_cat   = Counter(c.category      for c in output_set)
+    by_sev   = Counter(c.severity      for c in output_set)
 
     SEP = "=" * 62
     print(f"\n{SEP}")
     print("  CITATION DATABASE SUMMARY")
     print(SEP)
-    print(f"  Total citations:  {len(unique)}")
-
+    print(f"  Total citations:  {len(output_set)}")
     print(f"\n  By Authority:")
     for auth, n in sorted(by_auth.items(), key=lambda x: -x[1]):
         print(f"    {auth:<10} {n:>4}")
-
-    print(f"\n  By Facility Type:")
-    for ft, n in sorted(by_ftype.items(), key=lambda x: -x[1]):
-        print(f"    {ft:<30} {n:>4}")
-
-    print(f"\n  Top 10 Violation Categories:")
+    print(f"\n  Top 10 Categories:")
     for cat, n in by_cat.most_common(10):
         print(f"    {n:>4}  {cat}")
-
     print(f"\n  By Severity:")
     for sev in ("high", "medium", "low"):
         print(f"    {sev:<8} {by_sev.get(sev, 0):>4}")
-
     if failed:
         print(f"\n  Failed sources ({len(failed)}):")
         for f in failed:
             print(f"    ✗ {f}")
-
     print(SEP)
     print(f"\n  Output: {OUTPUT_JSON}\n")
 
 
 if __name__ == "__main__":
-    run()
+    parser = argparse.ArgumentParser(
+        description="Citation Database Builder — scrape, enrich, classify, and write citation_database.json"
+    )
+    parser.add_argument(
+        "--dry-run",    action="store_true",
+        help="Run full pipeline but do NOT write citation_database.json (audit report only)",
+    )
+    parser.add_argument(
+        "--no-ai",      action="store_true",
+        help="Skip the AI intelligence pass (enrichment + deterministic fields still run)",
+    )
+    parser.add_argument(
+        "--sample",     type=int, default=None, metavar="N",
+        help="Limit enrichment and AI to the first N citations (for test runs)",
+    )
+    parser.add_argument(
+        "--max-ai-calls", type=int, default=25, metavar="N",
+        help="Safety cap on total Claude API calls in the AI pass (default: 25)",
+    )
+    parser.add_argument(
+        "--enrich-workers", type=int, default=3, metavar="N",
+        help="Parallel workers for detail-page fetching (default: 3, max recommended: 4)",
+    )
+    parser.add_argument(
+        "--sample-strategy", default="recent",
+        choices=["recent", "enrichable", "mixed"],
+        help=(
+            "How to pick the --sample set. "
+            "'recent' = most-recent-first (default); "
+            "'enrichable' = FDA WLs and TGA records first, future-dated last; "
+            "'mixed' = blend of both."
+        ),
+    )
+    args = parser.parse_args()
+    run(
+        dry_run=args.dry_run,
+        no_ai=args.no_ai,
+        sample=args.sample,
+        max_ai_calls=args.max_ai_calls,
+        enrich_workers=args.enrich_workers,
+        sample_strategy=args.sample_strategy,
+    )

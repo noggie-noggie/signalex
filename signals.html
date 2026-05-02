@@ -559,13 +559,15 @@
     <table class="cit-table">
       <thead>
         <tr>
+          <th onclick="sortCit('priority')" title="Priority">Pri &#8597;</th>
           <th onclick="sortCit('authority')">Authority &#8597;</th>
           <th onclick="sortCit('source_type')">Type &#8597;</th>
-          <th onclick="sortCit('facility_type')">Facility &#8597;</th>
-          <th onclick="sortCit('category')">Category &#8597;</th>
-          <th onclick="sortCit('severity')">Sev &#8597;</th>
+          <th onclick="sortCit('company')">Entity &#8597;</th>
+          <th onclick="sortCit('failure_mode')">Failure Mode &#8597;</th>
+          <th onclick="sortCit('primary_gmp_category')">Category &#8597;</th>
+          <th title="AU Market Relevance">AU</th>
           <th onclick="sortCit('date')">Date &#8597;</th>
-          <th>Summary</th>
+          <th>Decision Summary</th>
           <th></th>
         </tr>
       </thead>
@@ -1396,7 +1398,7 @@ let intelFilters = { priority:'all', trend:'all', confidence:'all', impact:'all'
 let intelExpanded = new Set();
 
 // ── Pharma filter state ──────────────────────────────────────────────
-let pF = { auth:'all', factype:'all', srctype:'all', sev:'all', company:'', query:'', dateFrom:'', dateTo:'', dicapa:false };
+let pF = { auth:'all', factype:'all', srctype:'all', sev:'all', priority:'all', failureMode:'', company:'', query:'', dateFrom:'', dateTo:'', dicapa:false };
 let pActiveKpi = null;
 let citSortState = { col:'date', dir:-1 };
 let citPg = 1;
@@ -1414,6 +1416,7 @@ function filteredCits() {
     auth: pF.auth, sev: pF.sev, srctype: pF.srctype, factype: pF.factype,
     catFilter: pCatFilter, dicapa: pF.dicapa, company: pF.company, query: pF.query,
     dateFrom: pF.dateFrom, dateTo: pF.dateTo,
+    priority: pF.priority, failureMode: pF.failureMode,
     sortCol: citSortState.col, sortDir: citSortState.dir,
   });
   // Deduplicate pharma display using normalisePharmaCitationKey — collapses
