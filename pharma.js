@@ -420,12 +420,17 @@ function rankPharmaRisks(data) {
   const _SKIP_CAT = new Set(['', 'Other', 'Other / Insufficient Detail']);
   const riskMap = {};
   primaries.forEach(c => {
+    // Exclude non-enforcement records (guidance, scientific_opinion) from risk ranking —
+    // they are not enforcement findings and inflate risk area counts.
+    if (_isNonEnforcement(c)) return;
+    // Exclude unconfirmed categories: the category cannot be trusted for risk reporting.
+    const status = c.classification_status || '';
     const fm  = c.failure_mode || '';
     const cat = c.primary_gmp_category || c.category || '';
     let key, label;
     if (fm && !_SKIP_FM.has(fm) && (c.failure_mode_confidence||0) >= 0.6) {
       key = 'fm:' + fm; label = _fmLabel(fm);
-    } else if (cat && !_SKIP_CAT.has(cat)) {
+    } else if (cat && !_SKIP_CAT.has(cat) && status !== 'unconfirmed') {
       key = 'cat:' + cat; label = cat;
     } else {
       return;
@@ -1363,6 +1368,47 @@ function _citSecondaryCategories(c) {
   ).join('');
 }
 
+// ── Classification trust helpers ─────────────────────────────────────────────
+// Non-enforcement source types that should be shown separately from inspections
+const _NON_ENFORCEMENT_SOURCE_TYPES = new Set([
+  'scientific_opinion', 'guidance', 'regulatory_update', 'consultation',
+]);
+
+function _isNonEnforcement(c) {
+  return _NON_ENFORCEMENT_SOURCE_TYPES.has(c.source_type || '');
+}
+
+// Returns display label for a category, applying trust qualifiers.
+// confirmed → raw category; provisional → "Provisional: {cat}"; unconfirmed → "Limited detail"
+function _displayCategory(c) {
+  const cat    = c.primary_gmp_category || c.category || '';
+  const status = c.classification_status || '';
+  if (!cat || cat === 'Other / Insufficient Detail') return cat;
+  if (status === 'unconfirmed') return 'Limited detail';
+  if (status === 'provisional') return `Provisional: ${cat}`;
+  return cat;
+}
+
+// Tooltip text explaining limited/provisional classification when applicable
+function _classificationNote(c) {
+  const status = c.classification_status || '';
+  const st     = c.source_type || '';
+  if (_isNonEnforcement(c))
+    return 'Regulatory update / scientific opinion — not an enforcement finding';
+  if (status === 'unconfirmed')
+    return 'Category based on limited source text — treat as indicative only';
+  if (status === 'provisional')
+    return 'Category supported by listing-level keywords only — verify against source';
+  return '';
+}
+
+// Small inline badge shown on non-enforcement and unconfirmed records
+function _citTrustNote(c) {
+  const note = _classificationNote(c);
+  if (!note) return '';
+  return `<div style="margin-top:3px"><span style="font-size:9px;color:#7A92A8;font-style:italic" title="${note}">&#9432; ${note}</span></div>`;
+}
+
 function _citFailureMode(c) {
   if (!c.failure_mode || (c.failure_mode_confidence || 0) < 0.7) return '';
   return `<div style="margin-top:3px"><span style="font-size:9px;color:#c0392b;opacity:.75">&#9888; ${c.failure_mode.replace(/_/g,' ')}</span></div>`;
@@ -1421,11 +1467,15 @@ function citCard(c) {
     : (c._groupCount||1) > 1
     ? `<span class="cit-group-badge" title="${c._groupCount} similar citations grouped">×${c._groupCount}</span>`
     : '';
-  // primary_gmp_category preferred; falls back to legacy category field
-  const primaryCat = c.primary_gmp_category || c.category || '';
+  // primary_gmp_category preferred; falls back to legacy category field.
+  // Apply trust qualifier: unconfirmed → "Limited detail", provisional → "Provisional: {cat}"
+  const primaryCat    = c.primary_gmp_category || c.category || '';
+  const displayCat    = _displayCategory(c);
+  const catStyle      = (c.classification_status === 'unconfirmed' || c.classification_status === 'provisional')
+    ? ' style="color:#7A92A8;font-style:italic"' : '';
   // Debug tooltip shows enrichment status when window.SIGNALEX_DEBUG = true
   const debugTip = (typeof SIGNALEX_DEBUG !== 'undefined' && SIGNALEX_DEBUG)
-    ? ` title="enrichment: ${c.enrichment_status||'—'} | ${c.enrichment_source||'—'} | priority: ${c.priority||'—'}"` : '';
+    ? ` title="enrichment: ${c.enrichment_status||'—'} | ${c.enrichment_source||'—'} | priority: ${c.priority||'—'} | class_status: ${c.classification_status||'—'}"` : '';
   return `<div class="signal-card ${sc}" style="margin-bottom:8px"${debugTip}>
     <div class="card-top"><div class="card-title">${displaySumm}${groupBadge}</div></div>
     <div class="card-badges">
@@ -1435,8 +1485,9 @@ function citCard(c) {
       <span class="badge badge-type"${isImport?` title="${_IMPORT_ALERT_TIP}"`:''} style="${isImport?'cursor:help':''}">${st}</span>
       ${c.facility_type?`<span class="badge" style="background:rgba(139,92,246,.06);color:rgba(139,92,246,.55);border:1px solid rgba(139,92,246,.1)">${c.facility_type}</span>`:''}
     </div>
-    ${primaryCat?`<div class="card-summary">${primaryCat} ${_citSecondaryCategories(c)}</div>`:''}
+    ${displayCat?`<div class="card-summary"${catStyle}>${displayCat} ${_citSecondaryCategories(c)}</div>`:''}
     ${_citFailureMode(c)}
+    ${_citTrustNote(c)}
     ${c.company?`<div class="card-summary" style="color:#3D5268;font-size:10px">Company: ${c.company}${_citRecurrenceBadge(c)}${_citDirectionBadge(c)}</div>`:''}
     ${_citAiBox(c)}
     <div class="card-footer">
@@ -1480,7 +1531,12 @@ function _citTableRow(c, isExpanded) {
   const entity = (c.company || c.cluster_label || c.authority || '').slice(0, 45);
   const fm = (c.failure_mode && (c.failure_mode_confidence||0) >= 0.6 && c.failure_mode !== 'insufficient_detail')
     ? _fmLabel(c.failure_mode) : '';
-  const cat = c.primary_gmp_category || c.category || '';
+  const cat        = c.primary_gmp_category || c.category || '';
+  const displayCat = _displayCategory(c);
+  const catCellStyle = (c.classification_status === 'unconfirmed' || c.classification_status === 'provisional')
+    ? 'font-size:10px;max-width:120px;color:#9aacbb;font-style:italic'
+    : 'font-size:10px;max-width:120px';
+  const catTitle = _classificationNote(c) || cat;
   const auRel = c.market_relevance_au;
   const auBadge = (auRel && auRel !== 'none' && auRel !== 'not_applicable')
     ? `<span style="font-size:8px;color:#0d9488" title="${_AU_LABELS[auRel]||auRel}">AU</span>` : '';
@@ -1505,7 +1561,7 @@ function _citTableRow(c, isExpanded) {
     <td><span class="badge badge-type" style="white-space:nowrap">${st}</span></td>
     <td style="color:#3D5268;font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${entity}">${entity||'—'}</td>
     <td style="font-size:10px;color:#c0392b;white-space:nowrap">${fm}</td>
-    <td style="font-size:10px;max-width:120px">${cat}</td>
+    <td style="${catCellStyle}" title="${catTitle}">${displayCat}</td>
     <td style="font-size:9px;text-align:center">${auBadge}</td>
     <td style="white-space:nowrap;font-size:10px;color:#3D5268">${c.date?c.date.slice(0,10):'—'}</td>
     <td style="max-width:260px;font-size:11px;color:#7A92A8">${toggleBtn}${ds}${clusterBadge}</td>

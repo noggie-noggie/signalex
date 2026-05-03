@@ -79,11 +79,15 @@ function isLowValueContent(item) {
 }
 
 // ── Enforcement quality filter — rejects nav pages and non-enforcement citations ─
-const _ENFORCEMENT_SOURCE_TYPES = new Set(['warning_letter','inspection_finding','recall','import_alert','safety_alert','483']);
+const _ENFORCEMENT_SOURCE_TYPES = new Set(['warning_letter','inspection_finding','recall','import_alert','safety_alert','483','compliance_action','drug_enforcement','device_enforcement','food_enforcement']);
+// Non-enforcement source types — guidance/scientific content, not enforcement findings
+const _NON_ENFORCEMENT_SOURCE_TYPES = new Set(['scientific_opinion','guidance','regulatory_update','consultation']);
 const _ENFORCEMENT_JUNK_PHRASES = ['subscribe to','press release','general information','to the medium','newsletter','comics','more about'];
 const _ENFORCEMENT_ACTION_VERBS = ['warning','inspection','recall','violation','alert','detention','contamination','adulterat','mislabel','misbrand','defect','unsafe','prohibited','unapproved','finding','enforcement','non-compliance','gmp','cgmp','gdp','import'];
 
 function isValidEnforcementItem(c) {
+  // Reject guidance/scientific records — they are not enforcement findings
+  if (_NON_ENFORCEMENT_SOURCE_TYPES.has(c.source_type||'')) return false;
   if (!_ENFORCEMENT_SOURCE_TYPES.has(c.source_type||'')) return false;
   const summary = (c.summary||'').trim();
   const text = (summary + ' ' + (c.category||'')).toLowerCase();

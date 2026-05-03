@@ -1,0 +1,1338 @@
+{
+  "generated_at": "2026-05-03T11:05:01.893767+00:00",
+  "total_records": 2855,
+  "overview": {
+    "total_suspicious_records": 183,
+    "guidance_mislabelled_count": 0,
+    "classification_status_distribution": {
+      "provisional": 899,
+      "unconfirmed": 1512,
+      "confirmed": 444
+    },
+    "source_type_distribution": {
+      "import_alert": 40,
+      "scientific_opinion": 257,
+      "compliance_action": 25,
+      "guidance": 7,
+      "warning_letter": 727,
+      "safety_alert": 10,
+      "recall": 6,
+      "drug_enforcement": 705,
+      "food_enforcement": 78,
+      "device_enforcement": 1000
+    },
+    "authority_distribution": {
+      "FDA": 2550,
+      "BfR": 22,
+      "TGA": 24,
+      "EFSA": 238,
+      "MHRA": 21
+    },
+    "priority_distribution": {
+      "P3": 1735,
+      "P4": 890,
+      "P2": 146,
+      "P1": 84
+    }
+  },
+  "source_type_audit": {
+    "total_inspection_finding": 0,
+    "by_authority": {},
+    "guidance_mislabelled_count": 0,
+    "efsa_mislabelled_count": 0,
+    "bfr_mislabelled_count": 0,
+    "mhra_guidance_count": 0,
+    "guidance_mislabelled_examples": []
+  },
+  "deviation_management": {
+    "total": 281,
+    "confirmed_evidence_count": 281,
+    "suspicious_count": 0,
+    "suspicious_examples": []
+  },
+  "quality_management_system": {
+    "total": 1,
+    "likely_guidance": 0,
+    "likely_enforcement": 0,
+    "ambiguous": 1,
+    "suspicious_count": 0,
+    "guidance_examples": []
+  },
+  "p1p2_trust_audit": {
+    "total_p1": 84,
+    "total_p2": 146,
+    "p1p2_unconfirmed_classification": 58,
+    "p1p2_guidance_mislabelled": 0,
+    "sample_unconfirmed_p1p2": [
+      {
+        "id": "f6a117fdd912",
+        "authority": "MHRA",
+        "source_type": "compliance_action",
+        "priority": "P1",
+        "primary_gmp_category": "Labelling & claims",
+        "failure_mode": "insufficient_detail",
+        "summary": "A falsified version of Mounjaro (tirzepatide) KwikPen 15mg solution for injection has been found supplied through one online pharmacy in the UK. The f",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "c0285c6970fb",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "df002bc7a0bf",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "dc2d689ec7eb",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "d31f5ac8bff6",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "ca600c119f3e",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "92e8916df78d",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "388997b0dabb",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "abf986c08ada",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "938f02190c6f",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "483e82d9fc38",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "184582ee0575",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "5f6123f5de57",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "df984530406c",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "c17339a1b106",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "aa2782ce42e5",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "112a0a88ee5e",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "82bdbfbbcc11",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "50c177a00a30",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      },
+      {
+        "id": "fa8e7717a37b",
+        "authority": "FDA",
+        "source_type": "device_enforcement",
+        "priority": "P1",
+        "primary_gmp_category": "Equipment & facilities",
+        "failure_mode": "sterility_assurance",
+        "summary": "Medline has identified issues related to calibration of the equipment used to sterilize and package the devices. All products were exposed to the vali",
+        "classification_confidence": 0.0,
+        "has_enriched_text": false
+      }
+    ]
+  },
+  "per_category_summaries": {
+    "Deviation management": {
+      "total": 281,
+      "with_enriched_text": 51,
+      "with_any_evidence": 281,
+      "with_enriched_evidence": 49,
+      "no_evidence": 0,
+      "low_confidence": 264,
+      "suspicious_count": 0,
+      "top_suspicious": []
+    },
+    "Quality management system": {
+      "total": 1,
+      "with_enriched_text": 0,
+      "with_any_evidence": 1,
+      "with_enriched_evidence": 0,
+      "no_evidence": 0,
+      "low_confidence": 1,
+      "suspicious_count": 0,
+      "top_suspicious": []
+    },
+    "Computerised systems validation": {
+      "total": 163,
+      "with_enriched_text": 14,
+      "with_any_evidence": 9,
+      "with_enriched_evidence": 9,
+      "no_evidence": 154,
+      "low_confidence": 163,
+      "suspicious_count": 154,
+      "top_suspicious": [
+        {
+          "id": "27c725dc3ff8",
+          "company": "Gentuity, LLC",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1823-2026",
+          "raw_listing_summary": "Gentuity HF-OCT Imaging System Model G10-01;  Software version 23.2.13; The potential for repeated frames during HF-OCT pullback when using the Gentuity HF-OCT Console (software version 21.11 to 23.3.",
+          "summary": "The potential for repeated frames during HF-OCT pullback when using the Gentuity HF-OCT Console (software version 21.11 to 23.3.13) with the Vis-Rx and Vis-Rx Prime catheters. This correction is inten",
+          "violation_details": "Gentuity HF-OCT Imaging System Model G10-01;  Software version 23.2.13; The potential for repeated frames during HF-OCT pullback when using the Gentuity HF-OCT Console (software version 21.11 to 23.3.",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "5148f226b295",
+          "company": "PHILIPS MEDICAL SYSTEMS NEDERLAND B.V.",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1805-2026",
+          "raw_listing_summary": "Philips AneurysmFlow. Model Number: 001015.     AneurysmFlow is a software medical device (Interventional Tool) intended to be used in combination with a Philips interventional X-ray system and 3DRA d",
+          "summary": "Potential safety issue involving the Mean Aneurysm Flow Amplitude (MAFA) ratio of AneurysmFlow (Interventional Tool). Philips has determined that the MAFA ratio does not provide reliable prognostic in",
+          "violation_details": "Philips AneurysmFlow. Model Number: 001015.     AneurysmFlow is a software medical device (Interventional Tool) intended to be used in combination with a Philips interventional X-ray system and 3DRA d",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "1eab05b9841f",
+          "company": "PHILIPS MEDICAL SYSTEMS",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1825-2026",
+          "raw_listing_summary": "Philips Spectral CT on Rails. Model Number: 728334. Philips has identified three software issues:  1. During a continuous CT (CCT) scan, there is the potential that the Gantry could remain at the curr",
+          "summary": "Philips has identified three software issues:  1. During a continuous CT (CCT) scan, there is the potential that the Gantry could remain at the current scan position after pressing Go.   2. Potential ",
+          "violation_details": "Philips Spectral CT on Rails. Model Number: 728334. Philips has identified three software issues:  1. During a continuous CT (CCT) scan, there is the potential that the Gantry could remain at the curr",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "42e9e9d0054b",
+          "company": "Koven Technology, Inc.",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1631-2026",
+          "raw_listing_summary": "Brand Name: BiDop 3  Product Name: BiDop 3 Pocket Doppler (ES-100V3) with BT2M20S8C fetal probe  Model/Catalog Number: ES-100V3 (device); BT2M20S8C (2 MHz fetal probe).  Software Version: N/A  Product",
+          "summary": "Product labeling includes a fetal indication for use that is not cleared under its 510(k).",
+          "violation_details": "Brand Name: BiDop 3  Product Name: BiDop 3 Pocket Doppler (ES-100V3) with BT2M20S8C fetal probe  Model/Catalog Number: ES-100V3 (device); BT2M20S8C (2 MHz fetal probe).  Software Version: N/A  Product",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "0e0c175a5c27",
+          "company": "Philips Respironics, Inc.",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1617-2026",
+          "raw_listing_summary": "Philips Respironics Trilogy Evo Universal, Software Version 1.05.15.00. Continuous home-use ventilator device. Using non-pneumatic nebulizers with Trilogy Evo Platform ventilators may result in a disc",
+          "summary": "Using non-pneumatic nebulizers with Trilogy Evo Platform ventilators may result in a discrepancy between the set tidal volume and the tidal volume received by the patient.",
+          "violation_details": "Philips Respironics Trilogy Evo Universal, Software Version 1.05.15.00. Continuous home-use ventilator device. Using non-pneumatic nebulizers with Trilogy Evo Platform ventilators may result in a disc",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "8810abb30bd7",
+          "company": "Philips Respironics, Inc.",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1616-2026",
+          "raw_listing_summary": "Philips Respironics Trilogy EV300, Software Version 1.05.15.00. Continuous home-use ventilator device. Using non-pneumatic nebulizers with Trilogy Evo Platform ventilators may result in a discrepancy ",
+          "summary": "Using non-pneumatic nebulizers with Trilogy Evo Platform ventilators may result in a discrepancy between the set tidal volume and the tidal volume received by the patient.",
+          "violation_details": "Philips Respironics Trilogy EV300, Software Version 1.05.15.00. Continuous home-use ventilator device. Using non-pneumatic nebulizers with Trilogy Evo Platform ventilators may result in a discrepancy ",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "2347aaa6d5fa",
+          "company": "Philips Respironics, Inc.",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1615-2026",
+          "raw_listing_summary": "Philips Respironics Trilogy Evo O2, Software Version 1.05.15.00. Continuous home-use ventilator device. Using non-pneumatic nebulizers with Trilogy Evo Platform ventilators may result in a discrepancy",
+          "summary": "Using non-pneumatic nebulizers with Trilogy Evo Platform ventilators may result in a discrepancy between the set tidal volume and the tidal volume received by the patient.",
+          "violation_details": "Philips Respironics Trilogy Evo O2, Software Version 1.05.15.00. Continuous home-use ventilator device. Using non-pneumatic nebulizers with Trilogy Evo Platform ventilators may result in a discrepancy",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "ac0096fc42a3",
+          "company": "Philips Respironics, Inc.",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1647-2026",
+          "raw_listing_summary": "Philips Respironics Trilogy Evo O2, Software Version 1.05.15.00. Continuous home-use ventilator device. In some situations, the Obstruction Alarm does not trigger within the timeframe dictated by the ",
+          "summary": "In some situations, the Obstruction Alarm does not trigger within the timeframe dictated by the relevant standards and may take up to four breaths.",
+          "violation_details": "Philips Respironics Trilogy Evo O2, Software Version 1.05.15.00. Continuous home-use ventilator device. In some situations, the Obstruction Alarm does not trigger within the timeframe dictated by the ",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "4b2ffa9a8f83",
+          "company": "Philips Respironics, Inc.",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1649-2026",
+          "raw_listing_summary": "Philips Respironics Trilogy Evo Universal, Software Version 1.05.15.00. Continuous home-use ventilator device. In some situations, the Obstruction Alarm does not trigger within the timeframe dictated ",
+          "summary": "In some situations, the Obstruction Alarm does not trigger within the timeframe dictated by the relevant standards and may take up to four breaths.",
+          "violation_details": "Philips Respironics Trilogy Evo Universal, Software Version 1.05.15.00. Continuous home-use ventilator device. In some situations, the Obstruction Alarm does not trigger within the timeframe dictated ",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "83e0514cdbde",
+          "company": "Philips Respironics, Inc.",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1648-2026",
+          "raw_listing_summary": "Philips Respironics Trilogy EV300, Software Version 1.05.15.00. Continuous home-use ventilator device. In some situations, the Obstruction Alarm does not trigger within the timeframe dictated by the r",
+          "summary": "In some situations, the Obstruction Alarm does not trigger within the timeframe dictated by the relevant standards and may take up to four breaths.",
+          "violation_details": "Philips Respironics Trilogy EV300, Software Version 1.05.15.00. Continuous home-use ventilator device. In some situations, the Obstruction Alarm does not trigger within the timeframe dictated by the r",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "812ac2193c1f",
+          "company": "Philips Respironics, Inc.",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1646-2026",
+          "raw_listing_summary": "Philips Respironics Trilogy Evo, Software Version 1.05.15.00. Continuous home-use ventilator device. In some situations, the Obstruction Alarm does not trigger within the timeframe dictated by the rel",
+          "summary": "In some situations, the Obstruction Alarm does not trigger within the timeframe dictated by the relevant standards and may take up to four breaths.",
+          "violation_details": "Philips Respironics Trilogy Evo, Software Version 1.05.15.00. Continuous home-use ventilator device. In some situations, the Obstruction Alarm does not trigger within the timeframe dictated by the rel",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "10e15f487c3d",
+          "company": "Philips Respironics, Inc.",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1614-2026",
+          "raw_listing_summary": "Philips Respironics Trilogy Evo, Software Version 1.05.15.00. Continuous home-use ventilator device. Using non-pneumatic nebulizers with Trilogy Evo Platform ventilators may result in a discrepancy be",
+          "summary": "Using non-pneumatic nebulizers with Trilogy Evo Platform ventilators may result in a discrepancy between the set tidal volume and the tidal volume received by the patient.",
+          "violation_details": "Philips Respironics Trilogy Evo, Software Version 1.05.15.00. Continuous home-use ventilator device. Using non-pneumatic nebulizers with Trilogy Evo Platform ventilators may result in a discrepancy be",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "0fadb66e2aed",
+          "company": "AMO Puerto Rico Manufacturing, Inc.",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1634-2026",
+          "raw_listing_summary": "Brand Name: TECNIS Eyhance IOL with TECNIS Simplicity\" Delivery System  Product Name: TECNIS Eyhance IOL with TECNIS Simplicity\" Delivery System  Model/Catalog Number: DIB00  Software Version: N/A  Pr",
+          "summary": "Due to identifying a limited quantity of intraocular lenses that may have a haptic that sticks to the optic which prevents the lens from unfolding as consistently as expected.",
+          "violation_details": "Brand Name: TECNIS Eyhance IOL with TECNIS Simplicity\" Delivery System  Product Name: TECNIS Eyhance IOL with TECNIS Simplicity\" Delivery System  Model/Catalog Number: DIB00  Software Version: N/A  Pr",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "a57b686df60a",
+          "company": "Baxter Healthcare Corporation",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1573-2026",
+          "raw_listing_summary": "Brand Name: Welch Allyn, Inc.  Product Name: Welch Allyn Spot Vision Screener VS100  Model/Catalog Number: VS100  Software Version: Software version 3.2.0.1  Product Description: Welch Allyn Spot Visi",
+          "summary": "Display screen may unintentionally flicker due to a software issue. Exposure to flickering lights may induce photosensitive seizure activity in susceptible individuals.",
+          "violation_details": "Brand Name: Welch Allyn, Inc.  Product Name: Welch Allyn Spot Vision Screener VS100  Model/Catalog Number: VS100  Software Version: Software version 3.2.0.1  Product Description: Welch Allyn Spot Visi",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "6ef2fa438535",
+          "company": "Reflexion Medical, Inc.",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1656-2026",
+          "raw_listing_summary": "RefleXion X1 Radiotherapy System Model RXM1000, Part #800-00006-00 Due to a radiotherapy medical system software defect, when performing angular roll corrections followed by a repeat localization, the",
+          "summary": "Due to a radiotherapy medical system software defect, when performing angular roll corrections followed by a repeat localization, the roll corrections applied in the initial localization scan are not ",
+          "violation_details": "RefleXion X1 Radiotherapy System Model RXM1000, Part #800-00006-00 Due to a radiotherapy medical system software defect, when performing angular roll corrections followed by a repeat localization, the",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "63b3938cbfb0",
+          "company": "Abbott Diagnostics Scarborough, Inc.",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1565-2026",
+          "raw_listing_summary": "Product Name: ID NOW\" Influenza A & B 2  Model/Catalog Number: 427-000  Software Version: Not Applicable  Product Description: Influenza A/B virus nucleic acid IVD, kit, nucleic acid technique  Compon",
+          "summary": "It was confirmed that the impacted lot has a higher occurrence of invalid rates when compared to the product Instructions for Use.",
+          "violation_details": "Product Name: ID NOW\" Influenza A & B 2  Model/Catalog Number: 427-000  Software Version: Not Applicable  Product Description: Influenza A/B virus nucleic acid IVD, kit, nucleic acid technique  Compon",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "aad1563c52c0",
+          "company": "Hitachi, Ltd. Radiation Oncology Systems, Kashiwanoha",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1429-2026",
+          "raw_listing_summary": "Brand Name: Hitachi Proton Beam Therapy System   Ref: PROBEAT-FR Software anomaly in the patient positioning system may result in positional discrepancy. Hitachi, Ltd. Radiation Oncology Systems, Kash",
+          "summary": "Software anomaly in the patient positioning system may result in positional discrepancy.",
+          "violation_details": "Brand Name: Hitachi Proton Beam Therapy System   Ref: PROBEAT-FR Software anomaly in the patient positioning system may result in positional discrepancy. Hitachi, Ltd. Radiation Oncology Systems, Kash",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "0560e2a55ee8",
+          "company": "Hitachi, Ltd. Radiation Oncology Systems, Kashiwanoha",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1430-2026",
+          "raw_listing_summary": "Brand Name: Hitachi Proton Beam Therapy  REF: PROBEAT-CR Software anomaly in the patient positioning system may result in positional discrepancy. Hitachi, Ltd. Radiation Oncology Systems, Kashiwanoha",
+          "summary": "Software anomaly in the patient positioning system may result in positional discrepancy.",
+          "violation_details": "Brand Name: Hitachi Proton Beam Therapy  REF: PROBEAT-CR Software anomaly in the patient positioning system may result in positional discrepancy. Hitachi, Ltd. Radiation Oncology Systems, Kashiwanoha",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "57a387b9cd1d",
+          "company": "GE Medical Systems, LLC",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1590-2026",
+          "raw_listing_summary": "Imactis CT-Navigation System, stereotaxic accessory for Computer Tomography (CT), systems, Model Numbers E85101LA and E85101LP There is a potential issue that can lead to discordance between the simul",
+          "summary": "There is a potential issue that can lead to discordance between the simulated needle trajectory/tip position and the actual needle trajectory/tip position.",
+          "violation_details": "Imactis CT-Navigation System, stereotaxic accessory for Computer Tomography (CT), systems, Model Numbers E85101LA and E85101LP There is a potential issue that can lead to discordance between the simul",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "8d289a55f035",
+          "company": "B Braun Medical Inc",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1483-2026",
+          "raw_listing_summary": "Brand Name: B. Braun  Product Name: 21GA WINGED INF SET  Model/Catalog Number: 7M2802  Software Version: N/A  Product Description: A device designed for subcutaneous implantation and intended to be us",
+          "summary": "The potential for the needle tip to be dull/blunt, difficult to advance, and/or break.",
+          "violation_details": "Brand Name: B. Braun  Product Name: 21GA WINGED INF SET  Model/Catalog Number: 7M2802  Software Version: N/A  Product Description: A device designed for subcutaneous implantation and intended to be us",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Computerised systems validation",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Computerised systems validation' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        }
+      ]
+    },
+    "Equipment & facilities": {
+      "total": 87,
+      "with_enriched_text": 22,
+      "with_any_evidence": 85,
+      "with_enriched_evidence": 22,
+      "no_evidence": 2,
+      "low_confidence": 43,
+      "suspicious_count": 2,
+      "top_suspicious": [
+        {
+          "id": "165f7d15bdfc",
+          "company": "Steris Corporation",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-0909-2026",
+          "raw_listing_summary": "AMSCO 7052HP Washer/Disinfector  Model/Catalog Number: 7052HP     Product Description: The AMSCO 7052HP Washer/Disinfector is intended for use in the cleaning and intermediate-level disinfection of so",
+          "summary": "Wire connected to the electrical box may shift out of its intended position, which may result in electrical arcing. Electrical arcing remains internal within the unit (no risk of shock to users).",
+          "violation_details": "AMSCO 7052HP Washer/Disinfector  Model/Catalog Number: 7052HP     Product Description: The AMSCO 7052HP Washer/Disinfector is intended for use in the cleaning and intermediate-level disinfection of so",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Equipment & facilities",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Equipment & facilities' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "a0bd33ee6fc6",
+          "company": "Steris Corporation",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-0910-2026",
+          "raw_listing_summary": "AMSCO 7053HP Washer/Disinfector   Model/Catalog Number: 7053HP     Product Description: The AMSCO 7053HP Washer/Disinfector is intended for use in the cleaning and intermediate-level disinfection of s",
+          "summary": "Wire connected to the electrical box may shift out of its intended position, which may result in electrical arcing. Electrical arcing remains internal within the unit (no risk of shock to users).",
+          "violation_details": "AMSCO 7053HP Washer/Disinfector   Model/Catalog Number: 7053HP     Product Description: The AMSCO 7053HP Washer/Disinfector is intended for use in the cleaning and intermediate-level disinfection of s",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Equipment & facilities",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Equipment & facilities' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        }
+      ]
+    },
+    "Documentation & record keeping": {
+      "total": 161,
+      "with_enriched_text": 149,
+      "with_any_evidence": 156,
+      "with_enriched_evidence": 145,
+      "no_evidence": 5,
+      "low_confidence": 156,
+      "suspicious_count": 6,
+      "top_suspicious": [
+        {
+          "id": "e9604d47d7ff",
+          "company": "Yuyao City Boss Vegetable Factory Co. Ltd.",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/yuyao-city-boss-vegetable-factory-co-ltd-717174-11282025",
+          "raw_listing_summary": "Acidified Foods/Emergency Permit Control/Adulterated Yuyao City Boss Vegetable Factory Co. Ltd.",
+          "summary": "Acidified Foods/Emergency Permit Control/Adulterated",
+          "violation_details": "Acidified Foods/Emergency Permit Control/Adulterated Yuyao City Boss Vegetable Factory Co. Ltd.",
+          "enriched_text_excerpt": "significant violation: 1. You did not maintain processing or production records showing adherence to the scheduled process as required by 21 CFR 114.100(b). Specifically: a. No processing or productio",
+          "primary_gmp_category": "Documentation & record keeping",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Documentation & record keeping' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "e622ac38eee9",
+          "company": "Meridian Bioscience, Inc",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/meridian-bioscience-inc-720826-12222025",
+          "raw_listing_summary": "CGMP/QSR/Medical Devices/Adulterated Meridian Bioscience, Inc",
+          "summary": "CGMP/QSR/Medical Devices/Adulterated",
+          "violation_details": "CGMP/QSR/Medical Devices/Adulterated Meridian Bioscience, Inc",
+          "enriched_text_excerpt": "Failure to establish and maintain procedures for implementing corrective and preventive action. The procedures shall include requirements for analyzing processes, work operations, concessions, quality",
+          "primary_gmp_category": "Documentation & record keeping",
+          "failure_mode": "contamination_chemical",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.16,
+          "reasons_flagged": [
+            "failure_mode='contamination_chemical' (conf=0.16) is very low confidence for a specific mode"
+          ]
+        },
+        {
+          "id": "5e66c27f7154",
+          "company": "Elekta, Inc.",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1078-2026",
+          "raw_listing_summary": "MOSAIQ Oncology Information System with Particle Therapy License  (License Kit 45700000000IQRO) Using oncology information system that manages workflow may result in overtreatment if:Plan delivered wi",
+          "summary": "Using oncology information system that manages workflow may result in overtreatment if:Plan delivered with Particle Therapy IHE-RO TDW-II interface,With one field per fraction or last field partial tr",
+          "violation_details": "MOSAIQ Oncology Information System with Particle Therapy License  (License Kit 45700000000IQRO) Using oncology information system that manages workflow may result in overtreatment if:Plan delivered wi",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Documentation & record keeping",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Documentation & record keeping' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "1a1011dfbf7d",
+          "company": "Cellebration LLC",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/cellebration-llc-713252-09122025",
+          "raw_listing_summary": "Deviations/CFR/Regulations for Human Cells, Tissues & Cellular Products (HCT/Ps) Cellebration LLC",
+          "summary": "Deviations/CFR/Regulations for Human Cells, Tissues & Cellular Products (HCT/Ps)",
+          "violation_details": "Deviations/CFR/Regulations for Human Cells, Tissues & Cellular Products (HCT/Ps) Cellebration LLC",
+          "enriched_text_excerpt": "you failed to answer our initial request for records, we sent a second request via e-mail on April 23, 2025. You indicated on April 28, 2025, that you had sent your response weeks earlier; however, ou",
+          "primary_gmp_category": "Documentation & record keeping",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Documentation & record keeping' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "ba03006f971a",
+          "company": "Media Networks Sydney Pty. Limited",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/media-networks-sydney-pty-limited-711342-09162025",
+          "raw_listing_summary": "Failure to Comply with Drug Listing Requirements/Misbranded Media Networks Sydney Pty. Limited",
+          "summary": "Failure to Comply with Drug Listing Requirements/Misbranded",
+          "violation_details": "Failure to Comply with Drug Listing Requirements/Misbranded Media Networks Sydney Pty. Limited",
+          "enriched_text_excerpt": "Because your firm failed to respond to the section 704(a)(4) records requests and associated communication attempts, we have no indication of the level of quality assurance for drugs listed as manufac",
+          "primary_gmp_category": "Documentation & record keeping",
+          "failure_mode": "import_detention",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.56,
+          "reasons_flagged": [
+            "Category 'Documentation & record keeping' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "c0e4e0e849de",
+          "company": "",
+          "authority": "FDA",
+          "source_type": "import_alert",
+          "url": "https://www.accessdata.fda.gov/cms_ia/importalert_1182.html",
+          "raw_listing_summary": "99-49 Detention Without Physical Examination of Devices Without a Unique Device Identifier and/or Matching GUDID Record",
+          "summary": "Detention Without Physical Examination of Devices Without a Unique Device Identifier and/or Matching GUDID Record",
+          "violation_details": "99-49 Detention Without Physical Examination of Devices Without a Unique Device Identifier and/or Matching GUDID Record",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Documentation & record keeping",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Documentation & record keeping' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        }
+      ]
+    },
+    "Labelling & claims": {
+      "total": 226,
+      "with_enriched_text": 63,
+      "with_any_evidence": 226,
+      "with_enriched_evidence": 61,
+      "no_evidence": 0,
+      "low_confidence": 222,
+      "suspicious_count": 0,
+      "top_suspicious": []
+    },
+    "Sterility assurance": {
+      "total": 186,
+      "with_enriched_text": 14,
+      "with_any_evidence": 169,
+      "with_enriched_evidence": 3,
+      "no_evidence": 17,
+      "low_confidence": 172,
+      "suspicious_count": 17,
+      "top_suspicious": [
+        {
+          "id": "ef21d77dcb1d",
+          "company": "Exactech, Inc. dba Advita Ortho",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/exactech-inc-dba-advita-ortho-720250-12192025",
+          "raw_listing_summary": "CGMP/QSR/Medical Devices/Adulterated Exactech, Inc. dba Advita Ortho",
+          "summary": "CGMP/QSR/Medical Devices/Adulterated",
+          "violation_details": "CGMP/QSR/Medical Devices/Adulterated Exactech, Inc. dba Advita Ortho",
+          "enriched_text_excerpt": "Failure to establish and maintain process control procedures that describe any process controls necessary to ensure conformance to specifications when deviations from device specifications could occur",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "process_validation",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.48,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "19ef525e369d",
+          "company": "",
+          "authority": "EFSA",
+          "source_type": "scientific_opinion",
+          "url": "https://efsa.onlinelibrary.wiley.com/doi/10.2903/j.efsa.2026.9951",
+          "raw_listing_summary": "Safety evaluation of the food enzyme trypsin from the genetically modified Fusarium venenatum strain NZYM\u2010FG Scientific Opinion Safety evaluation of the food enzyme trypsin from the genetically modifi",
+          "summary": "Safety evaluation of the food enzyme trypsin from the genetically modified Fusarium venenatum strain NZYM\u2010FG",
+          "violation_details": "Safety evaluation of the food enzyme trypsin from the genetically modified Fusarium venenatum strain NZYM\u2010FG Scientific Opinion Safety evaluation of the food enzyme trypsin from the genetically modifi",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "3a70608460c0",
+          "company": "MACLEODS PHARMA USA, INC",
+          "authority": "FDA",
+          "source_type": "drug_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=D-0403-2026",
+          "raw_listing_summary": "Levothyroxine Sodium Tablets USP 150 mcg, 1000 Tablets bottle, Rx Only, Manufactured for: Macleods Pharma USA, Inc., Princeton, NJ, Manufactured by: Macleods Pharmaceuticals Ltd., Sarigam, Valsad, Gua",
+          "summary": "Subpotent Drug",
+          "violation_details": "Levothyroxine Sodium Tablets USP 150 mcg, 1000 Tablets bottle, Rx Only, Manufactured for: Macleods Pharma USA, Inc., Princeton, NJ, Manufactured by: Macleods Pharmaceuticals Ltd., Sarigam, Valsad, Gua",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "323b5f8fba4b",
+          "company": "Dynamic Stem Cell Therapy",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/dynamic-stem-cell-therapy-712579-02112026",
+          "raw_listing_summary": "Unapproved New Drugs/Unlicensed Biological Product Violations Dynamic Stem Cell Therapy",
+          "summary": "Unapproved New Drugs/Unlicensed Biological Product Violations",
+          "violation_details": "Unapproved New Drugs/Unlicensed Biological Product Violations Dynamic Stem Cell Therapy",
+          "enriched_text_excerpt": "Failure to adequately address these matters may result in action without further notice including, without limitation, seizure and/or injunction. Please submit your response in writing within fifteen ",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "7b38364be27a",
+          "company": "BioXtek LLC",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/bioxtek-llc-715478-12012025",
+          "raw_listing_summary": "Unapproved New Drug/Unlicensed Biological Product/Biologics License Application (BLA) BioXtek LLC",
+          "summary": "Unapproved New Drug/Unlicensed Biological Product/Biologics License Application (BLA)",
+          "violation_details": "Unapproved New Drug/Unlicensed Biological Product/Biologics License Application (BLA) BioXtek LLC",
+          "enriched_text_excerpt": "Failure to adequately address these matters may result in action without further notice including, without limitation, seizure and/or injunction. Please submit your response in writing within fifteen ",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "e0f7899b1cf9",
+          "company": "",
+          "authority": "MHRA",
+          "source_type": "compliance_action",
+          "url": "https://www.gov.uk/drug-device-alerts/class-4-medicines-defect-notification-relonchem-ltd-various-products-el-25-a-slash-44",
+          "raw_listing_summary": "Class 4 Medicines Defect Notification: Relonchem Ltd, Various Products, EL(25)A/44 Relonchem Ltd has informed the MHRA that duplicate GTIN numbers have been assigned to certain Losartan potassium/Hydr",
+          "summary": "Relonchem Ltd has informed the MHRA that duplicate GTIN numbers have been assigned to certain Losartan potassium/Hydrochlorothiazide coated tablets in error and a duplicate EAN number has been assigne",
+          "violation_details": "Class 4 Medicines Defect Notification: Relonchem Ltd, Various Products, EL(25)A/44 Relonchem Ltd has informed the MHRA that duplicate GTIN numbers have been assigned to certain Losartan potassium/Hydr",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "66edaba0825d",
+          "company": "Allovate Therapeutics, LLC",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/allovate-therapeutics-llc-708912-09302025",
+          "raw_listing_summary": "CGMP/Deviations/Biologics License Application (BLA) Allovate Therapeutics, LLC",
+          "summary": "CGMP/Deviations/Biologics License Application (BLA)",
+          "violation_details": "CGMP/Deviations/Biologics License Application (BLA) Allovate Therapeutics, LLC",
+          "enriched_text_excerpt": "Failure to adequately address these matters may result in action without further notice including, without limitation, seizure and/or injunction. Please submit your response in writing within fifteen ",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "1ff7b4a283f4",
+          "company": "Chengdu Brilliant Biopharmaceutical Co., Ltd.",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/chengdu-brilliant-biopharmaceutical-co-ltd-711330-09112025",
+          "raw_listing_summary": "CGMP/Finished Pharmaceuticals/Adulterated Chengdu Brilliant Biopharmaceutical Co., Ltd.",
+          "summary": "CGMP/Finished Pharmaceuticals/Adulterated",
+          "violation_details": "CGMP/Finished Pharmaceuticals/Adulterated Chengdu Brilliant Biopharmaceutical Co., Ltd.",
+          "enriched_text_excerpt": "Failure to demonstrate that your manufacturing process can reproducibly manufacture an API meeting its predetermined quality attributes. Based on the records and information you provided, your firm ha",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "process_validation",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.48,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "434ece091f9e",
+          "company": "NuVida Medical LLC",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/nuvida-medical-llc-707745-09042025",
+          "raw_listing_summary": "Deviations/CFR/Regulations for Human Cells, Tissues & Cellular Products (HCT/Ps) NuVida Medical LLC",
+          "summary": "Deviations/CFR/Regulations for Human Cells, Tissues & Cellular Products (HCT/Ps)",
+          "violation_details": "Deviations/CFR/Regulations for Human Cells, Tissues & Cellular Products (HCT/Ps) NuVida Medical LLC",
+          "enriched_text_excerpt": "Failure to adequately address these matters may result in action without further notice including, without limitation, seizure and/or injunction. Please submit your response in writing within fifteen ",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "372a9f469b61",
+          "company": "DermaRite Industries, LLC",
+          "authority": "FDA",
+          "source_type": "drug_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=D-0165-2026",
+          "raw_listing_summary": "DermaSarra, Camphor 0.5%, External Analgesic, 222 mL (7.5 fl. oz.) per bottle, DermaRite Industries LLC, 7777 West Side Avenue, North Bergen, NJ 07047. NDC 61924-189-08 CGMP Deviation; manufactured at",
+          "summary": "CGMP Deviation; manufactured at the same facility where other products and lots were found to be contaminated.",
+          "violation_details": "DermaSarra, Camphor 0.5%, External Analgesic, 222 mL (7.5 fl. oz.) per bottle, DermaRite Industries LLC, 7777 West Side Avenue, North Bergen, NJ 07047. NDC 61924-189-08 CGMP Deviation; manufactured at",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "9d52984366f5",
+          "company": "Platinum Biologics LLC",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/platinum-biologics-llc-705090-08152025",
+          "raw_listing_summary": "Deviations/CFR/Regulations for Human Cells, Tissues & Cellular Products (HCT/Ps) Platinum Biologics LLC",
+          "summary": "Deviations/CFR/Regulations for Human Cells, Tissues & Cellular Products (HCT/Ps)",
+          "violation_details": "Deviations/CFR/Regulations for Human Cells, Tissues & Cellular Products (HCT/Ps) Platinum Biologics LLC",
+          "enriched_text_excerpt": "Failure to adequately address these matters may result in action without further notice including, without limitation, seizure and/or injunction. Please submit your response in writing within fifteen ",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "72b3132aa74c",
+          "company": "Innate Healthcare Institute",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/innate-healthcare-institute-695592-08152025",
+          "raw_listing_summary": "Deviations/CFR/Regulations for Human Cells, Tissues & Cellular Products (HCT/Ps) Innate Healthcare Institute",
+          "summary": "Deviations/CFR/Regulations for Human Cells, Tissues & Cellular Products (HCT/Ps)",
+          "violation_details": "Deviations/CFR/Regulations for Human Cells, Tissues & Cellular Products (HCT/Ps) Innate Healthcare Institute",
+          "enriched_text_excerpt": "Failure to adequately address these matters may result in action without further notice including, without limitation, seizure and/or injunction. Please submit your response in writing within fifteen ",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "576d445b9d28",
+          "company": "Ascend Laboratories, LLC",
+          "authority": "FDA",
+          "source_type": "drug_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=D-0576-2025",
+          "raw_listing_summary": "Amlodipine and Olmesartan Medoxomil Tablets, 5 mg/ 40 mg, 30-count bottle, Rx Only, Manufactured by: Alkem Laboratories Ltd., INDIA; Distributed by: Ascend Laboratories, LLC, Parsippany, NJ 07054, NDC",
+          "summary": "Failed Dissolution Specifications: low dissolution results",
+          "violation_details": "Amlodipine and Olmesartan Medoxomil Tablets, 5 mg/ 40 mg, 30-count bottle, Rx Only, Manufactured by: Alkem Laboratories Ltd., INDIA; Distributed by: Ascend Laboratories, LLC, Parsippany, NJ 07054, NDC",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "332271bc6f6e",
+          "company": "Macleods Pharmaceuticals Ltd",
+          "authority": "FDA",
+          "source_type": "drug_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=D-0470-2025",
+          "raw_listing_summary": "Levothyroxine Sodium Tablets, USP 112 mcg (0.112mg), 1000 tablets, Rx Only, Manufactured for: Macleods Pharma USA, Inc. Princeton, NJ 08540. Manufactured by: Macleods Pharmaceuticals Ltd. Sarigam, Val",
+          "summary": "Presence of a foreign substance: black hair found embedded in tablet.",
+          "violation_details": "Levothyroxine Sodium Tablets, USP 112 mcg (0.112mg), 1000 tablets, Rx Only, Manufactured for: Macleods Pharma USA, Inc. Princeton, NJ 08540. Manufactured by: Macleods Pharmaceuticals Ltd. Sarigam, Val",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "beadb96ab388",
+          "company": "Rey de los Camarones S. A.",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/rey-de-los-camarones-s-695816-12232024",
+          "raw_listing_summary": "Seafood HACCP/CGMP for Foods/Adulterated Rey de los Camarones S. A.",
+          "summary": "Seafood HACCP/CGMP for Foods/Adulterated",
+          "violation_details": "Seafood HACCP/CGMP for Foods/Adulterated Rey de los Camarones S. A.",
+          "enriched_text_excerpt": "significant violations were as follows: 1. You must conduct a hazard analysis to determine whether there are food safety hazards that are reasonably likely to occur and have a HACCP plan that, at a mi",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "87d4be0e989a",
+          "company": "Supreme Rejuvenation, LLC",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/supreme-rejuvenation-llc-700749-05052025",
+          "raw_listing_summary": "Unapproved New Drugs/Misbranded Supreme Rejuvenation, LLC",
+          "summary": "Unapproved New Drugs/Misbranded",
+          "violation_details": "Unapproved New Drugs/Misbranded Supreme Rejuvenation, LLC",
+          "enriched_text_excerpt": "Failure to adequately address these matters may result in action without further notice including, without limitation, seizure and/or injunction. Please submit your response in writing within fifteen ",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "a19493cc2301",
+          "company": "Sarfez Pharmaceuticals, Inc.",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/sarfez-pharmaceuticals-inc-708901-04252025",
+          "raw_listing_summary": "False & Misleading Claims/Misbranded Sarfez Pharmaceuticals, Inc.",
+          "summary": "False & Misleading Claims/Misbranded",
+          "violation_details": "False & Misleading Claims/Misbranded Sarfez Pharmaceuticals, Inc.",
+          "enriched_text_excerpt": "failure to reveal facts that are material in light of the representations made by the materials or with respect to consequences that may result from the use of the drug as recommended or suggested in ",
+          "primary_gmp_category": "Sterility assurance",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Sterility assurance' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        }
+      ]
+    },
+    "Contamination & sterility": {
+      "total": 93,
+      "with_enriched_text": 7,
+      "with_any_evidence": 93,
+      "with_enriched_evidence": 7,
+      "no_evidence": 0,
+      "low_confidence": 88,
+      "suspicious_count": 1,
+      "top_suspicious": [
+        {
+          "id": "d410b53e4542",
+          "company": "",
+          "authority": "FDA",
+          "source_type": "import_alert",
+          "url": "https://www.accessdata.fda.gov/cms_ia/importalert_1187.html",
+          "raw_listing_summary": "99-51 Detention Without Physical Examination of Human Food Products That Appear To Have Been Prepared, Packed Or Held Under Insanitary Conditions Resulting in Chemical Contamination",
+          "summary": "Detention Without Physical Examination of Human Food Products That Appear To Have Been Prepared, Packed Or Held Under Insanitary Conditions Resulting in Chemical Contamination",
+          "violation_details": "99-51 Detention Without Physical Examination of Human Food Products That Appear To Have Been Prepared, Packed Or Held Under Insanitary Conditions Resulting in Chemical Contamination",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Contamination & sterility",
+          "failure_mode": "contamination_chemical",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.16,
+          "reasons_flagged": [
+            "failure_mode='contamination_chemical' (conf=0.16) is very low confidence for a specific mode"
+          ]
+        }
+      ]
+    },
+    "GMP violations": {
+      "total": 114,
+      "with_enriched_text": 110,
+      "with_any_evidence": 114,
+      "with_enriched_evidence": 110,
+      "no_evidence": 0,
+      "low_confidence": 101,
+      "suspicious_count": 0,
+      "top_suspicious": []
+    },
+    "Ingredient safety": {
+      "total": 82,
+      "with_enriched_text": 1,
+      "with_any_evidence": 82,
+      "with_enriched_evidence": 1,
+      "no_evidence": 0,
+      "low_confidence": 74,
+      "suspicious_count": 0,
+      "top_suspicious": []
+    },
+    "Training & competency": {
+      "total": 13,
+      "with_enriched_text": 4,
+      "with_any_evidence": 13,
+      "with_enriched_evidence": 3,
+      "no_evidence": 0,
+      "low_confidence": 12,
+      "suspicious_count": 0,
+      "top_suspicious": []
+    },
+    "Supply chain & procurement": {
+      "total": 49,
+      "with_enriched_text": 33,
+      "with_any_evidence": 46,
+      "with_enriched_evidence": 32,
+      "no_evidence": 3,
+      "low_confidence": 24,
+      "suspicious_count": 3,
+      "top_suspicious": [
+        {
+          "id": "f97761196e4b",
+          "company": "Straumann USA LLC",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1632-2026",
+          "raw_listing_summary": "Custom Abutment Ti, for Straumann RC, incl. TAN screw;  Catalog Number/Art.: 027.4620; A material mix-up had occurred during the manufacturing of Straumann\u00bf Custom Abutments. More specifically, a raw ",
+          "summary": "A material mix-up had occurred during the manufacturing of Straumann\u00bf Custom Abutments. More specifically, a raw material bar of TAN-material (SAP #701924 / Lot 7130439) was incorrectly identified as ",
+          "violation_details": "Custom Abutment Ti, for Straumann RC, incl. TAN screw;  Catalog Number/Art.: 027.4620; A material mix-up had occurred during the manufacturing of Straumann\u00bf Custom Abutments. More specifically, a raw ",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Supply chain & procurement",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Supply chain & procurement' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "27cc28dee30a",
+          "company": "Straumann USA LLC",
+          "authority": "FDA",
+          "source_type": "device_enforcement",
+          "url": "https://www.accessdata.fda.gov/scripts/ires/?action=RecallAction&RecallNumber=Z-1633-2026",
+          "raw_listing_summary": "Custom Abutment AS Ti, for Straumann RC, incl. TAN screw;  Catalog Number/Art.: 010.5438; A material mix-up had occurred during the manufacturing of Straumann\u00bf Custom Abutments. More specifically, a r",
+          "summary": "A material mix-up had occurred during the manufacturing of Straumann\u00bf Custom Abutments. More specifically, a raw material bar of TAN-material (SAP #701924 / Lot 7130439) was incorrectly identified as ",
+          "violation_details": "Custom Abutment AS Ti, for Straumann RC, incl. TAN screw;  Catalog Number/Art.: 010.5438; A material mix-up had occurred during the manufacturing of Straumann\u00bf Custom Abutments. More specifically, a r",
+          "enriched_text_excerpt": "",
+          "primary_gmp_category": "Supply chain & procurement",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Supply chain & procurement' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        },
+        {
+          "id": "1983304e1a8f",
+          "company": "Novo Nordisk Inc.",
+          "authority": "FDA",
+          "source_type": "warning_letter",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/novo-nordisk-inc-717576-03052026",
+          "raw_listing_summary": "Postmarketing Adverse Drug Experience Reporting Requirements Novo Nordisk Inc.",
+          "summary": "Postmarketing Adverse Drug Experience Reporting Requirements",
+          "violation_details": "Postmarketing Adverse Drug Experience Reporting Requirements Novo Nordisk Inc.",
+          "enriched_text_excerpt": "Failure to comply with section 505(k) is a prohibited act under section 301(e) of the FD&C Act [21 U.S.C. 331(e)]. This inspection was conducted as a part of FDA\u2019s Bioresearch Monitoring Program, whic",
+          "primary_gmp_category": "Supply chain & procurement",
+          "failure_mode": "insufficient_detail",
+          "category_confidence": 0.0,
+          "failure_mode_confidence": 0.1,
+          "reasons_flagged": [
+            "Category 'Supply chain & procurement' assigned but no evidence phrases found and classification_confidence=0.00"
+          ]
+        }
+      ]
+    }
+  },
+  "top_categories": {
+    "Other / Insufficient Detail": 1165,
+    "Deviation management": 281,
+    "Labelling & claims": 226,
+    "Sterility assurance": 186,
+    "Computerised systems validation": 163,
+    "Documentation & record keeping": 161,
+    "GMP violations": 114,
+    "Contamination & sterility": 93,
+    "Equipment & facilities": 87,
+    "Ingredient safety": 82,
+    "Stability programme": 72,
+    "Parenteral manufacturing": 70,
+    "Supply chain & procurement": 49,
+    "API synthesis and control": 29,
+    "Biological product specific": 27,
+    "Training & competency": 13,
+    "Environmental monitoring": 13,
+    "Container closure integrity": 11,
+    "Cold chain and storage": 10,
+    "Aseptic processing": 2
+  },
+  "top_failure_modes": {
+    "insufficient_detail": 2060,
+    "sterility_assurance": 245,
+    "inadequate_testing": 104,
+    "inadequate_stability": 97,
+    "contamination_foreign": 73,
+    "contamination_microbial": 68,
+    "labelling_error": 46,
+    "out_of_specification": 42,
+    "supplier_qualification": 33,
+    "process_validation": 30,
+    "adverse_event_cluster": 17,
+    "contamination_chemical": 15,
+    "equipment_calibration": 9,
+    "import_detention": 6,
+    "recall_voluntary": 5
+  }
+}

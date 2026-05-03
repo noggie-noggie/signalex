@@ -217,6 +217,12 @@ class Citation:
     recommended_action:        str   = ""   # top compliance action for AU VMS teams
     classification_confidence: float = 0.0  # overall confidence in classification
     is_noise:                  bool  = False  # True if record has insufficient detail
+    # ── Evidence-backed classification fields (set by classify_with_evidence()) ──
+    category_confidence:      float = 0.0   # keyword-evidence confidence for primary_gmp_category
+    category_evidence:        list  = field(default_factory=list)   # matched phrases → category
+    failure_mode_evidence:    list  = field(default_factory=list)   # matched phrases → failure_mode
+    classification_basis:     str   = "unknown"   # enriched_text | raw_listing_summary | legacy
+    classification_status:    str   = "unconfirmed"  # confirmed | provisional | unconfirmed
     # ── Clustering fields (set by compute_clusters(), Step 7) ────────
     cluster_id:       str  = ""   # sha256[:12] of grouping key
     cluster_size:     int  = 1    # number of records in cluster (1 = singleton)
@@ -660,6 +666,227 @@ _FAILURE_MODE_RULES: list[tuple[str, list[str]]] = [
                                   "building maintenance", "facility hygiene", "sanitation failure",
                                   "pest infestation"]),
 ]
+
+
+# ---------------------------------------------------------------------------
+# Per-category evidence terms — required to confirm a category assignment.
+# A category is only "confirmed" when at least one of these phrases is present
+# in the available text.  A match in enriched_text = confirmed; match only in
+# listing-level text = provisional; no match = unconfirmed.
+# ---------------------------------------------------------------------------
+_CATEGORY_EVIDENCE_TERMS: dict[str, list[str]] = {
+    "Deviation management": [
+        "deviation", "nonconformance", "non-conformance", "capa",
+        "corrective action", "preventive action", "investigation",
+        "failure investigation", "root cause", "oos",
+        "out-of-specification", "out of specification",
+        "complaint investigation", "discrepancy investigation",
+        "discrepancy", "nonconformity", "non-conformity",
+    ],
+    "Quality management system": [
+        "quality unit", "quality system", "quality management system", "qms",
+        "management review", "quality oversight", "quality agreement",
+        "change control system", "complaint system", "capa system",
+        "quality assurance", "pharmaceutical quality system", "pqs",
+    ],
+    "Computerised systems validation": [
+        "computer system validation", "csv", "computerized system",
+        "computerised system", "electronic record", "electronic signature",
+        "audit trail", "access control", "data integrity",
+        "part 11", "annex 11", "21 cfr part 11", "software validation",
+    ],
+    "Equipment & facilities": [
+        "equipment", "facility", "facilities", "calibration", "maintenance",
+        "cleaning validation", "hvac", "utilities", "water system",
+        "premises", "sanitation", "cleanroom", "preventive maintenance",
+        "equipment qualification",
+    ],
+    "Documentation & record keeping": [
+        "batch record", "master record", "sop", "standard operating procedure",
+        "procedure", "documentation", "recordkeeping", "record keeping",
+        "logbook", "certificate of analysis", "coa",
+        "batch manufacturing record", "protocol",
+    ],
+    "Labelling & claims": [
+        "label", "labelling", "labeling", "misbranded", "misbranding",
+        "claim", "disease claim", "false or misleading", "unapproved claim",
+        "label mix-up", "incorrect label", "health claim",
+    ],
+    "Sterility assurance": [
+        "sterility", "sterile", "aseptic", "endotoxin", "bioburden",
+        "sterility testing", "sterility failure", "terminal sterilization",
+        "sterilisation", "depyrogenation",
+    ],
+    "Contamination & sterility": [
+        "contamination", "contaminated", "microbial", "salmonella", "listeria",
+        "e. coli", "mold", "yeast", "foreign material", "foreign matter",
+        "particulate", "cross-contamination",
+    ],
+    "GMP violations": [
+        "cgmp", "good manufacturing practice", "gmp violation",
+        "current good manufacturing", "21 cfr 211",
+        "eu gmp", "non-compliance with gmp",
+    ],
+    "Ingredient safety": [
+        "undeclared", "adulterant", "adulterated", "identity", "purity",
+        "potency", "nitrosamine", "impurity", "undeclared drug substance",
+    ],
+    "Training & competency": [
+        "training", "competency", "qualified person", "qualification",
+        "personnel", "gmp training", "training programme",
+    ],
+    "Supply chain & procurement": [
+        "supplier", "vendor", "procurement", "raw material supplier",
+        "fsvp", "foreign supplier", "contract manufacturer",
+        "supply chain", "supplier qualification",
+    ],
+    "Aseptic processing": [
+        "aseptic", "aseptic technique", "aseptic fill", "grade a",
+        "grade b", "cleanroom", "laminar air flow", "media fill",
+    ],
+    "Environmental monitoring": [
+        "environmental monitoring", "em program", "em data",
+        "viable particle", "bioburden monitoring", "air sample",
+    ],
+    "Stability programme": [
+        "stability", "shelf life", "expiry", "degradation",
+        "accelerated stability", "stability data",
+    ],
+}
+
+# Source-type patterns — guidance / scientific content NOT enforcement
+_GUIDANCE_URL_RE = re.compile(
+    r"/guidance/|/guidelines?/|/consultations?/|/scientific.opinions?/|"
+    r"onlinelibrary\.wiley\.com|efsa\.europa\.eu|bfr\.bund\.de",
+    re.I,
+)
+_GUIDANCE_TITLE_RE = re.compile(
+    r"\bguideline\b|\bguidance\b|\bconsultation\b|\bopinion\b"
+    r"|\bassessment\b|\bmonitoring report\b|\bscientific report\b"
+    r"|\bscientific statement\b|\btechnical report\b|\bpeer review\b"
+    r"|\bflavour(?:ing)?\b|\bfeed additive\b",
+    re.I,
+)
+_ENFORCEMENT_SIGNAL_RE = re.compile(
+    r"\bnon.compliance\b|\bdeficiency\b|\bviolation\b|\benforcement\b"
+    r"|\bwarning letter\b|\brecall\b|\bsuspension\b|\binjunction\b"
+    r"|\bdefective medicine\b|\binspection finding\b",
+    re.I,
+)
+
+
+def _is_guidance_source(c: "Citation") -> bool:
+    """Return True when URL/title signals guidance/scientific-opinion, not enforcement."""
+    title = f"{c.summary or ''} {c.violation_details or ''}"
+    return bool(
+        _GUIDANCE_URL_RE.search(c.url or "")
+        or _GUIDANCE_TITLE_RE.search(title)
+    )
+
+
+def _is_enforcement_source(c: "Citation") -> bool:
+    title = f"{c.summary or ''} {c.violation_details or ''}"
+    return bool(_ENFORCEMENT_SIGNAL_RE.search(title))
+
+
+def classify_with_evidence(c: "Citation", best_text: str) -> dict:
+    """
+    Return evidence-backed classification fields for a citation.
+
+    Computes:
+      category_confidence     — fraction of evidence terms present
+      category_evidence       — matched phrases supporting primary_gmp_category
+      failure_mode_evidence   — matched phrases supporting failure_mode
+      classification_basis    — which text field drove the classification
+      classification_status   — confirmed | provisional | unconfirmed
+
+    Rules:
+      confirmed   — evidence phrase(s) found in enriched_text (richest source)
+      provisional — evidence phrase(s) found only in listing-level text, OR
+                    enriched evidence but confidence < 0.4
+      unconfirmed — no evidence phrase found for the assigned category, OR
+                    category is Other/Insufficient Detail
+    """
+    cat = c.primary_gmp_category or ""
+    fm  = c.failure_mode          or ""
+    ev_terms = _CATEGORY_EVIDENCE_TERMS.get(cat, [])
+    fm_terms_map = {mode: kws for mode, kws in _FAILURE_MODE_RULES}
+
+    # Determine which text drove the original classification
+    has_enriched = (
+        c.enrichment_status in ("success", "cached")
+        and len(c.enriched_text or "") > 100
+    )
+    if has_enriched:
+        basis = "enriched_text"
+    elif c.raw_listing_summary:
+        basis = "raw_listing_summary"
+    elif c.violation_details:
+        basis = "violation_details"
+    elif c.summary:
+        basis = "summary"
+    else:
+        basis = "unknown"
+
+    # No-evidence catch-all
+    if cat in ("Other / Insufficient Detail", "") or not ev_terms:
+        return {
+            "category_confidence":   0.0,
+            "category_evidence":     [],
+            "failure_mode_evidence": [],
+            "classification_basis":  basis,
+            "classification_status": "unconfirmed",
+        }
+
+    # Check for guidance/scientific sources regardless of category
+    is_guidance = _is_guidance_source(c) and not _is_enforcement_source(c)
+    if is_guidance and cat not in ("Labelling & claims", "Ingredient safety",
+                                    "Contamination & sterility"):
+        return {
+            "category_confidence":   0.0,
+            "category_evidence":     [],
+            "failure_mode_evidence": [],
+            "classification_basis":  basis,
+            "classification_status": "unconfirmed",
+        }
+
+    # Category evidence — check both enriched and listing text
+    enriched_lower  = (c.enriched_text or "").lower()
+    listing_lower   = " ".join(filter(None, [
+        c.raw_listing_summary, c.violation_details, c.summary,
+    ])).lower()
+    full_lower      = best_text.lower()
+
+    cat_ev_enriched  = [t for t in ev_terms if t in enriched_lower] if has_enriched else []
+    cat_ev_listing   = [t for t in ev_terms if t in listing_lower]
+    cat_ev_all       = [t for t in ev_terms if t in full_lower]
+
+    if ev_terms:
+        cat_conf = round(min(1.0, len(cat_ev_all) / max(len(ev_terms) * 0.25, 1)), 2)
+    else:
+        cat_conf = 0.0
+
+    # Failure mode evidence
+    fm_kws = fm_terms_map.get(fm, []) if fm else []
+    fm_ev  = [kw for kw in fm_kws if kw in full_lower]
+
+    # Determine classification_status
+    if cat_ev_enriched:
+        status = "confirmed"
+    elif cat_ev_listing and cat_conf >= 0.3:
+        status = "provisional"
+    elif cat_ev_all:
+        status = "provisional"
+    else:
+        status = "unconfirmed"
+
+    return {
+        "category_confidence":   cat_conf,
+        "category_evidence":     cat_ev_all[:10],   # cap stored phrases at 10
+        "failure_mode_evidence": fm_ev[:8],
+        "classification_basis":  basis,
+        "classification_status": status,
+    }
 
 
 def multi_label_classify(text: str) -> tuple[str, list[str]]:
@@ -1655,9 +1882,18 @@ def scrape_mhra() -> list[Citation]:
                 seen.add(item_url)
                 ftype = infer_facility_type(raw)
                 cat   = keyword_classify(raw)
+                # Reclassify gov.uk/guidance URLs: they are guidance pages, not inspection findings.
+                # MHRA actual GMP non-compliance letters live at /government/publications/ with
+                # enforcement titles; guidance pages use /guidance/ URL segment.
+                mhra_src_type = src_type
+                if (mhra_src_type == "inspection_finding"
+                        and ("/guidance/" in item_url
+                             or _GUIDANCE_TITLE_RE.search(raw))
+                        and not _ENFORCEMENT_SIGNAL_RE.search(raw)):
+                    mhra_src_type = "guidance"
                 results.append(Citation(
                     id=make_id("MHRA_GMP", item_url),
-                    authority="MHRA", source_type=src_type,
+                    authority="MHRA", source_type=mhra_src_type,
                     company="", date=date_str(dt),
                     category=cat,
                     severity=infer_severity(raw, src_type),
@@ -1749,7 +1985,15 @@ def scrape_efsa() -> list[Citation]:
                     item_text,
                 )
                 pub_type = type_m.group(1) if type_m else "Scientific Output"
-                src_type = "compliance_action" if "News" in pub_type else "inspection_finding"
+                # EFSA publications are scientific outputs, not enforcement findings.
+                # Map each pub type to the correct source_type.
+                if "News" in pub_type:
+                    src_type = "compliance_action"
+                elif "Guidance" in pub_type:
+                    src_type = "guidance"
+                else:
+                    # Scientific Opinion, Statement, Technical Report, Event report, etc.
+                    src_type = "scientific_opinion"
                 cat      = keyword_classify(raw)
                 sev      = infer_severity(raw, src_type)
                 results.append(Citation(
@@ -1839,11 +2083,16 @@ def scrape_bfr() -> list[Citation]:
                 seen.add(item_url)
                 cat_m     = re.search(r"Category\s+([A-Za-z /]+?)(?:\d|$|\n)", body_text)
                 src_label = cat_m.group(1).strip() if cat_m else "BfR Publication"
-                src_type  = (
-                    "compliance_action"
-                    if any(w in src_label.lower() for w in ["press", "faq", "comms"])
-                    else "inspection_finding"
-                )
+                # BfR publications are risk assessments and opinions, not inspection findings.
+                if any(w in src_label.lower() for w in ["press", "faq", "comms"]):
+                    src_type = "compliance_action"
+                elif any(w in src_label.lower() for w in ["consultation", "opinion", "assessment", "review"]):
+                    src_type = "scientific_opinion"
+                elif "guidance" in src_label.lower():
+                    src_type = "guidance"
+                else:
+                    # Default for BfR publications: scientific opinion / risk assessment
+                    src_type = "scientific_opinion"
                 cat   = keyword_classify(raw)
                 sev   = infer_severity(raw, src_type)
                 ftype = infer_facility_type(raw)
@@ -2063,6 +2312,56 @@ _LOW_DETAIL_HIGH_RISK_RE = re.compile(
 )
 
 
+def fix_source_types(citations: list[Citation]) -> list[Citation]:
+    """
+    Post-scrape pass: correct source_type for guidance/scientific records mislabelled
+    as inspection_finding.
+
+    Affects records where:
+      - source_type is inspection_finding
+      - URL or title/summary indicates guidance or scientific-opinion content
+      - No enforcement signal (non-compliance, deficiency, recall) in the text
+
+    Mapping:
+      - EFSA records → scientific_opinion (always; EFSA does not issue inspection findings)
+      - BfR records → scientific_opinion (BfR issues risk assessments, not inspections)
+      - MHRA gov.uk/guidance/* URLs → guidance
+      - Other guidance-pattern content → guidance
+    """
+    result: list[Citation] = []
+    fixed = 0
+    for c in citations:
+        if c.source_type != "inspection_finding":
+            result.append(c)
+            continue
+
+        new_type = None
+        if c.authority == "EFSA":
+            new_type = "scientific_opinion"
+        elif c.authority == "BfR":
+            new_type = "scientific_opinion"
+        elif c.authority == "MHRA" and "/guidance/" in (c.url or ""):
+            new_type = "guidance"
+        elif _is_guidance_source(c) and not _is_enforcement_source(c):
+            new_type = "guidance"
+
+        if new_type:
+            fixed += 1
+            updated = asdict(c)
+            updated["source_type"] = new_type
+            result.append(Citation(**updated))
+        else:
+            result.append(c)
+
+    if fixed:
+        logger.info(
+            "fix_source_types: corrected %d inspection_finding records "
+            "(EFSA/BfR → scientific_opinion, guidance URLs → guidance)",
+            fixed,
+        )
+    return result
+
+
 def apply_low_detail_priority_cap(citations: list[Citation]) -> list[Citation]:
     """
     Cap low-detail records at P3 unless explicit high-risk evidence is present.
@@ -2144,6 +2443,93 @@ def apply_low_detail_priority_cap(citations: list[Citation]) -> list[Citation]:
         updated["severity_reason"] = (reason + "; capped P3 — low detail, no safety signal")[:200]
         result.append(Citation(**updated))
 
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Classification trust priority cap
+# ---------------------------------------------------------------------------
+
+# Source types that are informational/scientific — never enforcement findings
+_NON_ENFORCEMENT_SOURCE_TYPES = frozenset({
+    "guidance", "scientific_opinion", "regulatory_update", "consultation",
+})
+
+
+def apply_classification_trust_cap(citations: list[Citation]) -> list[Citation]:
+    """
+    Cap priority based on classification trustworthiness.
+
+    Rules (applied in order; first match wins):
+      1. Non-enforcement source types (guidance, scientific_opinion, regulatory_update):
+         cap at P4 unless the text contains explicit high-risk safety terms.
+         Rationale: guidance documents are not enforcement findings; P1/P2 is misleading.
+
+      2. classification_status == "unconfirmed" AND not a strong enforcement source:
+         cap at P3. The category cannot be trusted for top-risk reporting.
+
+    Exemptions (never capped):
+      - Records already at P3 or P4 (cap would have no effect)
+      - Records where _LOW_DETAIL_HIGH_RISK_RE fires (explicit safety signal in text)
+      - Strong enforcement sources: warning_letter, drug_enforcement, device_enforcement,
+        recall, import_alert (these have source-type gravity that overrides unconfirmed cat.)
+    """
+    _STRONG_ENFORCEMENT = frozenset({
+        "warning_letter", "drug_enforcement", "device_enforcement",
+        "food_enforcement", "recall", "import_alert",
+    })
+    result: list[Citation] = []
+    capped_non_enf = 0
+    capped_unconf  = 0
+
+    for c in citations:
+        if c.priority in ("P3", "P4", ""):
+            result.append(c)
+            continue
+
+        context = get_context_text(c)
+        has_safety = bool(_LOW_DETAIL_HIGH_RISK_RE.search(context))
+
+        # Rule 1: non-enforcement source type
+        if c.source_type in _NON_ENFORCEMENT_SOURCE_TYPES:
+            if has_safety:
+                result.append(c)
+                continue
+            new_pri = "P4"
+            capped_non_enf += 1
+            updated = asdict(c)
+            reason  = updated.get("severity_reason", c.severity_reason or "")
+            updated["priority"] = new_pri
+            updated["severity_reason"] = (
+                reason + f"; capped {new_pri} — non-enforcement source type ({c.source_type})"
+            )[:200]
+            result.append(Citation(**updated))
+            continue
+
+        # Rule 2: unconfirmed classification + not strong enforcement
+        if (c.classification_status == "unconfirmed"
+                and c.source_type not in _STRONG_ENFORCEMENT
+                and not has_safety):
+            new_pri = "P3"
+            capped_unconf += 1
+            updated = asdict(c)
+            reason  = updated.get("severity_reason", c.severity_reason or "")
+            updated["priority"] = new_pri
+            updated["severity_reason"] = (
+                reason + "; capped P3 — unconfirmed category, non-enforcement source"
+            )[:200]
+            result.append(Citation(**updated))
+            continue
+
+        result.append(c)
+
+    total_capped = capped_non_enf + capped_unconf
+    if total_capped:
+        logger.info(
+            "Classification trust cap: %d records capped "
+            "(%d non-enforcement source, %d unconfirmed category)",
+            total_capped, capped_non_enf, capped_unconf,
+        )
     return result
 
 
@@ -2696,6 +3082,10 @@ def run(
     unique.sort(key=lambda c: c.date or "0000-00-00", reverse=True)
     logger.info("Deduplicated: %d unique citations", len(unique))
 
+    # Early source-type fix: correct EFSA/BfR/MHRA guidance records before enrichment
+    # so the enrichment path (which checks source_type) sees correct values.
+    unique = fix_source_types(unique)
+
     # Sample slice for enrichment/classification (full corpus always scraped)
     sample_stats: dict = {}
     if sample is not None:
@@ -2752,6 +3142,11 @@ def run(
                 fm      = "insufficient_detail"
                 fm_conf = 0.1
 
+        # Build a temporary Citation with the new category/FM so classify_with_evidence
+        # can inspect c.primary_gmp_category and c.failure_mode.
+        temp_c = Citation(**{**asdict(c), "primary_gmp_category": primary, "failure_mode": fm})
+        ev_fields = classify_with_evidence(temp_c, text)
+
         updated = asdict(c)
         updated.update({
             "primary_gmp_category":     primary,
@@ -2760,6 +3155,7 @@ def run(
             "failure_mode_confidence":  fm_conf,
             "is_noise":                 is_noise_flag,
             # classification_confidence is AI-only; leave at dataclass default (0.0)
+            **ev_fields,
         })
         classified.append(Citation(**updated))
 
@@ -2812,7 +3208,13 @@ def run(
         logger.info("Step 5/5: AI intelligence pass skipped (--no-ai)")
         tracker.ai_skipped_due_to_no_ai = len(work_set)
 
-    # ── Step 6: Low-detail priority cap ───────────────────────────────────
+    # ── Step 6a: Source-type reclassification ─────────────────────────────
+    # Fix guidance/scientific records mislabelled as inspection_finding.
+    # Run before priority caps so subsequent caps see correct source_type.
+    logger.info("Step 6a: Source-type trust reclassification…")
+    final = fix_source_types(final)
+
+    # ── Step 6b: Low-detail priority cap ──────────────────────────────────
     # Applied after AI fields are settled so the AI-exception path fires correctly.
     from collections import Counter as _Counter
     before_cap = _Counter(c.priority for c in final)
@@ -2824,11 +3226,31 @@ def run(
     )
     if capped:
         logger.info(
-            "Step 6: Low-detail cap applied — %d records moved to P3 "
+            "Step 6b: Low-detail cap applied — %d records moved to P3 "
             "(P1: %d→%d, P2: %d→%d)",
             capped,
             before_cap.get("P1", 0), after_cap.get("P1", 0),
             before_cap.get("P2", 0), after_cap.get("P2", 0),
+        )
+
+    # ── Step 6c: Classification trust cap ─────────────────────────────────
+    # Cap non-enforcement source types at P4; unconfirmed categories at P3.
+    logger.info("Step 6c: Classification trust cap…")
+    before_trust = _Counter(c.priority for c in final)
+    final = apply_classification_trust_cap(final)
+    after_trust  = _Counter(c.priority for c in final)
+    trust_capped = sum(
+        max(before_trust.get(p, 0) - after_trust.get(p, 0), 0)
+        for p in ("P1", "P2", "P3")
+    )
+    if trust_capped:
+        logger.info(
+            "Step 6c: Trust cap applied — %d records capped "
+            "(P1: %d→%d, P2: %d→%d, P3: %d→%d)",
+            trust_capped,
+            before_trust.get("P1", 0), after_trust.get("P1", 0),
+            before_trust.get("P2", 0), after_trust.get("P2", 0),
+            before_trust.get("P3", 0), after_trust.get("P3", 0),
         )
 
     # ── Step 7: Citation clustering ────────────────────────────────────────
