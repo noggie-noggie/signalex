@@ -1369,10 +1369,7 @@ function _citSecondaryCategories(c) {
 }
 
 // ── Classification trust helpers ─────────────────────────────────────────────
-// Non-enforcement source types that should be shown separately from inspections
-const _NON_ENFORCEMENT_SOURCE_TYPES = new Set([
-  'scientific_opinion', 'guidance', 'regulatory_update', 'consultation',
-]);
+// _NON_ENFORCEMENT_SOURCE_TYPES is defined in core.js (loaded first)
 
 function _isNonEnforcement(c) {
   return _NON_ENFORCEMENT_SOURCE_TYPES.has(c.source_type || '');
