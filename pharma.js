@@ -257,6 +257,57 @@ function _topFailureMode(cits) {
   return top ? top[0] : null;
 }
 
+// ── Focus + limited-detail toggle state ──────────────────────────────
+let selectedEnforcementFocus = null; // { type:'failure_mode'|'category'|'source_type'|'authority', value }
+let selectedFacilityFocus    = null; // facility_type string
+let _showLimitedDetail       = false;
+
+// ── Task 7: Shared decision-UX helpers ───────────────────────────────
+
+// Build a flat filter object from a focus descriptor.
+function buildPharmaFilterFromFocus(focus) {
+  if (!focus) return {};
+  const map = { failure_mode:'failure_mode', category:'primary_gmp_category',
+                source_type:'source_type',   authority:'authority',
+                facility_type:'facility_type' };
+  const key = map[focus.type];
+  return key ? { [key]: focus.value } : {};
+}
+
+// Cluster-primary records only (singletons included).
+function getGroupedDecisionRecords(records) {
+  return records.filter(c => c.cluster_primary !== false);
+}
+
+// Compact rows for a list of primary records — used in focus panels.
+function renderTopGroupedRecords(records, limit) {
+  const primaries = getGroupedDecisionRecords(records).slice(0, limit || 5);
+  if (!primaries.length) return '<div style="font-size:11px;color:#7A92A8;padding:4px 0">No grouped records available.</div>';
+  return primaries.map(c => {
+    const entity  = (c.company || c.cluster_label || c.authority || '').slice(0, 44);
+    const prio    = c.priority || '';
+    const fm      = (c.failure_mode && c.failure_mode !== 'insufficient_detail') ? _fmLabel(c.failure_mode) : '';
+    const ds      = (c.decision_summary || c.ai_summary || '').slice(0, 120);
+    const clBadge = (c.cluster_size||1) > 1 ? `<span class="cit-group-badge" style="font-size:9px">&#215;${c.cluster_size}</span>` : '';
+    const prioCol = _PRIORITY_COLORS[prio] || '#7f8c8d';
+    return `<div style="display:flex;align-items:baseline;gap:6px;padding:3px 0;border-bottom:1px solid rgba(47,69,88,.06)">
+      <span style="color:${prioCol};font-weight:700;font-size:9px;min-width:18px">${prio||'—'}</span>
+      <span style="flex:1;font-size:11px;color:#2A3E52">${entity}${clBadge}</span>
+      ${fm ? `<span style="font-size:9px;color:#c0392b;white-space:nowrap">${fm}</span>` : ''}
+      <span style="font-size:9px;color:#7A92A8;white-space:nowrap">${c.date ? c.date.slice(0,7) : '—'}</span>
+    </div>${ds ? `<div style="font-size:10px;color:#7A92A8;padding:1px 0 3px 24px">${ds}</div>` : ''}`;
+  }).join('');
+}
+
+// Apply filter and navigate to Citations.
+// Returns true if the filter has results, false otherwise (caller should show a message).
+function navigateToCitationsWithFilter(filterObj) {
+  if (!hasResultsForFilter(filterObj)) return false;
+  applyPharmaFilter(filterObj);
+  scrollToCitationsTable();
+  return true;
+}
+
 // ── detectPattern ──
 // ── Pattern detection — flag repeated company / category (≥3 occurrences) ───
 function detectPattern(cits) {
@@ -528,7 +579,10 @@ function renderPharmaOverview() {
     :'<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No citations match filters</div></div>';
 }
 
-function renderCatGrid(gridId, countId) {
+// context = 'overview' (default) | 'enforcement'
+// In enforcement context, card clicks set the enforcement focus panel instead of
+// jumping to citations.
+function renderCatGrid(gridId, countId, context) {
   const data = filteredCits();
   const el = document.getElementById(gridId); if (!el) return;
 
@@ -571,34 +625,40 @@ function renderCatGrid(gridId, countId) {
     return (b.p1*5 + b.p2*2 + b.withSummary) - (a.p1*5 + a.p2*2 + a.withSummary);
   });
 
-  el.innerHTML = sorted.map(g => {
-    const intel    = CAT_INTEL[g.label] || null;
-    const isAct    = g.type === 'fm'  ? pF.failureMode === g.key
-                   : g.type === 'cat' ? pCatFilter === g.key : false;
-    const isLimited = g.key === 'limited_detail';
-    const keySafe  = g.key.replace(/'/g, "\\'");
+  // Filter out limited detail from main render when toggle is off
+  const visibleCards = _showLimitedDetail ? sorted : sorted.filter(g => g.key !== 'limited_detail');
 
-    // Click: FM cards filter by failure_mode; CAT cards filter by primary_gmp_category;
-    // Limited detail cards are passive (no actionable filter).
-    const filterFn = g.type === 'fm'
-      ? `applyPharmaFilter({failure_mode:'${keySafe}'}); scrollToCitationsTable()`
-      : g.type === 'cat'
-      ? `applyPharmaFilter({primary_gmp_category:'${keySafe}'}); scrollToCitationsTable()`
-      : '';
+  el.innerHTML = visibleCards.map(g => {
+    const intel     = CAT_INTEL[g.label] || null;
+    const isLimited = g.key === 'limited_detail';
+    const keySafe   = g.key.replace(/'/g, "\\'");
+
+    // Enforcement context: card clicks set focus panel; overview context: navigate to citations.
+    // TODO(Phase 2): overview-context category/FM clicks navigate unconditionally — add
+    // hasResultsForFilter guard or route through the same focus-panel pattern as enforcement.
+    const filterFn = context === 'enforcement'
+      ? (g.type === 'fm'  ? `setEnforcementFocus({type:'failure_mode',value:'${keySafe}'})`
+       : g.type === 'cat' ? `setEnforcementFocus({type:'category',value:'${keySafe}'})` : '')
+      : (g.type === 'fm'  ? `applyPharmaFilter({failure_mode:'${keySafe}'}); scrollToCitationsTable()`
+       : g.type === 'cat' ? `applyPharmaFilter({primary_gmp_category:'${keySafe}'}); scrollToCitationsTable()` : '');
+
+    // Active state: enforcement checks focus; overview checks filter state.
+    const isAct = context === 'enforcement'
+      ? !!(selectedEnforcementFocus && selectedEnforcementFocus.value === g.key)
+      : (g.type === 'fm' ? pF.failureMode === g.key : (g.type === 'cat' ? pCatFilter === g.key : false));
 
     const rawNote  = g.rawCitCount > g.total
-      ? ` <span style="font-size:9px;color:#7A92A8">(${g.rawCitCount} citations)</span>` : '';
+      ? ` <span style="font-size:9px;color:#7A92A8">(${g.rawCitCount} related citations)</span>` : '';
     const p1html   = g.p1 ? `<span style="color:${_PRIORITY_COLORS.P1};font-size:9px;font-weight:600">${g.p1}&thinsp;P1</span>` : '';
     const p2html   = g.p2 ? `<span style="color:${_PRIORITY_COLORS.P2};font-size:9px">${g.p2}&thinsp;P2</span>` : '';
     const p1p2     = [p1html, p2html].filter(Boolean).join(' &middot; ');
 
-    const whyLine  = intel ? `<div class="cat-why-line">${intel.implication.split('.')[0]}.</div>` : '';
+    const whyLine   = intel ? `<div class="cat-why-line">${intel.implication.split('.')[0]}.</div>` : '';
     const intelHtml = (intel && !isLimited) ? `<div class="cat-cell-intel">
       <div class="action-tag ${intel.urgency}">${intel.urgency}</div>
       <div class="cat-implication">${intel.implication}</div>
       <div class="cat-action">${intel.action}</div>
     </div>` : '';
-    // Entity panel only meaningful for primary_gmp_category-keyed cards
     const entityBtn = g.type === 'cat'
       ? `<button class="ing-ep-btn" onclick="event.stopPropagation();openEntityPanel('${keySafe}','category')" title="Open ${g.label} detail" style="font-size:12px;margin-top:1px;flex-shrink:0">&#9432;</button>`
       : '';
@@ -611,12 +671,20 @@ function renderCatGrid(gridId, countId) {
         <div class="cat-cell-name">${g.label}</div>
         ${entityBtn}
       </div>
-      <div class="cat-cell-ct">${g.total} group${g.total!==1?'s':''}${rawNote}</div>
+      <div class="cat-cell-ct">${g.total} grouped finding${g.total!==1?'s':''}${rawNote}</div>
       <div class="cat-cell-sub">${p1p2 || '<span style="font-size:9px;color:#7A92A8">no priority flags</span>'}</div>
       ${whyLine}
       ${intelHtml}
     </div>`;
   }).join('');
+
+  // Limited detail: hidden by default behind a toggle button.
+  const limitedGrp = cardMap['limited_detail'];
+  if (limitedGrp && !_showLimitedDetail) {
+    el.innerHTML += `<div style="margin-top:6px"><button class="btn-secondary" style="font-size:10px;opacity:.6;padding:3px 8px"
+      onclick="_showLimitedDetail=true;renderCatGrid('${gridId}','${countId}','${context||''}')">
+      Show limited detail (${limitedGrp.total} grouped finding${limitedGrp.total!==1?'s':''})</button></div>`;
+  }
 
   const cc = document.getElementById(countId);
   if (cc) cc.textContent = `${primaries.length} decision record${primaries.length!==1?'s':''}`;
@@ -706,33 +774,66 @@ function renderTopRiskBlocks(risks) {
     return;
   }
   el.innerHTML=risks.map((r,i)=>{
-    const intel = CAT_INTEL[r.label];
-    const meaning = r.exampleSummary
-      ? r.exampleSummary.slice(0,160)
-      : (intel ? intel.implication.split('.')[0]+'.' : '');
-    const action = r.exampleAction || (intel ? intel.action : 'Review enforcement pattern and assess site exposure');
-    const p1p2 = (r.p1||r.p2) ? `${r.p1} P1 · ${r.p2} P2` : '';
+    const intel    = CAT_INTEL[r.label];
+    const meaning  = r.exampleSummary ? r.exampleSummary.slice(0,180) : (intel ? intel.implication.split('.')[0]+'.' : '');
+    const action   = r.exampleAction  || (intel ? intel.action : 'Review enforcement pattern and assess site exposure');
+    const p1p2txt  = (r.p1||r.p2) ? `${r.p1} P1 · ${r.p2} P2` : '';
     const keyParts = r.key.split(':');
-    const filterFn = keyParts[0]==='fm'
-      ? `applyPharmaFilter({failure_mode:'${keyParts[1].replace(/'/g,"\\'")}'}); scrollToCitationsTable()`
-      : `applyPharmaFilter({primary_gmp_category:'${r.label.replace(/'/g,"\\'")}'}); scrollToCitationsTable()`;
-    return `<div class="top-risk-block" onclick="${filterFn}" style="cursor:pointer" title="Click to view ${r.label} records in Citations table">
+    const isFm     = keyParts[0]==='fm';
+    const filterJs = isFm
+      ? `navigateToCitationsWithFilter({failure_mode:'${keyParts[1].replace(/'/g,"\\'")}'})`
+      : `navigateToCitationsWithFilter({primary_gmp_category:'${r.label.replace(/'/g,"\\'")}'})`;
+
+    // Build top grouped records for expanded detail
+    const allMatched = filteredCits().filter(c =>
+      isFm ? (c.failure_mode||'')===keyParts[1] : (c.primary_gmp_category||c.category||'')===r.label);
+    const ftCts={}, authCts={};
+    allMatched.forEach(c=>{
+      if(c.facility_type) ftCts[c.facility_type]=(ftCts[c.facility_type]||0)+1;
+      if(c.authority)    authCts[c.authority]=(authCts[c.authority]||0)+1;
+    });
+    const topFts   = Object.entries(ftCts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
+    const topAuths = Object.entries(authCts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
+
+    const detailHtml = `<div class="trb-detail" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(47,69,88,.1)">
+      ${meaning?`<div style="font-size:11px;color:#2F4558;margin-bottom:8px">${meaning}</div>`:''}
+      <div style="font-size:11px;color:#2A3E52;margin-bottom:6px"><b>Recommended action:</b> ${action}</div>
+      ${topFts?`<div style="font-size:10px;color:#7A92A8;margin-bottom:3px">Facility types: ${topFts}</div>`:''}
+      ${topAuths?`<div style="font-size:10px;color:#7A92A8;margin-bottom:8px">Authorities: ${topAuths}</div>`:''}
+      <div style="font-size:10px;color:#4a6278;font-weight:600;margin-bottom:4px">Top grouped records</div>
+      ${renderTopGroupedRecords(allMatched, 4)}
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-secondary" onclick="event.stopPropagation();${filterJs}" style="font-size:10px">View matching citations &rarr;</button>
+        <button class="btn-secondary" onclick="event.stopPropagation();_toggleTopRisk(this.closest('.top-risk-block'))" style="font-size:10px">&#10005; Close</button>
+      </div>
+    </div>`;
+
+    return `<div class="top-risk-block" onclick="_toggleTopRisk(this)" style="cursor:pointer" title="Click for detail on ${r.label}">
       <div class="trb-rank">#${i+1}</div>
       <div class="trb-body">
         <div class="trb-hd">
           <span class="trb-cat">${r.label}</span>
           ${r.p1>0?`<span class="risk-impact-badge risk-critical">P1&times;${r.p1}</span>`:''}
           ${r.p2>0?`<span class="risk-impact-badge risk-high">P2&times;${r.p2}</span>`:''}
-          <span class="vol-bucket">${r.total} group${r.total!==1?'s':''}</span>
+          <span class="vol-bucket">${r.total} grouped finding${r.total!==1?'s':''}</span>
         </div>
-        ${meaning?`<div class="trb-meaning">${meaning}</div>`:''}
-        <div class="trb-action">&#8594; ${action.slice(0,180)}</div>
-        <div class="trb-stats">${r.total} visible group${r.total!==1?'s':''} &middot; ${r.clusterSize} total citations${p1p2?' &middot; '+p1p2:''} &middot; <span style="color:#0d9488">View records &rarr;</span></div>
+        <div class="trb-action">&#8594; ${action.slice(0,140)} <span style="color:#0d9488;font-size:10px">Expand &rarr;</span></div>
+        <div class="trb-stats">${r.clusterSize} related citation${r.clusterSize!==1?'s':''}${p1p2txt?' &middot; '+p1p2txt:''}</div>
+        ${detailHtml}
       </div>
     </div>`;
   }).join('');
   const countEl=document.getElementById('top-risks-count');
   if(countEl) countEl.textContent=`(${risks.length} risk groups)`;
+}
+
+function _toggleTopRisk(card) {
+  const detail = card && card.querySelector('.trb-detail');
+  if (!detail) return;
+  const isOpen = detail.style.display !== 'none';
+  document.querySelectorAll('.top-risk-block .trb-detail').forEach(d => { d.style.display='none'; });
+  document.querySelectorAll('.top-risk-block').forEach(b => b.classList.remove('trb-expanded'));
+  if (!isOpen) { detail.style.display='block'; card.classList.add('trb-expanded'); }
 }
 
 function renderAllCategoriesCollapsed(data) {
@@ -746,6 +847,169 @@ function toggleAllCategories() {
   const isOpen=wrap.style.display!=='none';
   wrap.style.display=isOpen?'none':'block';
   if(icon) icon.innerHTML=isOpen?'&#9660; Show all':'&#9650; Collapse';
+}
+
+// ── Phase-1 helpers: result-counting, fallback, inline messaging ─────
+
+// Count records in a given array that match a filter object (no side effects).
+function _countMatchingInPool(filterObj, pool) {
+  return pool.filter(c => {
+    if (filterObj.failure_mode !== undefined && (c.failure_mode||'') !== filterObj.failure_mode) return false;
+    if (filterObj.primary_gmp_category !== undefined) {
+      if ((c.primary_gmp_category||'') !== filterObj.primary_gmp_category && (c.category||'') !== filterObj.primary_gmp_category) return false;
+    }
+    if (filterObj.authority     !== undefined && (c.authority||'')     !== filterObj.authority)     return false;
+    if (filterObj.source_type   !== undefined && (c.source_type||'')   !== filterObj.source_type)   return false;
+    if (filterObj.facility_type !== undefined && (c.facility_type||'') !== filterObj.facility_type) return false;
+    if (filterObj.query !== undefined) {
+      const q = (filterObj.query||'').toLowerCase();
+      if (q && ![(c.summary||''),(c.category||''),(c.primary_gmp_category||''),(c.violation_details||''),(c.company||'')].some(f=>f.toLowerCase().includes(q))) return false;
+    }
+    return true;
+  }).length;
+}
+
+// Returns true if the filter would produce at least one record in the current pool.
+function hasResultsForFilter(filterObj) {
+  return _countMatchingInPool(filterObj, filteredCits()) > 0;
+}
+
+// Returns the first filter from [mapped cats → mapped fms → legacy text] that
+// yields > 0 results in filteredCits(), or null if none does.
+function getBroaderFallbackFilter(label) {
+  const pool    = filteredCits();
+  const mapping = _TREND_FILTER_MAP[label];
+  if (mapping) {
+    for (const cat of (mapping.cats || [])) {
+      if (_countMatchingInPool({ primary_gmp_category: cat }, pool) > 0)
+        return { primary_gmp_category: cat };
+    }
+    for (const fm of (mapping.fms || [])) {
+      if (_countMatchingInPool({ failure_mode: fm }, pool) > 0)
+        return { failure_mode: fm };
+    }
+  }
+  // Legacy text-search fallback: use query filter so applyPharmaFilter can handle it
+  const q = label.toLowerCase();
+  const textHits = pool.filter(c =>
+    [(c.summary||''),(c.category||''),(c.primary_gmp_category||''),(c.violation_details||'')]
+      .some(f => f.toLowerCase().includes(q))
+  );
+  if (textHits.length > 0) return { query: label };
+  return null;
+}
+
+// Insert a self-dismissing inline message into containerEl.
+// broaderFilter: if non-null, shows "View broader related records" button.
+function showInlineNoResultsMessage(containerEl, msg, broaderFilter) {
+  if (!containerEl) return;
+  let el = containerEl.querySelector('.inline-no-results-msg');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'inline-no-results-msg';
+    el.style.cssText = 'margin-top:8px;padding:8px 12px;background:rgba(47,69,88,.07);border-radius:5px;font-size:11px;color:#2F4558';
+    containerEl.appendChild(el);
+  }
+  let html = msg;
+  if (broaderFilter) {
+    const fs = JSON.stringify(broaderFilter).replace(/"/g,"'");
+    html += ` <button style="font-size:10px;color:#0d9488;background:none;border:none;cursor:pointer;margin-left:6px"
+      onclick="navigateToCitationsWithFilter(${fs});this.closest('.inline-no-results-msg').remove()">
+      View broader related records &rarr;</button>`;
+  }
+  html += ` <button style="font-size:10px;color:#7A92A8;background:none;border:none;cursor:pointer;margin-left:4px"
+    onclick="this.closest('.inline-no-results-msg').remove()">&#10005;</button>`;
+  el.innerHTML = html;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.remove(), 10000);
+}
+
+// ── Task 1: Trend filter mapping ─────────────────────────────────────
+// Maps legacy c.category labels (used by What Changed) to new-model filter fields.
+// cats: possible primary_gmp_category values; fms: failure_mode values.
+const _TREND_FILTER_MAP = {
+  'Equipment & facilities':          { cats:['Equipment & facilities','Equipment / Facilities'],
+                                       fms:['equipment_facilities','equipment_facility','cleaning_validation','calibration'] },
+  'Computerised systems validation': { cats:['Computerised systems validation','Computerised systems','Computer systems'],
+                                       fms:['computer_systems_validation','computerised_systems','data_integrity','documentation_data_integrity'] },
+  'Labelling & claims':              { cats:['Labelling & claims','Labelling and claims'],
+                                       fms:['labelling_claims','labelling_error','mislabelling'] },
+  'Ingredient safety':               { cats:['Ingredient safety'],
+                                       fms:['ingredient_safety','identity_purity_testing','undeclared_drug_substance','contamination_chemical','adulteration'] },
+  'Contamination & sterility':       { cats:['Contamination & sterility','Sterility assurance'],
+                                       fms:['sterility_assurance','contamination_microbial','contamination_cross','contamination_chemical'] },
+  'Sterility assurance':             { cats:['Sterility assurance'], fms:['sterility_assurance'] },
+  'Supply chain & procurement':      { cats:['Supply chain & procurement','Supply chain'],
+                                       fms:['supplier_qualification','import_controls'] },
+  'Batch release':                   { cats:['Batch release'], fms:['batch_release'] },
+  'Container closure integrity':     { cats:['Container closure integrity'], fms:['container_closure'] },
+  'GMP violations':                  { cats:['GMP violations'],
+                                       fms:['deviation_capa','process_validation','documentation_data_integrity'], gmv:true },
+};
+
+function _trendMatchRecord(c, m) {
+  const cat = c.primary_gmp_category || c.category || '';
+  const fm  = c.failure_mode || '';
+  return (m.cats||[]).includes(cat) || (m.fms||[]).includes(fm);
+}
+
+// Returns the best single filter object for the matched records.
+function _trendBestFilter(matched, mapping) {
+  const fmCts = {}, catCts = {};
+  matched.forEach(c => {
+    const fm  = c.failure_mode || '';
+    const cat = c.primary_gmp_category || c.category || '';
+    if ((mapping.fms||[]).includes(fm))  fmCts[fm]  = (fmCts[fm]||0)+1;
+    if ((mapping.cats||[]).includes(cat)) catCts[cat] = (catCts[cat]||0)+1;
+  });
+  const topFm  = Object.entries(fmCts).sort((a,b)=>b[1]-a[1])[0];
+  const topCat = Object.entries(catCts).sort((a,b)=>b[1]-a[1])[0];
+  if (topFm && topCat) return topFm[1] >= topCat[1] ? { failure_mode: topFm[0] } : { primary_gmp_category: topCat[0] };
+  if (topFm)  return { failure_mode: topFm[0] };
+  if (topCat) return { primary_gmp_category: topCat[0] };
+  return null;
+}
+
+function trendItemClick(label) {
+  const mapping = _TREND_FILTER_MAP[label];
+  const pool    = filteredCits();
+
+  // Determine the best specific filter to use
+  let best = null;
+  if (mapping) {
+    const matched = pool.filter(c => _trendMatchRecord(c, mapping));
+    if (matched.length) best = _trendBestFilter(matched, mapping);
+  }
+  if (!best) {
+    // Direct match on primary_gmp_category or legacy category
+    const direct = pool.filter(c => (c.primary_gmp_category||c.category||'') === label);
+    if (direct.length) best = { primary_gmp_category: label };
+  }
+
+  // Count how many records the chosen filter would actually return
+  const count = best ? _countMatchingInPool(best, pool) : 0;
+  if (count > 0) {
+    navigateToCitationsWithFilter(best);
+    return;
+  }
+
+  // Zero results — find a broader fallback and show an inline message instead
+  const broader = getBroaderFallbackFilter(label);
+  const cols = document.getElementById('what-changed-cols');
+  showInlineNoResultsMessage(
+    cols ? cols.parentNode : null,
+    `No grouped records match "${label}" in the current period.`,
+    broader
+  );
+}
+
+// Show a self-dismissing inline message below What Changed.
+// Delegates to showInlineNoResultsMessage; broader button only shown when fallback exists.
+function _showWcMessage(msg, label) {
+  const cols = document.getElementById('what-changed-cols');
+  const container = cols ? cols.parentNode : null;
+  const broader = label ? getBroaderFallbackFilter(label) : null;
+  showInlineNoResultsMessage(container, msg, broader);
 }
 
 // ── What Changed This Period ──────────────────────────────────────────
@@ -777,7 +1041,9 @@ function renderWhatChanged() {
     `<div class="wc-item" style="cursor:pointer" onclick="${filterFn}" title="Click to filter to ${label}">
       <span class="wc-arrow ${cls}">${arrow}</span><span class="wc-label">${label}</span><span class="wc-delta">${delta>0?'+'+delta:delta}</span>
     </div>`;
-  const catFn  = k => `applyPharmaFilter({primary_gmp_category:'${k.replace(/'/g,"\\'")}'}); scrollToCitationsTable()`;
+  const catFn  = k => `trendItemClick('${k.replace(/'/g,"\\'")}')`;
+  // TODO(Phase 2): authority trend clicks navigate unconditionally — add hasResultsForFilter guard
+  // and replace with an inline focus panel (same pattern as Enforcement category cards).
   const authFn = k => `applyPharmaFilter({authority:'${k}'}); scrollToCitationsTable()`;
   const col1=`<div class="wc-col-hd">Rising categories</div>`
     +upChanges.map(x=>mkItem('▲','up',x.k,x.d,catFn(x.k))).join('')
@@ -808,6 +1074,8 @@ function renderAuthBars(elId) {
     const topCats=Object.entries(catByAuth[auth]||{}).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>`${k} (${v})`).join(', ');
     const tip=`${auth}: ${ct} citation${ct!==1?'s':''}. Top: ${topCats}. Click to filter — click again to clear.`;
     const isActive=pF.auth===auth;
+    // TODO(Phase 2): authority bar clicks navigate unconditionally — replace with
+    // setEnforcementFocus({type:'authority', value}) to stay in context (Phase 2 rewrite).
     return `<div class="enf-row${isActive?' er-active':''}" onclick="applyPharmaFilter({authority:'${auth}'}); scrollToCitationsTable()" style="cursor:pointer" title="${tip}">
       <span class="enf-name">${auth}</span>
       <div class="enf-bar-wrap"><div class="enf-bar-fill" style="width:${Math.round(ct/mx*100)}%"></div></div>
@@ -1110,9 +1378,29 @@ function renderCitations() {
       : `${data.length} citation rows`;
   }
   if(!slice.length) {
+    // Build readable list of active filters
+    const activeFilters = [];
+    if (pCatFilter)             activeFilters.push(['Category',           pCatFilter]);
+    if (pF.failureMode)         activeFilters.push(['Failure mode',       _fmLabel(pF.failureMode)]);
+    if (pF.auth    !== 'all')   activeFilters.push(['Authority',          pF.auth]);
+    if (pF.srctype !== 'all')   activeFilters.push(['Source type',        pF.srctype.replace(/_/g,' ')]);
+    if (pF.sev     !== 'all')   activeFilters.push(['Severity',           pF.sev]);
+    if (pF.factype !== 'all')   activeFilters.push(['Facility type',      pF.factype]);
+    if (pF.priority !== 'all')  activeFilters.push(['Priority',           pF.priority]);
+    if (pF.company)             activeFilters.push(['Entity',             pF.company]);
+    if (pF.query)               activeFilters.push(['Search',             `"${pF.query}"`]);
+    if (pF.dateFrom)            activeFilters.push(['From',               pF.dateFrom]);
+    if (pF.dateTo)              activeFilters.push(['To',                 pF.dateTo]);
+    const filterRows = activeFilters.length
+      ? `<div style="display:inline-block;text-align:left;margin:8px auto 10px;font-size:11px">
+          ${activeFilters.map(([k,v])=>`<div style="padding:1px 0"><span style="color:#7A92A8;min-width:90px;display:inline-block">${k}:</span> <span style="color:#2A3E52">${v}</span></div>`).join('')}
+        </div>`
+      : '';
     tb.innerHTML=`<tr><td colspan="10" style="text-align:center;padding:24px 0;color:#2A3E52;font-size:12px">
-      <div style="font-size:22px;margin-bottom:6px">&#128270;</div>No citations match the current filters.
-      <button class="btn-secondary" style="display:block;margin:10px auto 0" onclick="resetPharmaFilters()">Clear filters</button>
+      <div style="font-size:22px;margin-bottom:6px">&#128270;</div>
+      <div>No grouped records match${activeFilters.length ? ':' : ' the current filters.'}</div>
+      ${filterRows}
+      <button class="btn-secondary" style="display:inline-block;margin:4px auto 0" onclick="resetPharmaFilters()">Clear filters</button>
     </td></tr>`;
     document.getElementById('cit-pagination').innerHTML='';
     return;
@@ -1168,7 +1456,7 @@ function renderEnfPage() {
   buildChipBar('enf-chip-bar');
   renderEnfInsightStrip();
   renderAuthBars('enf-auth-rows');
-  renderCatGrid('enf-cat-grid','enf-cat-count');
+  renderCatGrid('enf-cat-grid','enf-cat-count','enforcement');
   const data=filteredCits();
   const el=document.getElementById('enf-srctype-rows'); if(!el) return;
   const sc={};
@@ -1176,13 +1464,92 @@ function renderEnfPage() {
   const mx=Math.max(...Object.values(sc),1);
   el.innerHTML=Object.entries(sc).sort((a,b)=>b[1]-a[1]).map(([st,ct])=>{
     const stRaw = st.replace(/ /g,'_');
-    return `<div class="enf-row" onclick="applyPharmaFilter({source_type:'${stRaw}'}); scrollToCitationsTable()" style="cursor:pointer" title="Filter to ${st}">
+    return `<div class="enf-row" onclick="setEnforcementFocus({type:'source_type',value:'${stRaw}'})" style="cursor:pointer" title="Click to focus on ${st}">
       <span class="enf-name">${st}</span>
       <div class="enf-bar-wrap"><div class="enf-bar-fill" style="width:${Math.round(ct/mx*100)}%"></div></div>
       <span class="enf-ct">${ct}</span>
     </div>`;
   }).join('');
   renderGroupedEnforcement('enf-grouped-feed');
+  renderEnfFocusPanel();
+}
+
+// ── Task 2: Enforcement focus panel ──────────────────────────────────
+function setEnforcementFocus(focus) {
+  const same = selectedEnforcementFocus &&
+    selectedEnforcementFocus.type === focus.type &&
+    selectedEnforcementFocus.value === focus.value;
+  selectedEnforcementFocus = same ? null : focus;
+  renderEnfFocusPanel();
+  if (selectedEnforcementFocus) {
+    requestAnimationFrame(() => {
+      const el = document.getElementById('enf-focus-panel');
+      if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+    });
+  }
+  // Re-render cat grid so active state updates
+  renderCatGrid('enf-cat-grid','enf-cat-count','enforcement');
+}
+
+function clearEnforcementFocus() {
+  selectedEnforcementFocus = null;
+  renderEnfFocusPanel();
+  renderCatGrid('enf-cat-grid','enf-cat-count','enforcement');
+}
+
+function renderEnfFocusPanel() {
+  const el = document.getElementById('enf-focus-panel'); if (!el) return;
+  const focus = selectedEnforcementFocus;
+  if (!focus) { el.style.display='none'; el.innerHTML=''; return; }
+
+  const all = filteredCits();
+  const matches = all.filter(c => {
+    if (focus.type==='failure_mode') return (c.failure_mode||'')===focus.value;
+    if (focus.type==='category')     return (c.primary_gmp_category||c.category||'')===focus.value;
+    if (focus.type==='source_type')  return (c.source_type||'')===focus.value;
+    if (focus.type==='authority')    return (c.authority||'')===focus.value;
+    return false;
+  });
+  const primaries = matches.filter(c => c.cluster_primary !== false);
+  const p1 = primaries.filter(c => c.priority==='P1').length;
+  const p2 = primaries.filter(c => c.priority==='P2').length;
+
+  const ftCts={}, authCts={};
+  matches.forEach(c=>{
+    if(c.facility_type) ftCts[c.facility_type]=(ftCts[c.facility_type]||0)+1;
+    if(c.authority)    authCts[c.authority]=(authCts[c.authority]||0)+1;
+  });
+  const topFts   = Object.entries(ftCts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
+  const topAuths = Object.entries(authCts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
+
+  const label  = focus.type==='failure_mode' ? _fmLabel(focus.value) : focus.value;
+  const intel  = CAT_INTEL[label];
+  const topRec = primaries.find(c=>c.recommended_action);
+  const action = (topRec&&topRec.recommended_action)||(intel&&intel.action)||'';
+  const filterObj = buildPharmaFilterFromFocus(focus);
+
+  el.style.display = 'block';
+  el.innerHTML = `<div style="background:#f7f9fb;border:1px solid rgba(47,69,88,.14);border-radius:6px;padding:14px 16px;margin-top:12px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#2A3E52">${label}</div>
+        <div style="display:flex;gap:8px;margin-top:3px;flex-wrap:wrap">
+          <span style="font-size:10px;color:#4a6278">${primaries.length} grouped finding${primaries.length!==1?'s':''}</span>
+          ${p1?`<span style="font-size:10px;color:${_PRIORITY_COLORS.P1};font-weight:600">${p1} P1</span>`:''}
+          ${p2?`<span style="font-size:10px;color:${_PRIORITY_COLORS.P2}">${p2} P2</span>`:''}
+          ${topFts?`<span style="font-size:10px;color:#7A92A8">${topFts}</span>`:''}
+          ${topAuths&&topAuths!==topFts?`<span style="font-size:10px;color:#7A92A8">${topAuths}</span>`:''}
+        </div>
+      </div>
+      <button class="btn-secondary" onclick="clearEnforcementFocus()" style="font-size:10px;white-space:nowrap;flex-shrink:0">&#10005; Clear</button>
+    </div>
+    ${action?`<div style="font-size:11px;color:#2A3E52;margin-bottom:10px"><b>Recommended action:</b> ${action}</div>`:''}
+    <div style="font-size:10px;color:#4a6278;font-weight:600;margin-bottom:4px">Top grouped records</div>
+    ${renderTopGroupedRecords(primaries, 5)}
+    <div style="margin-top:10px">
+      <button class="btn-secondary" onclick="navigateToCitationsWithFilter(${JSON.stringify(filterObj).replace(/"/g,"'")})" style="font-size:11px">View matching citations &rarr;</button>
+    </div>
+  </div>`;
 }
 
 function renderGroupedEnforcement(elId) {
@@ -1239,7 +1606,8 @@ function renderFacilityRiskStrip() {
     const profile=getFacilityRiskProfile(name);
     const topCat=Object.entries(d.cats).sort((a,b)=>b[1]-a[1])[0];
     const nameSafe = name.replace(/'/g,"\\'");
-    return `<div class="fac-risk-card" onclick="applyPharmaFilter({facility_type:'${nameSafe}'}); scrollToCitationsTable()" style="cursor:pointer" title="Filter to ${name}">
+    const isActive = selectedFacilityFocus === name;
+    return `<div class="fac-risk-card${isActive?' enf-focus-active':''}" onclick="setFacilityFocus('${nameSafe}')" style="cursor:pointer" title="View action summary for ${name}">
       <div class="fac-risk-name">${name} <span style="font-size:10px;color:#2A3E52;font-weight:400">(${d.total} citation${d.total!==1?'s':''})</span></div>
       ${topCat?`<div class="fac-risk-row"><div class="fac-risk-lbl">Top finding</div><div class="fac-risk-val">${topCat[0]}</div></div>`:''}
       ${profile?`<div class="fac-risk-row"><div class="fac-risk-lbl">Exposure</div><div class="fac-risk-val">${profile.exposure}</div></div>`:''}
@@ -1251,6 +1619,77 @@ function renderFacilityRiskStrip() {
     <div class="insight-strip-hd">Facility risk exposure</div>
   </div>
   <div class="fac-risk-grid">${cards}</div>`;
+}
+
+// ── Task 5: Facility focus panel ──────────────────────────────────────
+function setFacilityFocus(ft) {
+  selectedFacilityFocus = selectedFacilityFocus === ft ? null : ft;
+  renderFacilityFocusPanel();
+  if (selectedFacilityFocus) {
+    requestAnimationFrame(() => {
+      const el = document.getElementById('fac-focus-panel');
+      if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+    });
+  }
+  // Re-render strip so active state updates
+  renderFacilityRiskStrip();
+}
+
+function clearFacilityFocus() {
+  selectedFacilityFocus = null;
+  renderFacilityFocusPanel();
+  renderFacilityRiskStrip();
+}
+
+function renderFacilityFocusPanel() {
+  const el = document.getElementById('fac-focus-panel'); if (!el) return;
+  const ft = selectedFacilityFocus;
+  if (!ft) { el.style.display='none'; el.innerHTML=''; return; }
+
+  const all = filteredCits();
+  const records = all.filter(c => (c.facility_type||'') === ft);
+  if (!records.length) { el.style.display='none'; el.innerHTML=''; return; }
+
+  const primaries  = getGroupedDecisionRecords(records);
+  const p1         = records.filter(c => c.priority==='P1').length;
+  const p2         = records.filter(c => c.priority==='P2').length;
+  const auths      = [...new Set(records.map(c => c.authority).filter(Boolean))];
+  const cats       = {};
+  records.forEach(c => { const k=c.primary_gmp_category||c.category||'Other'; cats[k]=(cats[k]||0)+1; });
+  const topCats    = Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,4);
+  const profile    = getFacilityRiskProfile(ft);
+  const action     = profile ? profile.action : (topCats.length ? generateFacilityAction(topCats[0][0]) : 'Review enforcement profile and prioritise corrective actions.');
+
+  const filterObj = { facility_type: ft };
+  const filterStr = JSON.stringify(filterObj).replace(/"/g,"'");
+
+  el.style.display='block';
+  el.innerHTML = `<div class="enf-focus-panel" style="margin-top:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:13px;font-weight:700;color:#2A3E52">${ft}</div>
+      <button class="btn-secondary" style="font-size:10px;padding:2px 8px" onclick="clearFacilityFocus()">&#10005; Clear</button>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px">
+      <span style="font-size:11px;color:#2A3E52"><b>${records.length}</b> citation${records.length!==1?'s':''}</span>
+      ${p1?`<span style="font-size:11px;color:#c0392b"><b>${p1}</b> P1</span>`:''}
+      ${p2?`<span style="font-size:11px;color:#e67e22"><b>${p2}</b> P2</span>`:''}
+      <span style="font-size:11px;color:#7A92A8">${auths.join(' / ')}</span>
+    </div>
+    ${topCats.length?`<div style="margin-bottom:8px">
+      <div style="font-size:10px;font-weight:600;color:#2A3E52;margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Top finding categories</div>
+      ${topCats.map(([cat,n])=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;border-bottom:1px solid rgba(47,69,88,.05)"><span style="color:#2A3E52">${cat}</span><span style="color:#7A92A8">${n}</span></div>`).join('')}
+    </div>`:''}
+    <div style="background:rgba(47,69,88,.04);border-radius:6px;padding:8px 10px;margin-bottom:8px">
+      <div style="font-size:10px;font-weight:600;color:#2A3E52;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Recommended action</div>
+      <div style="font-size:11px;color:#2A3E52">${action}</div>
+    </div>
+    ${primaries.length?`<div style="margin-bottom:8px">
+      <div style="font-size:10px;font-weight:600;color:#2A3E52;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Top grouped records</div>
+      ${renderTopGroupedRecords(primaries,5)}
+    </div>`:''}
+    <button class="btn-secondary" style="font-size:10px;margin-top:2px"
+      onclick="navigateToCitationsWithFilter(${filterStr})">View matching citations &#8594;</button>
+  </div>`;
 }
 
 // ── Facilities ───────────────────────────────────────────────────────
@@ -1289,28 +1728,32 @@ function renderFacilities() {
   });
 
   let coItems = Object.values(coMap)
-    .filter(e => e.total >= 2 || e.p1 >= 1 || e.clusters.size >= 1)
+    .filter(e => e.total >= 1 || e.p1 >= 1 || e.clusters.size >= 1)
     .sort((a,b) => (b.p1*3 + b.p2 + b.total) - (a.p1*3 + a.p2 + a.total));
 
   if (q) coItems = coItems.filter(e => e.name.toLowerCase().includes(q) || e.factype.toLowerCase().includes(q));
 
   const fc = document.getElementById('fac-count');
-  if (fc) fc.textContent = coItems.length ? `${coItems.length} compan${coItems.length!==1?'ies':'y'}` : '0 companies';
+  if (fc) fc.textContent = coItems.length ? `${coItems.length} entit${coItems.length!==1?'ies':'y'} / record${coItems.length!==1?'s':''}` : 'No entity records';
+
+  renderFacilityFocusPanel();
 
   if (!coItems.length) {
     el.innerHTML = q
-      ? '<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No companies match search</div></div>'
-      : '<div class="facility-limited-msg">No company-level records available for current filters. Click a facility type above to filter, or clear filters to see all.</div>';
+      ? '<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No entities match search</div></div>'
+      : '<div class="facility-limited-msg">No entity-level records available for current filters. Click a facility type above to view the action summary, or clear filters to see all.</div>';
     return;
   }
 
-  el.innerHTML = '<div class="facility-data-note">Company/entity list — click any row to filter the Citations table. Data inferred from enforcement records.</div>'
+  el.innerHTML = '<div class="facility-data-note">Entity / company list — click any row to view citations. Data inferred from enforcement records.</div>'
     + coItems.map(e => {
       const sortedFm = Object.entries(e.fms).sort((a,b)=>b[1]-a[1]);
       const topFmLabel = sortedFm.length ? _fmLabel(sortedFm[0][0]) : '';
       const authStr = [...e.auths].join(' / ');
       const clusterStr = e.clusters.size > 1 ? ` · ${e.clusters.size} clusters` : '';
       const nSafe = e.name.replace(/'/g, "\\'");
+      // TODO(Phase 3): Facilities entity clicks navigate unconditionally — replace with
+      // an entity-level focus panel that stays in context (Phase 3 rewrite).
       return `<div class="facility-card" onclick="applyPharmaFilter({entity:'${nSafe}'}); scrollToCitationsTable()" style="cursor:pointer" title="View citations for ${e.name}">
         <div class="facility-name">${e.name}</div>
         <div class="facility-type-label">${e.factype} &middot; ${authStr}</div>
@@ -1493,6 +1936,9 @@ function renderIntelligencePage() {
 function resetPharmaFilters() {
   pF={auth:'all',factype:'all',srctype:'all',sev:'all',priority:'all',failureMode:'',company:'',query:'',dateFrom:'',dateTo:'',dicapa:false};
   pCatFilter=null;
+  selectedEnforcementFocus = null;
+  selectedFacilityFocus    = null;
+  _showLimitedDetail       = false;
   ['cit-search','p-company'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   _setPActiveKpi(null);
   syncPFPills(); renderPAll();
@@ -1555,6 +2001,10 @@ function applyPharmaFilter(filterObj) {
   if (filterObj.entity !== undefined) {
     pF.company = filterObj.entity;
     const el = document.getElementById('p-company'); if(el) el.value = filterObj.entity;
+  }
+  if (filterObj.query !== undefined) {
+    pF.query = filterObj.query;
+    const el = document.getElementById('cit-search'); if(el) el.value = filterObj.query;
   }
   syncPFPills();
   _dirty = true;
