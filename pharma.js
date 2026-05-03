@@ -261,6 +261,7 @@ function _topFailureMode(cits) {
 let selectedEnforcementFocus = null; // { type:'failure_mode'|'category'|'source_type'|'authority', value }
 let selectedFacilityFocus    = null; // facility_type string
 let _showLimitedDetail       = false;
+let _overviewFocus           = null; // { label, filterObj, groupedCount } — set by What Changed / Top Risk clicks
 
 // ── Task 7: Shared decision-UX helpers ───────────────────────────────
 
@@ -556,6 +557,9 @@ function renderPharmaOverview() {
   renderWhatChanged();
   renderPharmaInsights();
   renderSoWhatLine(data);
+
+  // Focus banner — must render after filteredCits() is settled
+  renderPharmaFocusBanner();
 
   // Decision-first sections
   renderStartHereActions(data);
@@ -1012,12 +1016,134 @@ function _showWcMessage(msg, label) {
   showInlineNoResultsMessage(container, msg, broader);
 }
 
+// ── Overview focus: clean base pool for What Changed count calculations ──
+// Returns full noise-filtered dataset with NO active pF/pCatFilter applied.
+// This prevents an active focus from distorting the trend counts.
+function _wcBasePool() {
+  return unifiedFilteredCitations({ noiseFilter: true });
+}
+
+// Set an overview focus: applies the filter, shows the banner, re-renders
+// overview sections.  groupedCount is pre-computed from _wcBasePool so the
+// banner count is not affected by the filter being applied.
+function setOverviewFocus(label, filterObj, groupedCount) {
+  _overviewFocus = { label, filterObj, groupedCount };
+  applyPharmaFilter(filterObj);
+  renderPharmaFocusBanner();
+  const data = filteredCits();
+  renderStartHereActions(data);
+  renderTopRiskBlocks(rankPharmaRisks(data));
+  buildChipBar('pharma-ov-chip-bar');
+}
+
+// Clear the overview focus: reverses only the filter fields the focus set.
+function clearOverviewFocus() {
+  const f = _overviewFocus;
+  _overviewFocus = null;
+  if (f && f.filterObj) {
+    if (f.filterObj.primary_gmp_category !== undefined) pCatFilter = null;
+    if (f.filterObj.failure_mode         !== undefined) pF.failureMode = '';
+    if (f.filterObj.authority            !== undefined) pF.auth = 'all';
+    if (f.filterObj.source_type          !== undefined) pF.srctype = 'all';
+    _dirty = true;
+  }
+  renderPharmaFocusBanner();
+  syncPFPills();
+  const data = filteredCits();
+  renderStartHereActions(data);
+  renderTopRiskBlocks(rankPharmaRisks(data));
+  buildChipBar('pharma-ov-chip-bar');
+}
+
+// Render (or hide) the overview focus banner into #pharma-focus-banner.
+function renderPharmaFocusBanner() {
+  const el = document.getElementById('pharma-focus-banner'); if (!el) return;
+  const f  = _overviewFocus;
+  if (!f) { el.style.display = 'none'; el.innerHTML = ''; return; }
+
+  const cits = filteredCits().length;
+  const fs   = JSON.stringify(f.filterObj).replace(/"/g, "'");
+  el.style.display = 'block';
+  el.innerHTML = `<div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;
+      padding:10px 14px;margin-bottom:12px;background:rgba(13,148,136,.07);
+      border:1px solid rgba(13,148,136,.25);border-radius:7px">
+    <button class="btn-secondary" style="font-size:11px;font-weight:700;padding:4px 10px;
+        flex-shrink:0;border-color:rgba(13,148,136,.4);color:#0d9488"
+      onclick="clearOverviewFocus()">&#10005; Clear focus</button>
+    <span style="font-size:12px;font-weight:700;color:#2A3E52;flex:1;min-width:120px">
+      Focused view: ${f.label}</span>
+    <span style="font-size:11px;color:#4a6278;white-space:nowrap">
+      ${f.groupedCount} grouped finding${f.groupedCount!==1?'s':''} &middot;
+      ${cits} citation${cits!==1?'s':''}</span>
+    <button class="btn-secondary" style="font-size:11px;flex-shrink:0"
+      onclick="navigateToCitationsWithFilter(${fs})">View matching citations &rarr;</button>
+  </div>`;
+}
+
+// Expand an inline broader-evidence panel inside the What Changed widget.
+// Toggle: clicking the same label again closes it.
+function _showWcBroaderPanel(label, broaderCount) {
+  const panel = document.getElementById('what-changed-panel'); if (!panel) return;
+  const existing = panel.querySelector('.wc-broader-panel');
+  if (existing) {
+    const same = existing.dataset.label === label;
+    existing.remove();
+    if (same) return;
+  }
+
+  const pool    = _wcBasePool().filter(c => (c.category||'') === label);
+  const auths   = {}, srcs = {};
+  pool.forEach(c => {
+    if (c.authority) auths[c.authority] = (auths[c.authority]||0)+1;
+    const s = (c.source_type||'other').replace(/_/g,' ');
+    srcs[s] = (srcs[s]||0)+1;
+  });
+  const topAuths = Object.entries(auths).sort((a,b)=>b[1]-a[1]).slice(0,4)
+    .map(([k,v])=>`${k} (${v})`).join(' · ');
+  const topSrcs  = Object.entries(srcs).sort((a,b)=>b[1]-a[1]).slice(0,3)
+    .map(([k,v])=>`${k} (${v})`).join(' · ');
+  const top5 = pool.slice(0,5);
+
+  const broader = getBroaderFallbackFilter(label);
+  const viewBtn = broader
+    ? `<button class="btn-secondary" style="font-size:10px"
+        onclick="navigateToCitationsWithFilter(${JSON.stringify(broader).replace(/"/g,"'")})">View source records &rarr;</button>`
+    : '';
+
+  const el = document.createElement('div');
+  el.className   = 'wc-broader-panel';
+  el.dataset.label = label;
+  el.style.cssText = 'margin-top:10px;padding:12px 14px;background:rgba(47,69,88,.06);' +
+    'border-radius:6px;border:1px solid rgba(47,69,88,.12)';
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:12px;font-weight:700;color:#2A3E52">Source trend: ${label}</div>
+      <button class="btn-secondary" style="font-size:10px;padding:2px 8px"
+        onclick="this.closest('.wc-broader-panel').remove()">&#10005; Close</button>
+    </div>
+    <div style="font-size:11px;color:#2F4558;margin-bottom:8px;line-height:1.5">
+      ${broaderCount} record${broaderCount!==1?'s':''} appear in the source trend data for this
+      category, but are not currently classified as decision-ready grouped records.
+    </div>
+    ${topAuths?`<div style="font-size:10px;color:#7A92A8;margin-bottom:3px"><b>Authorities:</b> ${topAuths}</div>`:''}
+    ${topSrcs ?`<div style="font-size:10px;color:#7A92A8;margin-bottom:8px"><b>Source types:</b> ${topSrcs}</div>`:''}
+    ${top5.length?`<div style="font-size:10px;font-weight:600;color:#2A3E52;margin-bottom:4px">Sample records</div>
+      ${top5.map(c=>`<div style="font-size:10px;color:#2F4558;padding:3px 0;
+        border-bottom:1px solid rgba(47,69,88,.06)">
+        ${(c.summary||c.category||'').slice(0,110)}
+        <span style="color:#7A92A8;margin-left:4px">${c.date?c.date.slice(0,10):''}</span>
+      </div>`).join('')}`:''}
+    <div style="margin-top:10px">${viewBtn}</div>`;
+  panel.appendChild(el);
+}
+
 // ── What Changed This Period ──────────────────────────────────────────
 function renderWhatChanged() {
   const el=document.getElementById('what-changed-cols'); if(!el)return;
   const {recentFrom,priorFrom,priorTo}=_computeDateWindows();
   const recent=CITATIONS.filter(c=>c.date&&c.date>=recentFrom);
   const prior=CITATIONS.filter(c=>c.date&&c.date>=priorFrom&&c.date<priorTo);
+
   // Category changes — only show substantive shifts
   const catR={},catP={};
   recent.forEach(c=>{const k=c.category||'Other';catR[k]=(catR[k]||0)+1;});
@@ -1027,6 +1153,7 @@ function renderWhatChanged() {
     .filter(x=>x.p>10&&Math.abs(x.d)>15)
     .sort((a,b)=>Math.abs(b.d)-Math.abs(a.d)).slice(0,5);
   const newCats=Object.keys(catR).filter(k=>!catP[k]&&catR[k]>=50).slice(0,3);
+
   // Authority changes
   const authR={},authP={};
   recent.forEach(c=>{authR[c.authority]=(authR[c.authority]||0)+1;});
@@ -1035,24 +1162,84 @@ function renderWhatChanged() {
     .map(k=>({k,r:authR[k]||0,p:authP[k]||0,d:(authR[k]||0)-(authP[k]||0)}))
     .filter(x=>Math.abs(x.d)>5)
     .sort((a,b)=>Math.abs(b.d)-Math.abs(a.d)).slice(0,4);
+
+  // Clean base pool for count calculations — no pF filters, noise-filtered only.
+  // Computed once here so _mkCatItem calls are cheap.
+  const basePool       = _wcBasePool();
+  const basePrimaries  = basePool.filter(c => c.cluster_primary !== false);
+
+  // Pre-compute grouped and broader counts for a category label.
+  function _wcCounts(label) {
+    const mapping = _TREND_FILTER_MAP[label];
+    let best = null;
+    if (mapping) {
+      const matched = basePrimaries.filter(c => _trendMatchRecord(c, mapping));
+      if (matched.length) best = _trendBestFilter(matched, mapping);
+    }
+    if (!best) {
+      const direct = basePrimaries.filter(c => (c.primary_gmp_category||c.category||'') === label);
+      if (direct.length) best = { primary_gmp_category: label };
+    }
+    const groupedCount  = best ? _countMatchingInPool(best, basePrimaries) : 0;
+    const broaderCount  = basePool.filter(c => (c.category||'') === label).length;
+    return { groupedCount, broaderCount, best };
+  }
+
+  // Render one category trend row with the correct type (A/B/C).
+  function _mkCatItem(arrow, cls, label, delta) {
+    const { groupedCount, broaderCount, best } = _wcCounts(label);
+    const labelSafe  = label.replace(/'/g, "\\'");
+    const deltaStr   = delta !== null ? (delta>0?`+${delta}`:`${delta}`) : 'new';
+    const isActive   = _overviewFocus && _overviewFocus.label === label;
+
+    if (groupedCount > 0) {
+      // Type A — has grouped decision records: set overview focus on click
+      const fs = JSON.stringify(best).replace(/"/g, "'");
+      return `<div class="wc-item${isActive?' wc-item-active':''}" style="cursor:pointer"
+          onclick="setOverviewFocus('${labelSafe}',${fs},${groupedCount})"
+          title="${groupedCount} grouped decision record${groupedCount!==1?'s':''} — click to focus overview">
+        <span class="wc-arrow ${cls}">${arrow}</span>
+        <span class="wc-label">${label}</span>
+        <span class="wc-delta">${deltaStr}</span>
+        <span style="font-size:9px;color:#0d9488;margin-left:4px;white-space:nowrap">&#9679; ${groupedCount} grouped</span>
+      </div>`;
+    }
+    if (broaderCount > 0) {
+      // Type B — source trend only, no grouped records: show inline panel on click
+      return `<div class="wc-item" style="cursor:pointer;opacity:.75"
+          onclick="_showWcBroaderPanel('${labelSafe}',${broaderCount})"
+          title="Source trend data only — no grouped decision records">
+        <span class="wc-arrow ${cls}" style="opacity:.5">${arrow}</span>
+        <span class="wc-label">${label}</span>
+        <span class="wc-delta">${deltaStr}</span>
+        <span style="font-size:9px;color:#7A92A8;margin-left:4px;white-space:nowrap">source trend only</span>
+      </div>`;
+    }
+    // Type C — nothing to show: omit
+    return '';
+  }
+
   const upChanges=changes.filter(x=>x.d>0);
   const dnChanges=changes.filter(x=>x.d<0);
-  const mkItem=(arrow,cls,label,delta,filterFn)=>
-    `<div class="wc-item" style="cursor:pointer" onclick="${filterFn}" title="Click to filter to ${label}">
-      <span class="wc-arrow ${cls}">${arrow}</span><span class="wc-label">${label}</span><span class="wc-delta">${delta>0?'+'+delta:delta}</span>
-    </div>`;
-  const catFn  = k => `trendItemClick('${k.replace(/'/g,"\\'")}')`;
+
+  const col1=`<div class="wc-col-hd">Rising categories</div>`
+    +upChanges.map(x=>_mkCatItem('▲','up',x.k,x.d)).join('')
+    +(newCats.length?newCats.map(k=>_mkCatItem('★','new',k,null)).join(''):'');
+  const col2=`<div class="wc-col-hd">Decreasing categories</div>`
+    +(dnChanges.length?dnChanges.map(x=>_mkCatItem('▼','down',x.k,x.d)).join('')
+      :'<div class="wc-item" style="color:#2F4558;font-size:10px">No significant decreases</div>');
+
   // TODO(Phase 2): authority trend clicks navigate unconditionally — add hasResultsForFilter guard
   // and replace with an inline focus panel (same pattern as Enforcement category cards).
   const authFn = k => `applyPharmaFilter({authority:'${k}'}); scrollToCitationsTable()`;
-  const col1=`<div class="wc-col-hd">Rising categories</div>`
-    +upChanges.map(x=>mkItem('▲','up',x.k,x.d,catFn(x.k))).join('')
-    +(newCats.length?newCats.map(k=>`<div class="wc-item" style="cursor:pointer" onclick="${catFn(k)}" title="Click to filter"><span class="wc-arrow new">&#9733;</span><span class="wc-label">${k}</span><span class="wc-delta">new</span></div>`).join(''):'');
-  const col2=`<div class="wc-col-hd">Decreasing categories</div>`
-    +(dnChanges.length?dnChanges.map(x=>mkItem('▼','down',x.k,x.d,catFn(x.k))).join('')
-      :'<div class="wc-item" style="color:#2F4558;font-size:10px">No significant decreases</div>');
   const col3=`<div class="wc-col-hd">Authority activity</div>`
-    +authChanges.map(x=>mkItem(x.d>0?'▲':'▼',x.d>0?'up':'down',x.k,x.d,authFn(x.k))).join('');
+    +authChanges.map(x=>`<div class="wc-item" style="cursor:pointer"
+      onclick="${authFn(x.k)}" title="Click to filter to ${x.k}">
+      <span class="wc-arrow ${x.d>0?'up':'down'}">${x.d>0?'▲':'▼'}</span>
+      <span class="wc-label">${x.k}</span>
+      <span class="wc-delta">${x.d>0?'+'+x.d:x.d}</span>
+    </div>`).join('');
+
   el.innerHTML=col1?`<div>${col1}</div><div>${col2}</div><div>${col3}</div>`
     :'<div class="wc-item" style="color:#2F4558">Insufficient data for comparison</div>';
 }
@@ -1939,6 +2126,7 @@ function resetPharmaFilters() {
   selectedEnforcementFocus = null;
   selectedFacilityFocus    = null;
   _showLimitedDetail       = false;
+  _overviewFocus           = null;
   ['cit-search','p-company'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   _setPActiveKpi(null);
   syncPFPills(); renderPAll();
