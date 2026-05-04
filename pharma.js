@@ -520,17 +520,22 @@ function rankPharmaRisks(data) {
     } else {
       return;
     }
-    if (!riskMap[key]) riskMap[key] = { key, label, p1:0, p2:0, total:0, withSummary:0, clusterSize:0, exampleSummary:'', exampleAction:'' };
+    if (!riskMap[key]) riskMap[key] = { key, label, p1:0, p2:0, confirmed:0, provisional:0, total:0, withSummary:0, clusterSize:0, exampleSummary:'', exampleAction:'' };
     const r = riskMap[key];
     r.total++;
     if (c.priority === 'P1') r.p1++;
     if (c.priority === 'P2') r.p2++;
+    const cs = c.classification_status || '';
+    if (cs === 'confirmed')   r.confirmed++;
+    if (cs === 'provisional') r.provisional++;
     if (c.decision_summary) { r.withSummary++; if (!r.exampleSummary) r.exampleSummary = c.decision_summary; }
     if (c.recommended_action && !r.exampleAction) r.exampleAction = c.recommended_action;
     r.clusterSize += (c.cluster_size || 1);
   });
+  // Score: P1 dominates, then P2, then confirmed evidence, then provisional, then capped volume bonus.
+  // This ensures P1-heavy risks rank above high-volume P2-only risks.
   return Object.values(riskMap)
-    .map(r => ({ ...r, score: r.p1*5 + r.p2*2 + r.withSummary + Math.min(r.clusterSize - r.total, 5) }))
+    .map(r => ({ ...r, score: r.p1*100 + r.p2*20 + r.confirmed*5 + r.provisional*1 + Math.min(r.total, 10) }))
     .sort((a,b) => b.score - a.score)
     .slice(0, 6);
 }
@@ -1825,17 +1830,31 @@ function renderCitationsInsightStrip() {
 }
 
 // ── Citations table ──────────────────────────────────────────────────
+// Compact source cell for the citations table: copy affordance + view link.
+function _citTableSource(c) {
+  const url = c.url || '';
+  if (!url) return '—';
+  const q = _urlQuality(url);
+  const recall = q === 'search_landing' ? _citRecallNum(url) : '';
+  const copyTarget = recall || url;
+  const copyLbl = recall ? `⎘ ${recall.slice(0,10)}` : '⎘';
+  const copyBtn = `<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(copyTarget)}',this)" title="${recall ? 'Copy recall number' : 'Copy URL'}">${copyLbl}</button>`;
+  if (q === 'search_landing')
+    return `${copyBtn} <a class="cit-link" href="${url}" target="_blank" onclick="event.stopPropagation()" title="Opens FDA search page — not a direct record">FDA &#8599;</a>`;
+  if (q === 'api_endpoint')
+    return `${copyBtn} <a class="cit-link" href="${url}" target="_blank" onclick="event.stopPropagation()" title="API data source">API &#8599;</a>`;
+  return `${copyBtn} <a class="cit-link cit-link-primary" href="${url}" target="_blank" onclick="event.stopPropagation()">&#8599;</a>`;
+}
+
 function _citTableRow(c, isExpanded) {
   const st = (c.source_type||'').replace(/_/g,' ');
   const entity = (c.company || c.cluster_label || c.authority || '').slice(0, 45);
-  const fm = (c.failure_mode && (c.failure_mode_confidence||0) >= 0.6 && c.failure_mode !== 'insufficient_detail')
-    ? _fmLabel(c.failure_mode) : '';
-  const cat        = c.primary_gmp_category || c.category || '';
-  const displayCat = _displayCategory(c);
-  const catCellStyle = (c.classification_status === 'unconfirmed' || c.classification_status === 'provisional')
-    ? 'font-size:10px;max-width:120px;color:#9aacbb;font-style:italic'
-    : 'font-size:10px;max-width:120px';
-  const catTitle = _classificationNote(c) || cat;
+  const displayIssue = getDisplayIssue(c);
+  const evidSt = getEvidenceStatus(c);
+  const isLimitedIssue = displayIssue === 'Limited detail';
+  const isProvIssue = displayIssue.startsWith('Provisional:');
+  const issueStyle = isLimitedIssue || isProvIssue ? 'font-size:10px;max-width:120px;color:#9aacbb;font-style:italic' : 'font-size:10px;max-width:120px';
+  const evStyle = evidSt === 'Confirmed' ? 'font-size:9px;color:#2ecc71;font-style:italic' : evidSt === 'Provisional' ? 'font-size:9px;color:#f39c12;font-style:italic' : 'font-size:9px;color:#7A92A8;font-style:italic';
   const auRel = c.market_relevance_au;
   const auBadge = (auRel && auRel !== 'none' && auRel !== 'not_applicable')
     ? `<span style="font-size:8px;color:#0d9488" title="${_AU_LABELS[auRel]||auRel}">AU</span>` : '';
@@ -1851,28 +1870,30 @@ function _citTableRow(c, isExpanded) {
   const prio = c.priority || '';
   const prioHtml = prio
     ? `<span style="color:${_PRIORITY_COLORS[prio]||'#7f8c8d'};font-weight:700;font-size:10px">${prio}</span>` : '—';
-  const filterFn = cat
-    ? `applyPharmaFilter({primary_gmp_category:'${cat.replace(/'/g,"\\'")}'}); scrollToCitationsTable()`
-    : `scrollToCitationsTable()`;
-  return `<tr class="cit-row${hasCluster?' cit-cluster-primary':''}" onclick="${filterFn}" title="Filter by ${cat||'category'}">
+  const entityCopy = entity
+    ? ` <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(entity)}',this)" title="Copy entity name">&#8669;</button>`
+    : '';
+  // Row click expands cluster children (if any); does NOT apply filters.
+  const rowClick = hasCluster ? '' : '';
+  return `<tr class="cit-row${hasCluster?' cit-cluster-primary':''}">
     <td>${prioHtml}</td>
     <td><span class="badge badge-authority">${c.authority||'—'}</span></td>
     <td><span class="badge badge-type" style="white-space:nowrap">${st}</span></td>
-    <td style="color:#3D5268;font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${entity}">${entity||'—'}</td>
-    <td style="font-size:10px;color:#c0392b;white-space:nowrap">${fm}</td>
-    <td style="${catCellStyle}" title="${catTitle}">${displayCat}</td>
+    <td style="color:#3D5268;font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${entity}">${entity||'—'}${entityCopy}</td>
+    <td style="${issueStyle}">${displayIssue}</td>
+    <td style="${evStyle}">${evidSt}</td>
     <td style="font-size:9px;text-align:center">${auBadge}</td>
     <td style="white-space:nowrap;font-size:10px;color:#3D5268">${c.date?c.date.slice(0,10):'—'}</td>
     <td style="max-width:260px;font-size:11px;color:#7A92A8">${toggleBtn}${ds}${clusterBadge}</td>
-    <td>${c.url?`<a class="cit-link" href="${c.url}" target="_blank" onclick="event.stopPropagation()">&#8599;</a>`:'—'}</td>
+    <td style="white-space:nowrap">${_citTableSource(c)}</td>
   </tr>`;
 }
 
 function _citMemberRow(m) {
   const st = (m.source_type||'').replace(/_/g,' ');
   const entity = (m.company || m.authority || '').slice(0, 40);
-  const fm = (m.failure_mode && m.failure_mode !== 'insufficient_detail') ? _fmLabel(m.failure_mode) : '';
-  const cat = m.primary_gmp_category || m.category || '';
+  const displayIssue = getDisplayIssue(m);
+  const evidSt = getEvidenceStatus(m);
   const ds = (m.decision_summary || m.raw_listing_summary || m.summary || '').slice(0, 110);
   const prio = m.priority || '';
   const prioHtml = prio ? `<span style="color:${_PRIORITY_COLORS[prio]||'#7f8c8d'};font-size:9px">${prio}</span>` : '';
@@ -1881,8 +1902,8 @@ function _citMemberRow(m) {
     <td><span class="badge badge-authority" style="opacity:.7">${m.authority||'—'}</span></td>
     <td><span class="badge badge-type" style="white-space:nowrap;opacity:.7">${st}</span></td>
     <td style="color:#6b8099;font-size:9px;padding-left:14px" title="${entity}">${entity||'—'}</td>
-    <td style="font-size:9px;color:#c0392b;opacity:.75">${fm}</td>
-    <td style="font-size:9px;color:#6b8099">${cat}</td>
+    <td style="font-size:9px;color:#9aacbb;font-style:italic">${displayIssue}</td>
+    <td style="font-size:9px;color:#7A92A8;font-style:italic">${evidSt}</td>
     <td></td>
     <td style="white-space:nowrap;font-size:9px;color:#6b8099">${m.date?m.date.slice(0,10):'—'}</td>
     <td style="max-width:260px;font-size:10px;color:#9aacbb">${ds}</td>
@@ -1903,8 +1924,34 @@ function _toggleClusterRow(btn) {
   }
 }
 
+function _syncIssueFilterDropdown() {
+  const sel = document.getElementById('cit-issue-select');
+  const clrBtn = document.getElementById('cit-issue-clear');
+  if (!sel) return;
+
+  // Collect distinct display issues from all citations (not just filtered)
+  const all = getPharmaCitations();
+  const issueSet = new Set();
+  const _SKIP_ISSUES = new Set(['Limited detail', 'GMP violations', 'Other / Insufficient Detail', 'Other', '']);
+  all.forEach(c => {
+    let issue = getDisplayIssue(c);
+    if (issue.startsWith('Provisional: ')) issue = issue.slice('Provisional: '.length);
+    if (!_SKIP_ISSUES.has(issue)) issueSet.add(issue);
+  });
+  const sorted = Array.from(issueSet).sort();
+
+  // Rebuild options preserving current selection
+  const current = pF.displayIssue || '';
+  sel.innerHTML = '<option value="">All issues</option>' +
+    sorted.map(iss => `<option value="${iss}"${iss === current ? ' selected' : ''}>${iss}</option>`).join('');
+
+  // Show/hide clear button
+  if (clrBtn) clrBtn.style.display = current ? 'inline-block' : 'none';
+}
+
 function renderCitations() {
   buildChipBar('cit-chip-bar');
+  _syncIssueFilterDropdown();
   renderCitationsInsightStrip();
   const clustered = _pharmaClusterGroupCits(filteredCits());
   const data = clustered;
@@ -2315,40 +2362,74 @@ function renderFacilities() {
 
 // ── Alert card (compact, action-oriented) ────────────────────────────
 function alertCard(c, patterns={}) {
-  const isHigh=c.severity==='high';
-  const st=(c.source_type||'').replace(/_/g,' ');
-  const isImport=(c.source_type||'')==='import_alert';
-  const summ=(c.summary||c.category||'Enforcement action').slice(0,160);
-  const cat=c.category||'Other';
-  const intel=CAT_INTEL[cat];
-  const action=c.recommended_action||(intel?intel.action:`Review exposure for ${cat} and monitor for similar enforcement patterns across your site types.`);
-  const pBadge=patterns[c.company]?`<span class="pattern-badge">Pattern: recurring ${(c.company||'').slice(0,28)}</span>`
-    :patterns[c.category]?`<span class="pattern-badge">Pattern: repeated ${c.category}</span>`:'';
-  return `<div class="alert-card${isHigh?' ac-high':' ac-medium'}">
+  const prio = c.priority || '';
+  const isP1 = prio === 'P1';
+  const isP2 = prio === 'P2';
+  const acClass = isP1 ? 'ac-high' : (isP2 ? 'ac-medium' : '');
+  const st = (c.source_type || '').replace(/_/g, ' ');
+  const isImport = (c.source_type || '') === 'import_alert';
+  const summ = (c.decision_summary || c.summary || 'Enforcement action').slice(0, 160);
+  const displayIssue = getDisplayIssue(c);
+  const evidSt = getEvidenceStatus(c);
+  const entity = c.company || c.entity || '';
+  const entityCopy = entity
+    ? `<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(entity)}',this)" title="Copy entity name">&#9138;</button>`
+    : '';
+  const intel = CAT_INTEL[c.category || ''] || CAT_INTEL[displayIssue] || null;
+  const action = c.recommended_action || (intel ? intel.action : `Review exposure for ${displayIssue} and monitor for similar enforcement patterns across your site types.`);
+  const pBadge = patterns[c.company]
+    ? `<span class="pattern-badge">Pattern: recurring ${(c.company || '').slice(0, 28)}</span>`
+    : '';
+  const prioBadge = prio ? `<span class="badge" style="background:${isP1?'rgba(239,68,68,.1)':isP2?'rgba(251,146,60,.08)':'rgba(20,50,80,.15)'};color:${isP1?'#ef4444':isP2?'#fb923c':'#7A92A8'};border:1px solid ${isP1?'rgba(239,68,68,.25)':isP2?'rgba(251,146,60,.2)':'rgba(20,50,80,.3)'}">${prio}</span>` : '';
+  const issueBadge = displayIssue !== 'Limited detail'
+    ? `<span class="badge" style="background:rgba(20,50,80,.2);color:#3A5570;border:1px solid rgba(20,50,80,.3)">${displayIssue}</span>`
+    : '';
+  const viewBtns = _citViewBtn(c);
+  return `<div class="alert-card${acClass?' '+acClass:''}">
     <div class="alert-card-title">${summ}</div>
     <div class="alert-card-meta">
-      ${sevBadge(c.severity||'medium')}
-      <span class="badge badge-authority">${c.authority||'—'}</span>
-      <span class="badge badge-type"${isImport?` title="${_IMPORT_ALERT_TIP}"`:''} style="${isImport?'cursor:help':''}">${st}</span>
-      ${c.facility_type?`<span class="badge" style="background:rgba(139,92,246,.06);color:rgba(139,92,246,.5);border:1px solid rgba(139,92,246,.1)">${c.facility_type}</span>`:''}
-      ${c.category?`<span class="badge" style="background:rgba(20,50,80,.2);color:#3A5570;border:1px solid rgba(20,50,80,.3)">${c.category}</span>`:''}
+      ${prioBadge}
+      ${sevBadge(c.severity || 'medium')}
+      <span class="badge badge-authority">${c.authority || '—'}</span>
+      <span class="badge badge-type"${isImport ? ` title="${_IMPORT_ALERT_TIP}"` : ''} style="${isImport ? 'cursor:help' : ''}">${st}</span>
+      ${c.facility_type ? `<span class="badge" style="background:rgba(139,92,246,.06);color:rgba(139,92,246,.5);border:1px solid rgba(139,92,246,.1)">${c.facility_type}</span>` : ''}
+      ${issueBadge}
+      <span class="badge" style="background:rgba(20,50,80,.1);color:#3A5570;border:1px solid rgba(20,50,80,.2)">${evidSt}</span>
       ${pBadge}
     </div>
     <div class="alert-card-action"><b>Action:</b> ${action}</div>
     <div class="alert-card-footer">
-      <div class="alert-card-date">${c.date?c.date.slice(0,10):'—'}${c.company?' · '+c.company:''}</div>
-      ${c.url?`<a class="card-action card-action-primary" href="${c.url}" target="_blank" style="font-size:10px">View &#8599;</a>`:''}
+      <div class="alert-card-date">${c.date ? c.date.slice(0, 10) : '—'}${entity ? ' · ' + entity : ''}${entityCopy}</div>
+      <div style="display:flex;gap:4px;align-items:center">${viewBtns}</div>
     </div>
   </div>`;
 }
 
 // ── Pharma alerts ────────────────────────────────────────────────────
 function renderPharmaAlerts() {
-  const el=document.getElementById('pharma-alerts-feed'); if(!el)return;
-  const highs=unifiedFilteredCitations({sev:'high',sortCol:'date',sortDir:-1});
-  const patterns=detectPattern(highs);
-  el.innerHTML=highs.length?highs.map(c=>alertCard(c,patterns)).join('')
-    :'<div class="empty"><div class="empty-icon">&#9989;</div><div class="empty-text">No high severity alerts</div></div>';
+  const el = document.getElementById('pharma-alerts-feed'); if (!el) return;
+  // Show P1 regardless of severity; show confirmed/provisional P2; exclude unconfirmed non-P1
+  const all = getPharmaCitations();
+  const _PO = { P1: 0, P2: 1, P3: 2, P4: 3 };
+  const _SO = { confirmed: 0, provisional: 1, unconfirmed: 2 };
+  const alerts = all.filter(c => {
+    const p = c.priority || '';
+    const st = c.classification_status || '';
+    if (p === 'P1') return true;
+    if (p === 'P2' && st !== 'unconfirmed') return true;
+    if (c.severity === 'high' && st === 'confirmed') return true;
+    return false;
+  }).sort((a, b) => {
+    const pa = _PO[a.priority] ?? 4, pb = _PO[b.priority] ?? 4;
+    if (pa !== pb) return pa - pb;
+    const sa = _SO[a.classification_status] ?? 3, sb = _SO[b.classification_status] ?? 3;
+    if (sa !== sb) return sa - sb;
+    return (b.date || '') > (a.date || '') ? 1 : -1;
+  }).slice(0, 40);
+  const patterns = detectPattern(alerts);
+  el.innerHTML = alerts.length
+    ? alerts.map(c => alertCard(c, patterns)).join('')
+    : '<div class="empty"><div class="empty-icon">&#9989;</div><div class="empty-text">No P1/P2 alerts</div></div>';
 }
 
 // === PHARMA INTELLIGENCE + PLUMBING ===
