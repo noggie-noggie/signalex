@@ -69,6 +69,8 @@ logger = logging.getLogger("citation_fetcher")
 # ---------------------------------------------------------------------------
 REPORTS_DIR = Path(__file__).parent
 OUTPUT_JSON = REPORTS_DIR / "citation_database.json"
+# Frontend runtime file — single source of truth for the online dashboard.
+DATA_JSON   = REPORTS_DIR.parent / "data" / "citation_database.json"
 
 NOW        = datetime.now(timezone.utc)
 CUTOFF_12M = NOW - timedelta(days=365)
@@ -3296,7 +3298,9 @@ def run(
         "citations":     [asdict(c) for c in output_set],
     }
     OUTPUT_JSON.write_text(json.dumps(output, indent=2))
-    logger.info("Wrote %d citations to %s", len(output_set), OUTPUT_JSON)
+    DATA_JSON.parent.mkdir(exist_ok=True)
+    DATA_JSON.write_text(json.dumps(output, indent=2))
+    logger.info("Wrote %d citations to %s and %s", len(output_set), OUTPUT_JSON, DATA_JSON)
     _inject_data_into_html(output)
 
     # Legacy summary (authority / facility / category / severity)

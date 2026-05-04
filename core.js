@@ -123,7 +123,9 @@ function unifiedFilteredCitations(opts) {
   // New decision-model filters
   const priority    = o.priority  || 'all';   // 'all'|'P1'|'P2'|'P3'|'P4'|array
   const failureMode = o.failureMode || '';
-  return CITATIONS.filter(c => {
+  // Use JSON-loaded Pharma citations when available; fall back to embedded array.
+  return (window.PHARMA_CITATIONS !== null && window.PHARMA_CITATIONS !== undefined
+    ? window.PHARMA_CITATIONS : CITATIONS).filter(c => {
     if (noiseFilter && isLowValueContent(c)) return false;
     if (noiseFilter && !isValidEnforcementItem(c)) return false;
     if (noiseFilter && c.is_noise) return false;

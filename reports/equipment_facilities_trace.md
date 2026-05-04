@@ -6,8 +6,8 @@ Generated: 2026-05-04  |  Source: citation_database.json
 
 | Step | Description | Count |
 |------|-------------|-------|
-| 0    | Full DB                                           | 2,855 |
-| 1    | After noise filter (isValidEnforcementItem)        | 2,473 |
+| 0    | Full DB                                           | 2,853 |
+| 1    | After noise filter (isValidEnforcementItem)        | 2,472 |
 | 2    | After catFilter='Equipment & facilities'           | 86 |
 | 3    | After normalisePharmaCitationKey deduplication    | 29 |
 

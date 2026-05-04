@@ -1,21 +1,21 @@
 {
-  "generated": "2026-05-04T04:37:59Z",
+  "generated": "2026-05-04T05:09:15Z",
   "focus_label": "Equipment & facilities",
   "filter_obj": {
     "primary_gmp_category": "Equipment & facilities"
   },
   "dataset_fingerprint": {
-    "citation_count": 2855,
-    "generated_at": "2026-05-03T11:02:03.007106+00:00",
-    "embed_generated_at": "2026-05-04T04:37:54Z",
-    "citations_sha256": "465f591ee0e6c74eb63e5a855e0c90c89dd5c27a09b8ad4ba3910bdacec3af1a",
-    "computed_sha256": "465f591ee0e6c74eb63e5a855e0c90c89dd5c27a09b8ad4ba3910bdacec3af1a",
-    "sha256_match": true
+    "citation_count": 2853,
+    "generated_at": "2026-05-04T05:05:50.909179+00:00",
+    "embed_generated_at": "not set \u2014 run generate_signals.py",
+    "citations_sha256": "not set \u2014 run generate_signals.py",
+    "computed_sha256": "0b296c7a90acc907d3326c52a239ea09f464ca7b105b6f78bf0fdf01ce996bc5",
+    "sha256_match": false
   },
   "note": "Counts are from citation_database.json. Run generate_signals.py first to ensure signals.html and this DB share the same embedded dataset (same citations_sha256). Filter logic mirrors JS unifiedFilteredCitations + filteredCits() deduplication.",
   "summary": {
-    "db_total": 2855,
-    "after_noise_filter": 2473,
+    "db_total": 2853,
+    "after_noise_filter": 2472,
     "after_eq_catfilter": 86,
     "after_deduplication": 29,
     "confirmed": 21,

@@ -73,6 +73,8 @@ def build_data_block(days: int = 30) -> str:
     return (
         "// === SIGNALEX DATA START ===\n"
         f"const SIGNALS = {signals_json};\n"
+        "// Embedded CITATIONS are fallback only. Online Pharma dashboard loads\n"
+        "// data/citation_database.json as source of truth via loadPharmaCitations().\n"
         f"const CITATIONS = {citations_json};\n"
         f"const SIGNALEX_META = {meta_json};\n"
         "// === SIGNALEX DATA END ==="

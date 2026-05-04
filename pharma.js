@@ -1,5 +1,61 @@
 // === SIGNALEX PHARMA HELPERS ===
 
+// ── Pharma citation source of truth ──────────────────────────────────────────
+// window.PHARMA_CITATIONS is set by loadPharmaCitations() after async JSON load.
+// null  = not yet loaded or load failed → getPharmaCitations() falls back to
+//         the embedded window.CITATIONS array (offline / local-file use).
+// [...] = JSON-loaded array → used for all Pharma rendering.
+window.PHARMA_CITATIONS = null;
+window.PHARMA_META      = null;
+
+// Returns the authoritative Pharma citation array.
+// Prefer JSON-loaded data; fall back to embedded CITATIONS.
+function getPharmaCitations() {
+  return (window.PHARMA_CITATIONS !== null && window.PHARMA_CITATIONS !== undefined)
+    ? window.PHARMA_CITATIONS
+    : CITATIONS;
+}
+
+// Async loader — tries data/citation_database.json, then reports/, then embedded.
+// Sets window.PHARMA_CITATIONS and window.PHARMA_META, then returns a result object.
+async function loadPharmaCitations() {
+  const PATHS = [
+    { path: 'data/citation_database.json',    source: 'json:data'    },
+    { path: 'reports/citation_database.json', source: 'json:reports' },
+  ];
+  for (const { path, source } of PATHS) {
+    try {
+      const resp = await fetch(path);
+      if (!resp.ok) continue;
+      const raw  = await resp.json();
+      const cits = Array.isArray(raw) ? raw : (raw.citations || []);
+      const meta = Array.isArray(raw) ? {} : (({ citations: _, ...rest }) => rest)(raw);
+      window.PHARMA_CITATIONS = cits;
+      window.PHARMA_META = {
+        ...SIGNALEX_META,
+        ...meta,
+        citationCount:    cits.length,
+        pharmaDataSource: source,
+      };
+      if (window.SIGNALEX_DEBUG) console.log('[Signalex] Pharma data loaded', {
+        source, count: cits.length,
+        generatedAt:      meta.generated_at || '',
+        citationsSha256:  meta.citations_sha256 || SIGNALEX_META.citationsSha256 || '',
+      });
+      return { citations: cits, meta: window.PHARMA_META, source };
+    } catch (e) {
+      if (window.SIGNALEX_DEBUG) console.warn('[Signalex] Could not load', path, e.message);
+    }
+  }
+  // Both JSON paths failed — fall back to embedded CITATIONS
+  window.PHARMA_CITATIONS = null;
+  window.PHARMA_META = { ...SIGNALEX_META, pharmaDataSource: 'embedded_fallback' };
+  if (window.SIGNALEX_DEBUG) console.warn(
+    '[Signalex] Pharma falling back to embedded CITATIONS (' + CITATIONS.length + ' records)'
+  );
+  return { citations: CITATIONS, meta: window.PHARMA_META, source: 'embedded_fallback' };
+}
+
 // ── CAT_INTEL + FORWARD_SIGNALS + INTEL_ITEMS ──
 // ── Consulting intelligence data per category ────────────────────────
 const CAT_INTEL = {
@@ -607,7 +663,7 @@ function renderPharmaOverview() {
 
   // Tab badge — always show full dataset size
   const tabBadge=document.getElementById('pharma-tab-count');
-  if(tabBadge) tabBadge.textContent=`${CITATIONS.length} citations`;
+  if(tabBadge) tabBadge.textContent=`${getPharmaCitations().length} citations`;
 
   // AI summary + So What + What Changed
   renderWhatChanged();
@@ -1205,8 +1261,9 @@ function _showWcBroaderPanel(label, broaderCount) {
 function renderWhatChanged() {
   const el=document.getElementById('what-changed-cols'); if(!el)return;
   const {recentFrom,priorFrom,priorTo}=_computeDateWindows();
-  const recent=CITATIONS.filter(c=>c.date&&c.date>=recentFrom);
-  const prior=CITATIONS.filter(c=>c.date&&c.date>=priorFrom&&c.date<priorTo);
+  const _pc=getPharmaCitations();
+  const recent=_pc.filter(c=>c.date&&c.date>=recentFrom);
+  const prior=_pc.filter(c=>c.date&&c.date>=priorFrom&&c.date<priorTo);
 
   // Category changes — only show substantive shifts
   const catR={},catP={};
@@ -1630,7 +1687,7 @@ function renderCitationsInsightStrip() {
   el.innerHTML=`<div class="insight-strip">
     <div class="insight-strip-hd">What this table shows</div>
     <div class="insight-strip-bullets">
-      <div class="isb"><div class="isb-dot${high>0?' isb-dot-red':''}"></div><div class="isb-text"><b>${data.length} citation${data.length!==1?'s':''}</b> match current filters${high>0?` — <b>${high} high severity</b>`:''}.${data.length===CITATIONS.length?' Full dataset — use sidebar or KPI cards to filter.':''}</div></div>
+      <div class="isb"><div class="isb-dot${high>0?' isb-dot-red':''}"></div><div class="isb-text"><b>${data.length} citation${data.length!==1?'s':''}</b> match current filters${high>0?` — <b>${high} high severity</b>`:''}.${data.length===getPharmaCitations().length?' Full dataset — use sidebar or KPI cards to filter.':''}</div></div>
       ${topCat?`<div class="isb"><div class="isb-dot isb-dot-amber"></div><div class="isb-text"><b>${topCat[0]}</b> is the dominant category (${topCat[1]} citations). ${action}</div></div>`:''}
       ${topAuth?`<div class="isb"><div class="isb-dot"></div><div class="isb-text"><b>${topAuth[0]}</b> leads by authority (${topAuth[1]} actions). Primary source type: <b>${topSrc?topSrc[0]:'—'}</b>.</div></div>`:''}
     </div>
@@ -1911,8 +1968,9 @@ function renderGroupedEnforcement(elId) {
   const el=document.getElementById(elId); if(!el) return;
   const data=filteredCits();
   const {recentFrom,priorFrom,priorTo}=_computeDateWindows();
-  const recent=CITATIONS.filter(c=>c.date&&c.date>=recentFrom);
-  const prior=CITATIONS.filter(c=>c.date&&c.date>=priorFrom&&c.date<priorTo);
+  const _pc2=getPharmaCitations();
+  const recent=_pc2.filter(c=>c.date&&c.date>=recentFrom);
+  const prior=_pc2.filter(c=>c.date&&c.date>=priorFrom&&c.date<priorTo);
   const catR={},catP={};
   recent.forEach(c=>{const k=c.category||'Other';catR[k]=(catR[k]||0)+1;});
   prior.forEach(c=>{const k=c.category||'Other';catP[k]=(catP[k]||0)+1;});
