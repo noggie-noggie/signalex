@@ -1607,20 +1607,65 @@ function _urlQuality(url) {
   return 'direct_detail';
 }
 
-// Renders the View button for a citation card, labelled according to URL quality.
+// ── Copy-to-clipboard helpers ────────────────────────────────────────────────
+
+function _copyTextFallback(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta);
+}
+
+// Copy text to clipboard. Briefly changes btn label to "Copied ✓" as feedback.
+function _copyText(text, btn) {
+  if (!text) return;
+  const orig = btn ? btn.textContent : null;
+  const done = () => {
+    if (!btn || !orig) return;
+    btn.textContent = 'Copied ✓';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => { _copyTextFallback(text); done(); });
+  } else {
+    _copyTextFallback(text); done();
+  }
+}
+
+// Escape a string for use in a single-quoted JS inline onclick attribute.
+function _escOnclick(s) { return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+// Extract RecallNumber query param from FDA IRES URL, e.g. "D-0483-2026".
+function _citRecallNum(url) {
+  const m = (url||'').match(/[?&]RecallNumber=([^&]+)/i);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+// Returns footer action buttons: copy affordances + view link, per URL quality.
 function _citViewBtn(c) {
   const url = c.url || '';
-  if (!url) return '';
-  const q = _urlQuality(url);
-  if (q === 'search_landing')
-    return `<a class="card-action" href="${url}" target="_blank"
+  const q   = url ? _urlQuality(url) : 'missing';
+  const copyUrlBtn = url
+    ? `<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(url)}',this)" title="Copy source URL">⎘ URL</button>`
+    : '';
+  if (q === 'search_landing') {
+    const recall = _citRecallNum(url);
+    const copyRecallBtn = recall
+      ? `<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(recall)}',this)" title="Copy recall number for FDA search">⎘ Recall #</button>`
+      : copyUrlBtn;
+    return `${copyRecallBtn}<a class="card-action" href="${url}" target="_blank"
         onclick="event.stopPropagation()"
         title="Opens the FDA Enforcement Reports search page &#8212; not a direct record page"
       >FDA search &#8599;</a>`;
+  }
   if (q === 'api_endpoint')
-    return `<a class="card-action" href="${url}" target="_blank" onclick="event.stopPropagation()"
+    return `${copyUrlBtn}<a class="card-action" href="${url}" target="_blank" onclick="event.stopPropagation()"
         title="API data source &#8212; not a human-readable page">Source data &#8599;</a>`;
-  return `<a class="card-action card-action-primary" href="${url}" target="_blank" onclick="event.stopPropagation()">View source &#8599;</a>`;
+  if (q === 'missing') return '';
+  return `${copyUrlBtn}<a class="card-action card-action-primary" href="${url}" target="_blank" onclick="event.stopPropagation()">View source &#8599;</a>`;
 }
 
 // ── Focus evidence split ──────────────────────────────────────────────────────
@@ -1733,7 +1778,7 @@ function citCard(c) {
       ${_citSecondaryCategories(c)}
     </div>
     ${_citTrustNote(c)}
-    ${c.company?`<div class="card-summary" style="color:#3D5268;font-size:10px">Company: ${c.company}${_citRecurrenceBadge(c)}${_citDirectionBadge(c)}</div>`:''}
+    ${c.company?`<div class="card-summary" style="color:#3D5268;font-size:10px">Company: ${c.company}${_citRecurrenceBadge(c)}${_citDirectionBadge(c)}<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(c.company)}',this)" title="Copy entity name">&#8669;</button></div>`:''}
     ${_citAiBox(c)}
     <div class="card-footer">
       <div class="card-meta">${c.date?c.date.slice(0,10):'—'} &middot; ${c.country||c.authority||''}</div>
@@ -1741,7 +1786,15 @@ function citCard(c) {
         ${_citViewBtn(c)}
       </div>
     </div>
-    ${rawDetail?`<details style="margin-top:4px"><summary style="font-size:9px;color:#7A92A8;cursor:pointer;list-style:none">&#9432; Raw classification</summary><div style="font-size:9px;color:#7A92A8;padding:3px 0 2px">${rawDetail}</div></details>`:''}
+    <details style="margin-top:4px">
+      <summary style="font-size:9px;color:#7A92A8;cursor:pointer;list-style:none">&#9432; Details &amp; copy</summary>
+      <div style="font-size:9px;color:#7A92A8;padding:4px 0 2px;display:flex;flex-direction:column;gap:3px">
+        ${rawDetail?`<span>${rawDetail}</span>`:''}
+        ${(c.summary||c.clean_title)?`<span style="display:flex;align-items:center;gap:4px">Summary <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(c.clean_title||c.summary||'')}',this)">&#8669; Copy</button></span>`:''}
+        ${c.violation_details?`<span style="display:flex;align-items:center;gap:4px">Violation detail <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(c.violation_details)}',this)">&#8669; Copy</button></span>`:''}
+        ${c.url?`<span style="display:flex;align-items:center;gap:4px;word-break:break-all">${c.url.slice(0,60)}${c.url.length>60?'…':''} <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(c.url)}',this)">&#8669; Copy URL</button></span>`:''}
+      </div>
+    </details>
   </div>`;
 }
 

@@ -1954,3 +1954,35 @@ body.reading-mode .filter-chip  { opacity: 0.9; }
 .vol-bucket       { color: var(--slate-dim) !important; }
 .wc-col-hd        { color: var(--slate-dim) !important; }
 .pharma-so-what   { color: var(--slate) !important; }
+
+/* ── Citation card text selectability ───────────────────────────────── */
+/* Text in citation cards must be selectable for copy/paste workflows.   */
+.signal-card .card-title,
+.signal-card .card-summary,
+.signal-card details,
+.signal-card details * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+/* ── Inline copy button ─────────────────────────────────────────────── */
+.cit-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 5px;
+  height: 16px;
+  font-size: 10px;
+  line-height: 1;
+  color: #7A92A8;
+  background: transparent;
+  border: 1px solid rgba(122,146,168,.25);
+  border-radius: 3px;
+  cursor: pointer;
+  vertical-align: middle;
+  margin-left: 4px;
+  transition: color .1s, border-color .1s, background .1s;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.cit-copy-btn:hover { color: #0d9488; border-color: rgba(13,148,136,.45); background: rgba(13,148,136,.06); }
+.cit-copy-btn:active { opacity: .7; }
