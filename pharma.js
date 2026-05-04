@@ -532,6 +532,57 @@ function generateFacilityAction(topIssueCat) {
 
 // === PHARMA OVERVIEW RENDER FUNCTIONS ===
 
+// Renders the Recent Enforcement Actions feed and count label.
+// Extracted so setOverviewFocus/clearOverviewFocus can update it without a full re-render.
+function _renderOvFeed(data, isFiltered) {
+  const focused = !!_overviewFocus;
+  const oc = document.getElementById('pharma-ov-count');
+  if (oc) oc.textContent = focused ? `${data.length} focused` : `${data.length} total`;
+
+  // Update section heading to show focus context
+  const hd = document.getElementById('pharma-ov-feed-hd');
+  if (hd) hd.textContent = focused
+    ? `Recent Enforcement Actions: ${_overviewFocus.label}`
+    : 'Recent Enforcement Actions';
+
+  buildChipBar('pharma-ov-chip-bar');
+  const el = document.getElementById('pharma-ov-feed'); if (!el) return;
+
+  // When focused: show evidence-backed records first; broader records appended with separator.
+  let feed, viewAllLabel;
+  if (focused) {
+    const { evidenceBacked, broader } = _focusEvidenceBacked(data, _overviewFocus.label);
+    const limit = 10;
+    const evSlice = evidenceBacked.slice(0, limit);
+    const broaderNote = broader.length > 0
+      ? `<div style="margin:8px 0 4px;padding:6px 10px;background:rgba(47,69,88,.05);
+            border-left:3px solid rgba(122,146,168,.3);border-radius:0 4px 4px 0">
+          <span style="font-size:10px;color:#7A92A8;font-style:italic">
+            &#9432; ${broader.length} record${broader.length!==1?'s':''} in this focus
+            lack direct equipment/facility evidence — not shown above.
+            <button class="btn-secondary" style="font-size:9px;margin-left:6px"
+              onclick="showPTab('pharma-citations')">View all ${data.length} in Citations &rarr;</button>
+          </span></div>`
+      : '';
+    const viewAllBtn = evidenceBacked.length > limit
+      ? `<button class="ov-feed-view-all" onclick="showPTab('pharma-citations')">View all ${data.length} focused citations &rarr;</button>`
+      : '';
+    el.innerHTML = evSlice.length
+      ? evSlice.map(c => citCard(c)).join('') + broaderNote + viewAllBtn
+      : broaderNote || '<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No evidence-backed citations for this focus</div></div>';
+    return;
+  }
+
+  const limit = isFiltered ? 15 : 8;
+  const slice = data.slice(0, limit);
+  const viewAllBtn = data.length > limit
+    ? `<button class="ov-feed-view-all" onclick="showPTab('pharma-citations')">View all ${data.length} citations &rarr;</button>`
+    : '';
+  el.innerHTML = slice.length
+    ? slice.map(c => citCard(c)).join('') + viewAllBtn
+    : '<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No citations match filters</div></div>';
+}
+
 // ── Pharma Overview ──────────────────────────────────────────────────
 function renderPharmaOverview() {
   const data=filteredCits();
@@ -575,17 +626,7 @@ function renderPharmaOverview() {
   renderAuthBars('pharma-auth-bars');
 
   // Recent feed
-  const oc=document.getElementById('pharma-ov-count'); if(oc) oc.textContent=`${data.length} total`;
-  buildChipBar('pharma-ov-chip-bar');
-  const el=document.getElementById('pharma-ov-feed'); if(!el) return;
-  const limit = isFiltered ? 15 : 8;
-  const feed=data.slice(0,limit);
-  const viewAllBtn = data.length>limit
-    ? `<button class="ov-feed-view-all" onclick="showPTab('pharma-citations')">View all ${data.length} citations &rarr;</button>`
-    : '';
-  el.innerHTML=feed.length
-    ? feed.map(c=>citCard(c)).join('')+viewAllBtn
-    :'<div class="empty"><div class="empty-icon">&#128270;</div><div class="empty-text">No citations match filters</div></div>';
+  _renderOvFeed(data, isFiltered);
 }
 
 // context = 'overview' (default) | 'enforcement'
@@ -938,7 +979,8 @@ function showInlineNoResultsMessage(containerEl, msg, broaderFilter) {
 // cats: possible primary_gmp_category values; fms: failure_mode values.
 const _TREND_FILTER_MAP = {
   'Equipment & facilities':          { cats:['Equipment & facilities','Equipment / Facilities'],
-                                       fms:['equipment_facilities','equipment_facility','cleaning_validation','calibration'] },
+                                       fms:['equipment_facilities','equipment_facility','cleaning_validation','calibration'],
+                                       evidenceTerms:['equipment','facilit','calibration','maintenance','hvac','utilities','water system','premises','sanitation','qualification','installation','repair','preventive'] },
   'Computerised systems validation': { cats:['Computerised systems validation','Computerised systems','Computer systems'],
                                        fms:['computer_systems_validation','computerised_systems','data_integrity','documentation_data_integrity'] },
   'Labelling & claims':              { cats:['Labelling & claims','Labelling and claims'],
@@ -1038,7 +1080,8 @@ function setOverviewFocus(label, filterObj, groupedCount) {
   const data = filteredCits();
   renderStartHereActions(data);
   renderTopRiskBlocks(rankPharmaRisks(data));
-  buildChipBar('pharma-ov-chip-bar');
+  renderAuthBars('pharma-auth-bars');
+  _renderOvFeed(data, true);
 }
 
 // Clear the overview focus: reverses only the filter fields the focus set.
@@ -1057,7 +1100,8 @@ function clearOverviewFocus() {
   const data = filteredCits();
   renderStartHereActions(data);
   renderTopRiskBlocks(rankPharmaRisks(data));
-  buildChipBar('pharma-ov-chip-bar');
+  renderAuthBars('pharma-auth-bars');
+  _renderOvFeed(data, false);
 }
 
 // Render (or hide) the overview focus banner into #pharma-focus-banner.
@@ -1066,8 +1110,25 @@ function renderPharmaFocusBanner() {
   const f  = _overviewFocus;
   if (!f) { el.style.display = 'none'; el.innerHTML = ''; return; }
 
-  const cits = filteredCits().length;
-  const fs   = JSON.stringify(f.filterObj).replace(/"/g, "'");
+  const allCits = filteredCits();
+  const { evidenceBacked, broader } = _focusEvidenceBacked(allCits, f.label);
+  const evCount = evidenceBacked.length;
+  const brCount = broader.length;
+  const fs = JSON.stringify(f.filterObj).replace(/"/g, "'");
+
+  // Count label: show evidence-backed vs broader split if the focus has evidenceTerms mapping.
+  const hasSplit = !!(_TREND_FILTER_MAP[f.label] || {}).evidenceTerms;
+  const countLine = hasSplit
+    ? `<span style="font-size:11px;color:#4a6278;white-space:nowrap">
+        ${evCount} evidence-backed record${evCount!==1?'s':''}
+        &middot; ${f.groupedCount} in source trend pool
+        ${brCount > 0 ? `<span style="color:#9aacbb"> (${brCount} without direct evidence)</span>` : ''}
+       </span>`
+    : `<span style="font-size:11px;color:#4a6278;white-space:nowrap">
+        ${f.groupedCount} grouped finding${f.groupedCount!==1?'s':''} &middot;
+        ${allCits.length} citation${allCits.length!==1?'s':''}
+       </span>`;
+
   el.style.display = 'block';
   el.innerHTML = `<div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;
       padding:10px 14px;margin-bottom:12px;background:rgba(13,148,136,.07);
@@ -1075,13 +1136,11 @@ function renderPharmaFocusBanner() {
     <button class="btn-secondary" style="font-size:11px;font-weight:700;padding:4px 10px;
         flex-shrink:0;border-color:rgba(13,148,136,.4);color:#0d9488"
       onclick="clearOverviewFocus()">&#10005; Clear focus</button>
-    <span style="font-size:12px;font-weight:700;color:#2A3E52;flex:1;min-width:120px">
+    <span style="font-size:12px;font-weight:700;color:#2A3E52;flex:1;min-width:160px">
       Focused view: ${f.label}</span>
-    <span style="font-size:11px;color:#4a6278;white-space:nowrap">
-      ${f.groupedCount} grouped finding${f.groupedCount!==1?'s':''} &middot;
-      ${cits} citation${cits!==1?'s':''}</span>
+    ${countLine}
     <button class="btn-secondary" style="font-size:11px;flex-shrink:0"
-      onclick="navigateToCitationsWithFilter(${fs})">View matching citations &rarr;</button>
+      onclick="navigateToCitationsWithFilter(${fs})">View all ${allCits.length} in Citations &rarr;</button>
   </div>`;
 }
 
@@ -1252,6 +1311,12 @@ function renderWhatChanged() {
 // === PHARMA CITATIONS + ENFORCEMENT RENDER ===
 
 function renderAuthBars(elId) {
+  // Update heading to show focus context so counts are not mistaken for full-dataset totals.
+  const hd = document.getElementById('pharma-auth-bars-hd');
+  if (hd) hd.textContent = _overviewFocus
+    ? `Authority Activity: ${_overviewFocus.label}`
+    : 'Authority Activity';
+
   const data=filteredCits();
   const ac={}, catByAuth={};
   data.forEach(c=>{
@@ -1411,6 +1476,56 @@ function _citFailureMode(c) {
   return `<div style="margin-top:3px"><span style="font-size:9px;color:#c0392b;opacity:.75">&#9888; ${c.failure_mode.replace(/_/g,' ')}</span></div>`;
 }
 
+// ── URL quality classification ────────────────────────────────────────────────
+// IRES URLs (accessdata.fda.gov/scripts/ires) open the FDA Enforcement Reports
+// search interface, not a specific detail page — classified as search_landing.
+// api.fda.gov URLs are raw API endpoints not meant for browser viewing.
+function _urlQuality(url) {
+  if (!url) return 'missing';
+  const u = url.toLowerCase();
+  if (u.startsWith('https://api.fda.gov')) return 'api_endpoint';
+  if (u.includes('accessdata.fda.gov/scripts/ires')) return 'search_landing';
+  return 'direct_detail';
+}
+
+// Renders the View button for a citation card, labelled according to URL quality.
+function _citViewBtn(c) {
+  const url = c.url || '';
+  if (!url) return '';
+  const q = _urlQuality(url);
+  if (q === 'search_landing')
+    return `<a class="card-action card-action-primary" href="${url}" target="_blank"
+        onclick="event.stopPropagation()"
+        title="Opens FDA Enforcement Reports search interface &#8212; not a specific detail page"
+      >View FDA record &#8599;</a
+    ><span style="font-size:9px;color:#7A92A8;margin-left:5px;cursor:help"
+        title="Source link opens the FDA Enforcement Reports search interface, not a direct record">&#9432; FDA search</span>`;
+  if (q === 'api_endpoint')
+    return `<a class="card-action" href="${url}" target="_blank" onclick="event.stopPropagation()"
+        title="API data source &#8212; not a human-readable page">Source data &#8599;</a>`;
+  return `<a class="card-action card-action-primary" href="${url}" target="_blank" onclick="event.stopPropagation()">View &#8599;</a>`;
+}
+
+// ── Focus evidence split ──────────────────────────────────────────────────────
+// Splits a record array into evidence-backed vs broader for the current focus label.
+// evidence-backed = confirmed or provisional AND has ≥1 focus-relevant evidence term.
+// broader         = unconfirmed OR no evidence terms.
+function _focusEvidenceBacked(data, label) {
+  const mapping = _TREND_FILTER_MAP[label];
+  if (!mapping || !mapping.evidenceTerms) return { evidenceBacked: data, broader: [] };
+  const terms = mapping.evidenceTerms;
+  const evidenceBacked = [], broader = [];
+  data.forEach(c => {
+    const status = c.classification_status || '';
+    if (status === 'unconfirmed') { broader.push(c); return; }
+    const evArr  = [].concat(c.category_evidence || [], c.failure_mode_evidence || []);
+    const evText = evArr.join(' ').toLowerCase();
+    const hasEv  = terms.some(t => evText.includes(t));
+    (hasEv ? evidenceBacked : broader).push(c);
+  });
+  return { evidenceBacked, broader };
+}
+
 // NOTE: c.regulatory_pressure is intentionally not rendered at citation-card level.
 // Citation-level trend direction is not reliable enough for user-facing display
 // (84% of records show "decreasing" on a full corpus run due to baseline skew).
@@ -1490,7 +1605,7 @@ function citCard(c) {
     <div class="card-footer">
       <div class="card-meta">${c.date?c.date.slice(0,10):'—'} &middot; ${c.country||c.authority||''}</div>
       <div class="card-actions">
-        ${c.url?`<a class="card-action card-action-primary" href="${c.url}" target="_blank" onclick="event.stopPropagation()">View &#8599;</a>`:''}
+        ${_citViewBtn(c)}
       </div>
     </div>
   </div>`;
