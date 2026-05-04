@@ -341,7 +341,7 @@ function buildPharmaFilterFromFocus(focus) {
   if (!focus) return {};
   const map = { failure_mode:'failure_mode', category:'primary_gmp_category',
                 source_type:'source_type',   authority:'authority',
-                facility_type:'facility_type' };
+                facility_type:'facility_type', display_issue:'display_issue' };
   const key = map[focus.type];
   return key ? { [key]: focus.value } : {};
 }
@@ -352,8 +352,20 @@ function getGroupedDecisionRecords(records) {
 }
 
 // Compact rows for a list of primary records — used in focus panels.
+// Sorted: P1 → P2 → P3 → P4 → unranked; confirmed → provisional → unconfirmed; with decision_summary first; newest date.
 function renderTopGroupedRecords(records, limit) {
-  const primaries = getGroupedDecisionRecords(records).slice(0, limit || 5);
+  const _PO = { P1:0, P2:1, P3:2, P4:3 };
+  const _SO = { confirmed:0, provisional:1, unconfirmed:2 };
+  const sorted = getGroupedDecisionRecords(records).sort((a, b) => {
+    const pa = _PO[a.priority] ?? 4, pb = _PO[b.priority] ?? 4;
+    if (pa !== pb) return pa - pb;
+    const sa = _SO[a.classification_status] ?? 3, sb = _SO[b.classification_status] ?? 3;
+    if (sa !== sb) return sa - sb;
+    const da = a.decision_summary ? 0 : 1, db = b.decision_summary ? 0 : 1;
+    if (da !== db) return da - db;
+    return (b.date || '') > (a.date || '') ? 1 : -1;
+  });
+  const primaries = sorted.slice(0, limit || 5);
   if (!primaries.length) return '<div style="font-size:11px;color:#7A92A8;padding:4px 0">No grouped records available.</div>';
   return primaries.map(c => {
     const entity  = (c.company || c.cluster_label || c.authority || '').slice(0, 44);
@@ -709,29 +721,23 @@ function renderCatGrid(gridId, countId, context) {
   const data = filteredCits();
   const el = document.getElementById(gridId); if (!el) return;
 
-  // Resolve each record to a display label using the new decision-model fields.
-  // Generic primary_gmp_category values ('GMP violations', 'Other') are broken down
-  // by failure_mode where available; otherwise collapsed to 'Limited detail'.
-  const _GENERIC_CATS = new Set(['GMP violations', 'Other / Insufficient Detail', 'Other', '']);
-  const _SKIP_FM      = new Set(['', 'insufficient_detail', 'other', 'unknown']);
-
-  // Cluster-primary records only (singletons included; cluster members excluded)
+  // Bucket each cluster-primary record by its canonical display issue label.
+  // "Provisional: X" records are merged into the "X" bucket so counts match the click filter.
   const primaries = data.filter(c => c.cluster_primary !== false);
 
   const cardMap = {};
   primaries.forEach(c => {
-    const cat    = c.primary_gmp_category || c.category || '';
-    const fm     = c.failure_mode || '';
-    const fmConf = c.failure_mode_confidence || 0;
-    let type, key, label;
-    if (_GENERIC_CATS.has(cat) && fm && !_SKIP_FM.has(fm) && fmConf >= 0.6) {
-      type = 'fm';  key = fm;              label = _fmLabel(fm);
-    } else if (cat && !_GENERIC_CATS.has(cat)) {
-      type = 'cat'; key = cat;             label = cat;
-    } else {
-      type = 'limited'; key = 'limited_detail'; label = 'Limited detail';
-    }
-    if (!cardMap[key]) cardMap[key] = { type, key, label, p1:0, p2:0, total:0, rawCitCount:0, withSummary:0, exampleAction:'' };
+    const issue = getDisplayIssue(c);
+    // Normalize provisional variant to base label for bucketing.
+    const isProvVariant = issue.startsWith('Provisional: ');
+    const key   = isProvVariant ? issue.slice('Provisional: '.length) : issue;
+    const label = key;
+    // Track dominant type (fm vs cat) from the first record in each bucket.
+    const fm = c.failure_mode || '';
+    const derivedType = (fm && fm !== 'insufficient_detail' && (c.failure_mode_confidence || 0) >= 0.6)
+      ? 'fm' : (key === 'Limited detail' ? 'limited' : 'cat');
+
+    if (!cardMap[key]) cardMap[key] = { type: derivedType, key, label, p1:0, p2:0, total:0, rawCitCount:0, withSummary:0, exampleAction:'', hasProvisional:false };
     const g = cardMap[key];
     g.total++;
     g.rawCitCount += (c.cluster_size || 1);
@@ -739,42 +745,41 @@ function renderCatGrid(gridId, countId, context) {
     if (c.priority === 'P2') g.p2++;
     if (c.decision_summary || c.ai_summary) g.withSummary++;
     if (!g.exampleAction && c.recommended_action) g.exampleAction = c.recommended_action;
+    if (isProvVariant) g.hasProvisional = true;
   });
 
-  // Sort by priority-weighted score; 'Limited detail' always last
+  // Sort by priority-weighted score; 'Limited detail' always last.
   const sorted = Object.values(cardMap).sort((a, b) => {
-    if (a.key === 'limited_detail' && b.key !== 'limited_detail') return 1;
-    if (b.key === 'limited_detail' && a.key !== 'limited_detail') return -1;
+    if (a.key === 'Limited detail' && b.key !== 'Limited detail') return 1;
+    if (b.key === 'Limited detail' && a.key !== 'Limited detail') return -1;
     return (b.p1*5 + b.p2*2 + b.withSummary) - (a.p1*5 + a.p2*2 + a.withSummary);
   });
 
-  // Filter out limited detail from main render when toggle is off
-  const visibleCards = _showLimitedDetail ? sorted : sorted.filter(g => g.key !== 'limited_detail');
+  // Filter out limited detail from main render when toggle is off.
+  const visibleCards = _showLimitedDetail ? sorted : sorted.filter(g => g.key !== 'Limited detail');
 
   el.innerHTML = visibleCards.map(g => {
     const intel     = CAT_INTEL[g.label] || null;
-    const isLimited = g.key === 'limited_detail';
-    const keySafe   = g.key.replace(/'/g, "\\'");
+    const isLimited = g.key === 'Limited detail';
+    const labelSafe = g.label.replace(/'/g, "\\'");
 
-    // Enforcement context: card clicks set focus panel; overview context: navigate to citations.
-    // TODO(Phase 2): overview-context category/FM clicks navigate unconditionally — add
-    // hasResultsForFilter guard or route through the same focus-panel pattern as enforcement.
-    const filterFn = context === 'enforcement'
-      ? (g.type === 'fm'  ? `setEnforcementFocus({type:'failure_mode',value:'${keySafe}'})`
-       : g.type === 'cat' ? `setEnforcementFocus({type:'category',value:'${keySafe}'})` : '')
-      : (g.type === 'fm'  ? `applyPharmaFilter({failure_mode:'${keySafe}'}); scrollToCitationsTable()`
-       : g.type === 'cat' ? `applyPharmaFilter({primary_gmp_category:'${keySafe}'}); scrollToCitationsTable()` : '');
+    // Both contexts use display_issue as the canonical filter key.
+    // Enforcement: opens the focus panel. Overview: navigates to filtered citations.
+    const filterFn = isLimited ? '' : (context === 'enforcement'
+      ? `setEnforcementFocus({type:'display_issue',value:'${labelSafe}'})`
+      : `applyPharmaFilter({display_issue:'${labelSafe}'}); scrollToCitationsTable()`);
 
-    // Active state: enforcement checks focus; overview checks filter state.
+    // Active state: enforcement checks selectedEnforcementFocus; overview checks pF.displayIssue.
     const isAct = context === 'enforcement'
-      ? !!(selectedEnforcementFocus && selectedEnforcementFocus.value === g.key)
-      : (g.type === 'fm' ? pF.failureMode === g.key : (g.type === 'cat' ? pCatFilter === g.key : false));
+      ? !!(selectedEnforcementFocus && selectedEnforcementFocus.value === g.label)
+      : (pF.displayIssue === g.label);
 
     const rawNote  = g.rawCitCount > g.total
       ? ` <span style="font-size:9px;color:#7A92A8">(${g.rawCitCount} related citations)</span>` : '';
     const p1html   = g.p1 ? `<span style="color:${_PRIORITY_COLORS.P1};font-size:9px;font-weight:600">${g.p1}&thinsp;P1</span>` : '';
     const p2html   = g.p2 ? `<span style="color:${_PRIORITY_COLORS.P2};font-size:9px">${g.p2}&thinsp;P2</span>` : '';
     const p1p2     = [p1html, p2html].filter(Boolean).join(' &middot; ');
+    const provNote = g.hasProvisional ? '<span style="font-size:9px;color:#7A92A8;font-style:italic">incl. provisional</span>' : '';
 
     const whyLine   = intel ? `<div class="cat-why-line">${intel.implication.split('.')[0]}.</div>` : '';
     const intelHtml = (intel && !isLimited) ? `<div class="cat-cell-intel">
@@ -783,7 +788,7 @@ function renderCatGrid(gridId, countId, context) {
       <div class="cat-action">${intel.action}</div>
     </div>` : '';
     const entityBtn = g.type === 'cat'
-      ? `<button class="ing-ep-btn" onclick="event.stopPropagation();openEntityPanel('${keySafe}','category')" title="Open ${g.label} detail" style="font-size:12px;margin-top:1px;flex-shrink:0">&#9432;</button>`
+      ? `<button class="ing-ep-btn" onclick="event.stopPropagation();openEntityPanel('${labelSafe}','category')" title="Open ${g.label} detail" style="font-size:12px;margin-top:1px;flex-shrink:0">&#9432;</button>`
       : '';
 
     const wrapStyle = filterFn
@@ -795,14 +800,14 @@ function renderCatGrid(gridId, countId, context) {
         ${entityBtn}
       </div>
       <div class="cat-cell-ct">${g.total} grouped finding${g.total!==1?'s':''}${rawNote}</div>
-      <div class="cat-cell-sub">${p1p2 || '<span style="font-size:9px;color:#7A92A8">no priority flags</span>'}</div>
+      <div class="cat-cell-sub">${p1p2 || '<span style="font-size:9px;color:#7A92A8">no priority flags</span>'}${provNote ? ' &middot; ' + provNote : ''}</div>
       ${whyLine}
       ${intelHtml}
     </div>`;
   }).join('');
 
   // Limited detail: hidden by default behind a toggle button.
-  const limitedGrp = cardMap['limited_detail'];
+  const limitedGrp = cardMap['Limited detail'];
   if (limitedGrp && !_showLimitedDetail) {
     el.innerHTML += `<div style="margin-top:6px"><button class="btn-secondary" style="font-size:10px;opacity:.6;padding:3px 8px"
       onclick="_showLimitedDetail=true;renderCatGrid('${gridId}','${countId}','${context||''}')">
@@ -901,15 +906,10 @@ function renderTopRiskBlocks(risks) {
     const meaning  = r.exampleSummary ? r.exampleSummary.slice(0,180) : (intel ? intel.implication.split('.')[0]+'.' : '');
     const action   = r.exampleAction  || (intel ? intel.action : 'Review enforcement pattern and assess site exposure');
     const p1p2txt  = (r.p1||r.p2) ? `${r.p1} P1 · ${r.p2} P2` : '';
-    const keyParts = r.key.split(':');
-    const isFm     = keyParts[0]==='fm';
-    const filterJs = isFm
-      ? `navigateToCitationsWithFilter({failure_mode:'${keyParts[1].replace(/'/g,"\\'")}'})`
-      : `navigateToCitationsWithFilter({primary_gmp_category:'${r.label.replace(/'/g,"\\'")}'})`;
+    const filterJs = `navigateToCitationsWithFilter({display_issue:'${r.label.replace(/'/g,"\\'")}'})`
 
-    // Build top grouped records for expanded detail
-    const allMatched = filteredCits().filter(c =>
-      isFm ? (c.failure_mode||'')===keyParts[1] : (c.primary_gmp_category||c.category||'')===r.label);
+    // Build top grouped records using the canonical display_issue predicate.
+    const allMatched = filteredCits().filter(c => matchesDisplayIssue(c, r.label));
     const ftCts={}, authCts={};
     allMatched.forEach(c=>{
       if(c.facility_type) ftCts[c.facility_type]=(ftCts[c.facility_type]||0)+1;
@@ -977,6 +977,7 @@ function toggleAllCategories() {
 // Count records in a given array that match a filter object (no side effects).
 function _countMatchingInPool(filterObj, pool) {
   return pool.filter(c => {
+    if (filterObj.display_issue !== undefined && !matchesDisplayIssue(c, filterObj.display_issue)) return false;
     if (filterObj.failure_mode !== undefined && (c.failure_mode||'') !== filterObj.failure_mode) return false;
     if (filterObj.primary_gmp_category !== undefined) {
       if ((c.primary_gmp_category||'') !== filterObj.primary_gmp_category && (c.category||'') !== filterObj.primary_gmp_category) return false;
@@ -1559,6 +1560,16 @@ function getEvidenceStatus(c) {
   return 'Unknown';
 }
 
+// Canonical predicate: does this citation match a given display issue label?
+// Matches the base label AND its "Provisional: X" variant so a card aggregates all evidence levels.
+function matchesDisplayIssue(c, issueLabel) {
+  if (!issueLabel) return false;
+  const issue = getDisplayIssue(c);
+  if (issue === issueLabel) return true;
+  if (issue === `Provisional: ${issueLabel}`) return true;
+  return false;
+}
+
 // Tooltip text explaining limited/provisional classification when applicable
 function _classificationNote(c) {
   const status = c.classification_status || '';
@@ -1602,16 +1613,14 @@ function _citViewBtn(c) {
   if (!url) return '';
   const q = _urlQuality(url);
   if (q === 'search_landing')
-    return `<a class="card-action card-action-primary" href="${url}" target="_blank"
+    return `<a class="card-action" href="${url}" target="_blank"
         onclick="event.stopPropagation()"
-        title="Opens FDA Enforcement Reports search interface &#8212; not a specific detail page"
-      >View FDA record &#8599;</a
-    ><span style="font-size:9px;color:#7A92A8;margin-left:5px;cursor:help"
-        title="Source link opens the FDA Enforcement Reports search interface, not a direct record">&#9432; FDA search</span>`;
+        title="Opens the FDA Enforcement Reports search page &#8212; not a direct record page"
+      >FDA search &#8599;</a>`;
   if (q === 'api_endpoint')
     return `<a class="card-action" href="${url}" target="_blank" onclick="event.stopPropagation()"
         title="API data source &#8212; not a human-readable page">Source data &#8599;</a>`;
-  return `<a class="card-action card-action-primary" href="${url}" target="_blank" onclick="event.stopPropagation()">View &#8599;</a>`;
+  return `<a class="card-action card-action-primary" href="${url}" target="_blank" onclick="event.stopPropagation()">View source &#8599;</a>`;
 }
 
 // ── Focus evidence split ──────────────────────────────────────────────────────
@@ -1984,10 +1993,11 @@ function renderEnfFocusPanel() {
 
   const all = filteredCits();
   const matches = all.filter(c => {
-    if (focus.type==='failure_mode') return (c.failure_mode||'')===focus.value;
-    if (focus.type==='category')     return (c.primary_gmp_category||c.category||'')===focus.value;
-    if (focus.type==='source_type')  return (c.source_type||'')===focus.value;
-    if (focus.type==='authority')    return (c.authority||'')===focus.value;
+    if (focus.type==='display_issue') return matchesDisplayIssue(c, focus.value);
+    if (focus.type==='failure_mode')  return (c.failure_mode||'')===focus.value;
+    if (focus.type==='category')      return (c.primary_gmp_category||c.category||'')===focus.value;
+    if (focus.type==='source_type')   return (c.source_type||'')===focus.value;
+    if (focus.type==='authority')     return (c.authority||'')===focus.value;
     return false;
   });
   const primaries = matches.filter(c => c.cluster_primary !== false);
@@ -2415,7 +2425,7 @@ function renderIntelligencePage() {
 }
 
 function resetPharmaFilters() {
-  pF={auth:'all',factype:'all',srctype:'all',sev:'all',priority:'all',failureMode:'',company:'',query:'',dateFrom:'',dateTo:'',dicapa:false};
+  pF={auth:'all',factype:'all',srctype:'all',sev:'all',priority:'all',failureMode:'',displayIssue:'',company:'',query:'',dateFrom:'',dateTo:'',dicapa:false};
   pCatFilter=null;
   selectedEnforcementFocus = null;
   selectedFacilityFocus    = null;
@@ -2434,7 +2444,7 @@ function _setPActiveKpi(id) {
 function pKpiClick(kpiId, dim, val) {
   pCatFilter=null;
   const toggling = pActiveKpi===kpiId;
-  pF={auth:'all',factype:'all',srctype:'all',sev:'all',priority:'all',failureMode:'',company:'',query:'',dateFrom:'',dateTo:'',dicapa:false};
+  pF={auth:'all',factype:'all',srctype:'all',sev:'all',priority:'all',failureMode:'',displayIssue:'',company:'',query:'',dateFrom:'',dateTo:'',dicapa:false};
   if(!toggling) {
     if(dim==='dicapa') pF.dicapa=true;
     else if(dim) pF[dim]=val;
@@ -2480,6 +2490,12 @@ function applyPharmaFilter(filterObj) {
   if (filterObj.priority       !== undefined) pF.priority    = filterObj.priority;
   if (filterObj.failure_mode   !== undefined) pF.failureMode = filterObj.failure_mode;
   if (filterObj.primary_gmp_category !== undefined) pCatFilter = filterObj.primary_gmp_category;
+  if (filterObj.display_issue  !== undefined) {
+    pF.displayIssue = filterObj.display_issue;
+    // Clear legacy issue filters so display_issue is the sole issue predicate.
+    pF.failureMode = '';
+    pCatFilter = null;
+  }
   if (filterObj.entity !== undefined) {
     pF.company = filterObj.entity;
     const el = document.getElementById('p-company'); if(el) el.value = filterObj.entity;
@@ -2508,6 +2524,7 @@ function buildChipBar(elId) {
   if(pF.auth!=='all')       chips.push({label:`Authority: ${pF.auth}`,                        fn:`pF.auth='all';syncPFPills();renderPAll()`});
   if(pF.factype!=='all')    chips.push({label:`Facility: ${pF.factype}`,                      fn:`pF.factype='all';syncPFPills();renderPAll()`});
   if(pF.priority!=='all')   chips.push({label:`Priority: ${pF.priority}`,                     fn:`pF.priority='all';_dirty=true;syncPFPills();renderPAll()`});
+  if(pF.displayIssue)       chips.push({label:`Issue: ${pF.displayIssue}`,                     fn:`pF.displayIssue='';_dirty=true;syncPFPills();renderPAll()`});
   if(pF.failureMode)        chips.push({label:`Issue: ${_fmLabel(pF.failureMode)}`,            fn:`pF.failureMode='';_dirty=true;syncPFPills();renderPAll()`});
   if(pF.company)            chips.push({label:`Entity: ${pF.company.slice(0,28)}`,             fn:`pF.company='';const e=document.getElementById('p-company');if(e)e.value='';_dirty=true;syncPFPills();renderPAll()`});
   if(pF.dicapa)             chips.push({label:'DI / CAPA / CSV',                              fn:`pF.dicapa=false;_setPActiveKpi(null);syncPFPills();renderPAll()`});
