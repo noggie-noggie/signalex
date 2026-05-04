@@ -488,7 +488,9 @@ function rankPharmaRisks(data) {
   // Use cluster primaries (or singletons) only — avoids inflating counts with members
   const primaries = data.filter(c => c.cluster_primary !== false);
   const _SKIP_FM  = new Set(['', 'insufficient_detail', 'other', 'unknown']);
-  const _SKIP_CAT = new Set(['', 'Other', 'Other / Insufficient Detail']);
+  // "GMP violations" is a broad legacy bucket — too vague to be a meaningful top-risk label.
+  // Records in that bucket surface through their specific failure_mode instead.
+  const _SKIP_CAT = new Set(['', 'Other', 'Other / Insufficient Detail', 'GMP violations']);
   const riskMap = {};
   primaries.forEach(c => {
     // Exclude non-enforcement records (guidance, scientific_opinion) from risk ranking —
@@ -1523,6 +1525,40 @@ function _displayCategory(c) {
   return cat;
 }
 
+// Broad or uninformative categories that should not surface as the primary Issue label.
+const _BROAD_CATS = new Set(['GMP violations', 'Other / Insufficient Detail', 'Other', '']);
+
+// Returns the most specific, user-facing "Issue" label for a citation card.
+// Priority: specific failure_mode > specific primary_gmp_category > legacy category > "Limited detail"
+function getDisplayIssue(c) {
+  const fm = c.failure_mode || '';
+  if (fm && fm !== 'insufficient_detail' && (c.failure_mode_confidence || 0) >= 0.6) {
+    return _fmLabel(fm);
+  }
+  const pgc    = c.primary_gmp_category || '';
+  const status = c.classification_status || '';
+  if (pgc && !_BROAD_CATS.has(pgc)) {
+    if (status === 'provisional') return `Provisional: ${pgc}`;
+    return pgc;
+  }
+  const cat = c.category || '';
+  if (cat && !_BROAD_CATS.has(cat)) {
+    if (status === 'unconfirmed') return 'Limited detail';
+    if (status === 'provisional') return `Provisional: ${cat}`;
+    return cat;
+  }
+  return 'Limited detail';
+}
+
+// Returns a human-readable evidence/classification status for a citation.
+function getEvidenceStatus(c) {
+  const status = c.classification_status || '';
+  if (status === 'confirmed')   return 'Confirmed';
+  if (status === 'provisional') return 'Provisional';
+  if (status === 'unconfirmed') return 'Limited evidence';
+  return 'Unknown';
+}
+
 // Tooltip text explaining limited/provisional classification when applicable
 function _classificationNote(c) {
   const status = c.classification_status || '';
@@ -1651,12 +1687,25 @@ function citCard(c) {
     : (c._groupCount||1) > 1
     ? `<span class="cit-group-badge" title="${c._groupCount} similar citations grouped">×${c._groupCount}</span>`
     : '';
-  // primary_gmp_category preferred; falls back to legacy category field.
-  // Apply trust qualifier: unconfirmed → "Limited detail", provisional → "Provisional: {cat}"
-  const primaryCat    = c.primary_gmp_category || c.category || '';
-  const displayCat    = _displayCategory(c);
-  const catStyle      = (c.classification_status === 'unconfirmed' || c.classification_status === 'provisional')
-    ? ' style="color:#7A92A8;font-style:italic"' : '';
+  // Issue: most specific useful classification (failure_mode > primary_gmp_category > legacy > "Limited detail")
+  // Evidence: human-readable classification_status
+  const displayIssue  = getDisplayIssue(c);
+  const evidenceStatus = getEvidenceStatus(c);
+  const isLimited     = displayIssue === 'Limited detail';
+  const isProvisional = displayIssue.startsWith('Provisional:');
+  const issueStyle    = isLimited || isProvisional ? ' style="color:#7A92A8;font-style:italic"' : '';
+  const evStyle       = evidenceStatus === 'Confirmed' ? 'color:#2ecc71' : evidenceStatus === 'Provisional' ? 'color:#f39c12' : 'color:#7A92A8';
+  // Raw classification fields shown in collapsible detail (power-user transparency)
+  const rawCat    = c.category || '';
+  const rawPgc    = c.primary_gmp_category || '';
+  const rawFm     = c.failure_mode || '';
+  const rawStatus = c.classification_status || '';
+  const rawDetail = [
+    rawCat  ? `Legacy category: ${rawCat}` : '',
+    rawPgc  ? `GMP category: ${rawPgc}` : '',
+    rawFm   ? `Failure mode: ${rawFm}` : '',
+    rawStatus ? `Class. status: ${rawStatus}` : '',
+  ].filter(Boolean).join(' · ');
   // Debug tooltip shows enrichment status when window.SIGNALEX_DEBUG = true
   const debugTip = (typeof SIGNALEX_DEBUG !== 'undefined' && SIGNALEX_DEBUG)
     ? ` title="enrichment: ${c.enrichment_status||'—'} | ${c.enrichment_source||'—'} | priority: ${c.priority||'—'} | class_status: ${c.classification_status||'—'}"` : '';
@@ -1669,8 +1718,11 @@ function citCard(c) {
       <span class="badge badge-type"${isImport?` title="${_IMPORT_ALERT_TIP}"`:''} style="${isImport?'cursor:help':''}">${st}</span>
       ${c.facility_type?`<span class="badge" style="background:rgba(139,92,246,.06);color:rgba(139,92,246,.55);border:1px solid rgba(139,92,246,.1)">${c.facility_type}</span>`:''}
     </div>
-    ${displayCat?`<div class="card-summary"${catStyle}>${displayCat} ${_citSecondaryCategories(c)}</div>`:''}
-    ${_citFailureMode(c)}
+    <div class="card-summary" style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+      <span${issueStyle}>${displayIssue}</span>
+      <span style="font-size:9px;${evStyle};font-style:italic">${evidenceStatus}</span>
+      ${_citSecondaryCategories(c)}
+    </div>
     ${_citTrustNote(c)}
     ${c.company?`<div class="card-summary" style="color:#3D5268;font-size:10px">Company: ${c.company}${_citRecurrenceBadge(c)}${_citDirectionBadge(c)}</div>`:''}
     ${_citAiBox(c)}
@@ -1680,6 +1732,7 @@ function citCard(c) {
         ${_citViewBtn(c)}
       </div>
     </div>
+    ${rawDetail?`<details style="margin-top:4px"><summary style="font-size:9px;color:#7A92A8;cursor:pointer;list-style:none">&#9432; Raw classification</summary><div style="font-size:9px;color:#7A92A8;padding:3px 0 2px">${rawDetail}</div></details>`:''}
   </div>`;
 }
 
@@ -2458,7 +2511,7 @@ function buildChipBar(elId) {
   if(pF.failureMode)        chips.push({label:`Issue: ${_fmLabel(pF.failureMode)}`,            fn:`pF.failureMode='';_dirty=true;syncPFPills();renderPAll()`});
   if(pF.company)            chips.push({label:`Entity: ${pF.company.slice(0,28)}`,             fn:`pF.company='';const e=document.getElementById('p-company');if(e)e.value='';_dirty=true;syncPFPills();renderPAll()`});
   if(pF.dicapa)             chips.push({label:'DI / CAPA / CSV',                              fn:`pF.dicapa=false;_setPActiveKpi(null);syncPFPills();renderPAll()`});
-  if(pCatFilter)            chips.push({label:`Category: ${pCatFilter}`,                      fn:`pCatFilter=null;_dirty=true;renderPAll()`});
+  if(pCatFilter)            chips.push({label:pCatFilter==='GMP violations'?`Broad group: GMP violations`:`Category: ${pCatFilter}`, fn:`pCatFilter=null;_dirty=true;renderPAll()`});
   if(!chips.length){el.innerHTML='';return;}
   el.innerHTML=chips.map(ch=>
     `<span class="pharma-chip">${ch.label}<button class="pharma-chip-x" onclick="${ch.fn}">&#10005;</button></span>`
