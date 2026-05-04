@@ -680,18 +680,23 @@ function renderPharmaOverview() {
   const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.priority!=='all' || pF.dicapa;
 
   // KPI row — single pass over data
-  let high=0,wl=0,insp=0,diCapaFilt=0,tga=0;
+  // p1Groups = cluster-primary P1 records (deduplicated action groups)
+  // p1Raw    = all P1 records before cluster grouping (matches sidebar pill count)
+  let p1Groups=0,p1Raw=0,wl=0,insp=0,diCapaFilt=0,tga=0;
   for(const c of data){
-    if(c.priority==='P1')high++;
+    if(c.priority==='P1'){ p1Raw++; if(c.cluster_primary!==false) p1Groups++; }
     if(c.source_type==='warning_letter')wl++;
     if(c.source_type==='inspection_finding')insp++;
     if(isDiCapa(c))diCapaFilt++;
     if(c.authority==='TGA')tga++;
   }
   const _setKpi=(id,val)=>{const e=document.getElementById(id);if(e){const v=e.querySelector('.kpi-val');if(v){v.textContent=val;v.classList.add('kpi-updated');setTimeout(()=>v.classList.remove('kpi-updated'),600);}}};
-  _setKpi('pk-high', high);
+  const _setKpiSub=(id,text)=>{const e=document.getElementById(id);if(e)e.textContent=text;};
+  _setKpi('pk-high', p1Groups);
+  _setKpiSub('pk-high-sub', `${p1Raw} raw P1 citation${p1Raw!==1?'s':''}`);
   _setKpi('pk-wl', wl);
-  _setKpi('pk-483', insp);
+  _setKpi('pk-483', insp || '—');
+  _setKpiSub('pk-483-sub', insp > 0 ? `${insp} inspection finding${insp!==1?'s':''}` : 'No records in current dataset');
   _setKpi('pk-total', data.length);
   _setKpi('pk-diCapa', diCapaFilt);
   _setKpi('pk-tga', tga);
