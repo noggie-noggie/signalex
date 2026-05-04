@@ -520,11 +520,12 @@ function rankPharmaRisks(data) {
     } else {
       return;
     }
-    if (!riskMap[key]) riskMap[key] = { key, label, p1:0, p2:0, confirmed:0, provisional:0, total:0, withSummary:0, clusterSize:0, exampleSummary:'', exampleAction:'' };
+    if (!riskMap[key]) riskMap[key] = { key, label, p1:0, p2:0, p3:0, confirmed:0, provisional:0, total:0, withSummary:0, clusterSize:0, exampleSummary:'', exampleAction:'' };
     const r = riskMap[key];
     r.total++;
     if (c.priority === 'P1') r.p1++;
     if (c.priority === 'P2') r.p2++;
+    if (c.priority === 'P3') r.p3++;
     const cs = c.classification_status || '';
     if (cs === 'confirmed')   r.confirmed++;
     if (cs === 'provisional') r.provisional++;
@@ -532,10 +533,10 @@ function rankPharmaRisks(data) {
     if (c.recommended_action && !r.exampleAction) r.exampleAction = c.recommended_action;
     r.clusterSize += (c.cluster_size || 1);
   });
-  // Score: P1 dominates, then P2, then confirmed evidence, then provisional, then capped volume bonus.
-  // This ensures P1-heavy risks rank above high-volume P2-only risks.
+  // Score: P1 strongly dominates, then P2, then P3, then confirmed evidence, then capped volume bonus.
+  // P1*1000 ensures any single P1 outranks even high-volume P2-only risks.
   return Object.values(riskMap)
-    .map(r => ({ ...r, score: r.p1*100 + r.p2*20 + r.confirmed*5 + r.provisional*1 + Math.min(r.total, 10) }))
+    .map(r => ({ ...r, score: r.p1*1000 + r.p2*50 + r.p3*5 + r.confirmed*2 + Math.min(r.total, 10) }))
     .sort((a,b) => b.score - a.score)
     .slice(0, 6);
 }
@@ -676,12 +677,12 @@ function _renderOvFeed(data, isFiltered) {
 // ── Pharma Overview ──────────────────────────────────────────────────
 function renderPharmaOverview() {
   const data=filteredCits();
-  const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.sev!=='all' || pF.dicapa;
+  const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.priority!=='all' || pF.dicapa;
 
   // KPI row — single pass over data
   let high=0,wl=0,insp=0,diCapaFilt=0,tga=0;
   for(const c of data){
-    if(c.severity==='high')high++;
+    if(c.priority==='P1')high++;
     if(c.source_type==='warning_letter')wl++;
     if(c.source_type==='inspection_finding')insp++;
     if(isDiCapa(c))diCapaFilt++;
@@ -740,7 +741,7 @@ function renderCatGrid(gridId, countId, context) {
     // Track dominant type (fm vs cat) from the first record in each bucket.
     const fm = c.failure_mode || '';
     const derivedType = (fm && fm !== 'insufficient_detail' && (c.failure_mode_confidence || 0) >= 0.6)
-      ? 'fm' : (key === 'Limited detail' ? 'limited' : 'cat');
+      ? 'fm' : (key === 'Unclassified' ? 'limited' : 'cat');
 
     if (!cardMap[key]) cardMap[key] = { type: derivedType, key, label, p1:0, p2:0, total:0, rawCitCount:0, withSummary:0, exampleAction:'', hasProvisional:false };
     const g = cardMap[key];
@@ -753,19 +754,19 @@ function renderCatGrid(gridId, countId, context) {
     if (isProvVariant) g.hasProvisional = true;
   });
 
-  // Sort by priority-weighted score; 'Limited detail' always last.
+  // Sort by priority-weighted score; 'Unclassified' always last.
   const sorted = Object.values(cardMap).sort((a, b) => {
-    if (a.key === 'Limited detail' && b.key !== 'Limited detail') return 1;
-    if (b.key === 'Limited detail' && a.key !== 'Limited detail') return -1;
+    if (a.key === 'Unclassified' && b.key !== 'Unclassified') return 1;
+    if (b.key === 'Unclassified' && a.key !== 'Unclassified') return -1;
     return (b.p1*5 + b.p2*2 + b.withSummary) - (a.p1*5 + a.p2*2 + a.withSummary);
   });
 
   // Filter out limited detail from main render when toggle is off.
-  const visibleCards = _showLimitedDetail ? sorted : sorted.filter(g => g.key !== 'Limited detail');
+  const visibleCards = _showLimitedDetail ? sorted : sorted.filter(g => g.key !== 'Unclassified');
 
   el.innerHTML = visibleCards.map(g => {
     const intel     = CAT_INTEL[g.label] || null;
-    const isLimited = g.key === 'Limited detail';
+    const isLimited = g.key === 'Unclassified';
     const labelSafe = g.label.replace(/'/g, "\\'");
 
     // Both contexts use display_issue as the canonical filter key.
@@ -811,8 +812,8 @@ function renderCatGrid(gridId, countId, context) {
     </div>`;
   }).join('');
 
-  // Limited detail: hidden by default behind a toggle button.
-  const limitedGrp = cardMap['Limited detail'];
+  // Unclassified: hidden by default behind a toggle button.
+  const limitedGrp = cardMap['Unclassified'];
   if (limitedGrp && !_showLimitedDetail) {
     el.innerHTML += `<div style="margin-top:6px"><button class="btn-secondary" style="font-size:10px;opacity:.6;padding:3px 8px"
       onclick="_showLimitedDetail=true;renderCatGrid('${gridId}','${countId}','${context||''}')">
@@ -825,7 +826,7 @@ function renderCatGrid(gridId, countId, context) {
 // ── Pharma AI insights ────────────────────────────────────────────────
 function renderPharmaInsights() {
   const data=filteredCits();
-  const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.sev!=='all' || pF.factype!=='all' || pF.dicapa;
+  const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.priority!=='all' || pF.factype!=='all' || pF.dicapa;
   const n = (ct, noun) => ct===0 ? `No ${noun} match current filters` : `${ct} ${noun}`;
   let wlCt=0,inspCt=0,importCt=0,suppCt=0,tgaCt=0,csvCt=0,sterCt=0,labelCt=0;
   for(const c of data){
@@ -952,7 +953,7 @@ function renderTopRiskBlocks(risks) {
     </div>`;
   }).join('');
   const countEl=document.getElementById('top-risks-count');
-  if(countEl) countEl.textContent=`(${risks.length} risk groups)`;
+  if(countEl) countEl.textContent=`(${risks.length} action priority groups)`;
 }
 
 function _toggleTopRisk(card) {
@@ -1549,11 +1550,11 @@ function getDisplayIssue(c) {
   }
   const cat = c.category || '';
   if (cat && !_BROAD_CATS.has(cat)) {
-    if (status === 'unconfirmed') return 'Limited detail';
+    if (status === 'unconfirmed') return 'Unclassified';
     if (status === 'provisional') return `Provisional: ${cat}`;
     return cat;
   }
-  return 'Limited detail';
+  return 'Unclassified';
 }
 
 // Returns a human-readable evidence/classification status for a citation.
@@ -1750,7 +1751,7 @@ function citCard(c) {
   // Evidence: human-readable classification_status
   const displayIssue  = getDisplayIssue(c);
   const evidenceStatus = getEvidenceStatus(c);
-  const isLimited     = displayIssue === 'Limited detail';
+  const isLimited     = displayIssue === 'Unclassified';
   const isProvisional = displayIssue.startsWith('Provisional:');
   const issueStyle    = isLimited || isProvisional ? ' style="color:#7A92A8;font-style:italic"' : '';
   const evStyle       = evidenceStatus === 'Confirmed' ? 'color:#2ecc71' : evidenceStatus === 'Provisional' ? 'color:#f39c12' : 'color:#7A92A8';
@@ -1771,7 +1772,6 @@ function citCard(c) {
   return `<div class="signal-card ${sc}" style="margin-bottom:8px"${debugTip}>
     <div class="card-top"><div class="card-title">${displaySumm}${groupBadge}</div></div>
     <div class="card-badges">
-      ${sevBadge(c.severity||'medium')}
       ${_citPriorityBadge(c)}
       <span class="badge badge-authority">${c.authority||'—'}</span>
       <span class="badge badge-type"${isImport?` title="${_IMPORT_ALERT_TIP}"`:''} style="${isImport?'cursor:help':''}">${st}</span>
@@ -1817,12 +1817,12 @@ function renderCitationsInsightStrip() {
   const topCat=Object.entries(catCounts).sort((a,b)=>b[1]-a[1])[0];
   const topAuth=Object.entries(authCounts).sort((a,b)=>b[1]-a[1])[0];
   const topSrc=Object.entries(srcCounts).sort((a,b)=>b[1]-a[1])[0];
-  const high=data.filter(c=>c.severity==='high').length;
+  const p1Count=data.filter(c=>c.priority==='P1').length;
   const action=topCat&&CAT_INTEL[topCat[0]]?CAT_INTEL[topCat[0]].action:'Review enforcement actions relevant to your site profile.';
   el.innerHTML=`<div class="insight-strip">
     <div class="insight-strip-hd">What this table shows</div>
     <div class="insight-strip-bullets">
-      <div class="isb"><div class="isb-dot${high>0?' isb-dot-red':''}"></div><div class="isb-text"><b>${data.length} citation${data.length!==1?'s':''}</b> match current filters${high>0?` — <b>${high} high severity</b>`:''}.${data.length===getPharmaCitations().length?' Full dataset — use sidebar or KPI cards to filter.':''}</div></div>
+      <div class="isb"><div class="isb-dot${p1Count>0?' isb-dot-red':''}"></div><div class="isb-text"><b>${data.length} citation${data.length!==1?'s':''}</b> match current filters${p1Count>0?` — <b>${p1Count} P1 priority</b>`:''}.${data.length===getPharmaCitations().length?' Full dataset — use sidebar or KPI cards to filter.':''}</div></div>
       ${topCat?`<div class="isb"><div class="isb-dot isb-dot-amber"></div><div class="isb-text"><b>${topCat[0]}</b> is the dominant category (${topCat[1]} citations). ${action}</div></div>`:''}
       ${topAuth?`<div class="isb"><div class="isb-dot"></div><div class="isb-text"><b>${topAuth[0]}</b> leads by authority (${topAuth[1]} actions). Primary source type: <b>${topSrc?topSrc[0]:'—'}</b>.</div></div>`:''}
     </div>
@@ -1851,13 +1851,10 @@ function _citTableRow(c, isExpanded) {
   const entity = (c.company || c.cluster_label || c.authority || '').slice(0, 45);
   const displayIssue = getDisplayIssue(c);
   const evidSt = getEvidenceStatus(c);
-  const isLimitedIssue = displayIssue === 'Limited detail';
+  const isLimitedIssue = displayIssue === 'Unclassified';
   const isProvIssue = displayIssue.startsWith('Provisional:');
   const issueStyle = isLimitedIssue || isProvIssue ? 'font-size:10px;max-width:120px;color:#9aacbb;font-style:italic' : 'font-size:10px;max-width:120px';
   const evStyle = evidSt === 'Confirmed' ? 'font-size:9px;color:#2ecc71;font-style:italic' : evidSt === 'Provisional' ? 'font-size:9px;color:#f39c12;font-style:italic' : 'font-size:9px;color:#7A92A8;font-style:italic';
-  const auRel = c.market_relevance_au;
-  const auBadge = (auRel && auRel !== 'none' && auRel !== 'not_applicable')
-    ? `<span style="font-size:8px;color:#0d9488" title="${_AU_LABELS[auRel]||auRel}">AU</span>` : '';
   const ds = (c.decision_summary || '').slice(0,130) || (c.raw_listing_summary || c.summary || '').slice(0,110);
   const members = c._clusterMembers || [];
   const hasCluster = members.length > 0;
@@ -1882,7 +1879,6 @@ function _citTableRow(c, isExpanded) {
     <td style="color:#3D5268;font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${entity}">${entity||'—'}${entityCopy}</td>
     <td style="${issueStyle}">${displayIssue}</td>
     <td style="${evStyle}">${evidSt}</td>
-    <td style="font-size:9px;text-align:center">${auBadge}</td>
     <td style="white-space:nowrap;font-size:10px;color:#3D5268">${c.date?c.date.slice(0,10):'—'}</td>
     <td style="max-width:260px;font-size:11px;color:#7A92A8">${toggleBtn}${ds}${clusterBadge}</td>
     <td style="white-space:nowrap">${_citTableSource(c)}</td>
@@ -1904,7 +1900,6 @@ function _citMemberRow(m) {
     <td style="color:#6b8099;font-size:9px;padding-left:14px" title="${entity}">${entity||'—'}</td>
     <td style="font-size:9px;color:#9aacbb;font-style:italic">${displayIssue}</td>
     <td style="font-size:9px;color:#7A92A8;font-style:italic">${evidSt}</td>
-    <td></td>
     <td style="white-space:nowrap;font-size:9px;color:#6b8099">${m.date?m.date.slice(0,10):'—'}</td>
     <td style="max-width:260px;font-size:10px;color:#9aacbb">${ds}</td>
     <td>${m.url?`<a class="cit-link" href="${m.url}" target="_blank" onclick="event.stopPropagation()">&#8599;</a>`:'—'}</td>
@@ -1932,7 +1927,7 @@ function _syncIssueFilterDropdown() {
   // Collect distinct display issues from all citations (not just filtered)
   const all = getPharmaCitations();
   const issueSet = new Set();
-  const _SKIP_ISSUES = new Set(['Limited detail', 'GMP violations', 'Other / Insufficient Detail', 'Other', '']);
+  const _SKIP_ISSUES = new Set(['Unclassified', 'Limited detail', 'GMP violations', 'Other / Insufficient Detail', 'Other', '']);
   all.forEach(c => {
     let issue = getDisplayIssue(c);
     if (issue.startsWith('Provisional: ')) issue = issue.slice('Provisional: '.length);
@@ -1973,9 +1968,8 @@ function renderCitations() {
     if (pF.failureMode)         activeFilters.push(['Failure mode',       _fmLabel(pF.failureMode)]);
     if (pF.auth    !== 'all')   activeFilters.push(['Authority',          pF.auth]);
     if (pF.srctype !== 'all')   activeFilters.push(['Source type',        pF.srctype.replace(/_/g,' ')]);
-    if (pF.sev     !== 'all')   activeFilters.push(['Severity',           pF.sev]);
+    if (pF.priority !== 'all' && pF.priority)  activeFilters.push(['Priority',           pF.priority]);
     if (pF.factype !== 'all')   activeFilters.push(['Facility type',      pF.factype]);
-    if (pF.priority !== 'all')  activeFilters.push(['Priority',           pF.priority]);
     if (pF.company)             activeFilters.push(['Entity',             pF.company]);
     if (pF.query)               activeFilters.push(['Search',             `"${pF.query}"`]);
     if (pF.dateFrom)            activeFilters.push(['From',               pF.dateFrom]);
@@ -1985,7 +1979,7 @@ function renderCitations() {
           ${activeFilters.map(([k,v])=>`<div style="padding:1px 0"><span style="color:#7A92A8;min-width:90px;display:inline-block">${k}:</span> <span style="color:#2A3E52">${v}</span></div>`).join('')}
         </div>`
       : '';
-    tb.innerHTML=`<tr><td colspan="10" style="text-align:center;padding:24px 0;color:#2A3E52;font-size:12px">
+    tb.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:24px 0;color:#2A3E52;font-size:12px">
       <div style="font-size:22px;margin-bottom:6px">&#128270;</div>
       <div>No grouped records match${activeFilters.length ? ':' : ' the current filters.'}</div>
       ${filterRows}
@@ -2381,7 +2375,7 @@ function alertCard(c, patterns={}) {
     ? `<span class="pattern-badge">Pattern: recurring ${(c.company || '').slice(0, 28)}</span>`
     : '';
   const prioBadge = prio ? `<span class="badge" style="background:${isP1?'rgba(239,68,68,.1)':isP2?'rgba(251,146,60,.08)':'rgba(20,50,80,.15)'};color:${isP1?'#ef4444':isP2?'#fb923c':'#7A92A8'};border:1px solid ${isP1?'rgba(239,68,68,.25)':isP2?'rgba(251,146,60,.2)':'rgba(20,50,80,.3)'}">${prio}</span>` : '';
-  const issueBadge = displayIssue !== 'Limited detail'
+  const issueBadge = displayIssue !== 'Unclassified'
     ? `<span class="badge" style="background:rgba(20,50,80,.2);color:#3A5570;border:1px solid rgba(20,50,80,.3)">${displayIssue}</span>`
     : '';
   const viewBtns = _citViewBtn(c);
@@ -2389,7 +2383,6 @@ function alertCard(c, patterns={}) {
     <div class="alert-card-title">${summ}</div>
     <div class="alert-card-meta">
       ${prioBadge}
-      ${sevBadge(c.severity || 'medium')}
       <span class="badge badge-authority">${c.authority || '—'}</span>
       <span class="badge badge-type"${isImport ? ` title="${_IMPORT_ALERT_TIP}"` : ''} style="${isImport ? 'cursor:help' : ''}">${st}</span>
       ${c.facility_type ? `<span class="badge" style="background:rgba(139,92,246,.06);color:rgba(139,92,246,.5);border:1px solid rgba(139,92,246,.1)">${c.facility_type}</span>` : ''}
@@ -2653,7 +2646,6 @@ function scrollToCitationsTable() {
 function buildChipBar(elId) {
   const el=document.getElementById(elId); if(!el) return;
   const chips=[];
-  if(pF.sev!=='all')        chips.push({label:`Severity: ${pF.sev}`,                         fn:`pF.sev='all';_setPActiveKpi(null);syncPFPills();renderPAll()`});
   if(pF.srctype!=='all')    chips.push({label:`Type: ${pF.srctype.replace(/_/g,' ')}`,        fn:`pF.srctype='all';_setPActiveKpi(null);syncPFPills();renderPAll()`});
   if(pF.auth!=='all')       chips.push({label:`Authority: ${pF.auth}`,                        fn:`pF.auth='all';syncPFPills();renderPAll()`});
   if(pF.factype!=='all')    chips.push({label:`Facility: ${pF.factype}`,                      fn:`pF.factype='all';syncPFPills();renderPAll()`});
