@@ -5,8 +5,9 @@
 // null  = not yet loaded or load failed → getPharmaCitations() falls back to
 //         the embedded window.CITATIONS array (offline / local-file use).
 // [...] = JSON-loaded array → used for all Pharma rendering.
-window.PHARMA_CITATIONS = null;
-window.PHARMA_META      = null;
+window.PHARMA_CITATIONS  = null;
+window.PHARMA_META       = null;
+window.PHARMA_DATA_SOURCE = null;
 
 // Returns the authoritative Pharma citation array.
 // Prefer JSON-loaded data; fall back to embedded CITATIONS.
@@ -16,12 +17,24 @@ function getPharmaCitations() {
     : CITATIONS;
 }
 
-// Async loader — tries data/citation_database.json, then reports/, then embedded.
-// Sets window.PHARMA_CITATIONS and window.PHARMA_META, then returns a result object.
+// Debug helper — callable from the browser console.
+window.signalexDataDebug = function() {
+  return {
+    pharmaDataSource:      window.PHARMA_DATA_SOURCE || null,
+    pharmaCitationCount:   Array.isArray(window.PHARMA_CITATIONS) ? window.PHARMA_CITATIONS.length : null,
+    embeddedCitationCount: typeof CITATIONS !== 'undefined' && Array.isArray(CITATIONS) ? CITATIONS.length : null,
+    meta:                  window.SIGNALEX_META || null,
+  };
+};
+
+// Async loader — tries reports/citation_database.json first (live deploy path),
+// then ./reports/ relative variant, then data/, then falls back to embedded CITATIONS.
+// Sets window.PHARMA_CITATIONS, window.PHARMA_DATA_SOURCE, and window.PHARMA_META.
 async function loadPharmaCitations() {
   const PATHS = [
-    { path: 'data/citation_database.json',    source: 'json:data'    },
-    { path: 'reports/citation_database.json', source: 'json:reports' },
+    { path: 'reports/citation_database.json',   source: 'json:reports'  },
+    { path: './reports/citation_database.json',  source: 'json:reports'  },
+    { path: 'data/citation_database.json',       source: 'json:data'     },
   ];
   for (const { path, source } of PATHS) {
     try {
@@ -30,7 +43,8 @@ async function loadPharmaCitations() {
       const raw  = await resp.json();
       const cits = Array.isArray(raw) ? raw : (raw.citations || []);
       const meta = Array.isArray(raw) ? {} : (({ citations: _, ...rest }) => rest)(raw);
-      window.PHARMA_CITATIONS = cits;
+      window.PHARMA_CITATIONS  = cits;
+      window.PHARMA_DATA_SOURCE = source;
       window.PHARMA_META = {
         ...SIGNALEX_META,
         ...meta,
@@ -47,8 +61,9 @@ async function loadPharmaCitations() {
       if (window.SIGNALEX_DEBUG) console.warn('[Signalex] Could not load', path, e.message);
     }
   }
-  // Both JSON paths failed — fall back to embedded CITATIONS
-  window.PHARMA_CITATIONS = null;
+  // All JSON paths failed — fall back to embedded CITATIONS
+  window.PHARMA_CITATIONS  = null;
+  window.PHARMA_DATA_SOURCE = 'embedded_fallback';
   window.PHARMA_META = { ...SIGNALEX_META, pharmaDataSource: 'embedded_fallback' };
   if (window.SIGNALEX_DEBUG) console.warn(
     '[Signalex] Pharma falling back to embedded CITATIONS (' + CITATIONS.length + ' records)'
