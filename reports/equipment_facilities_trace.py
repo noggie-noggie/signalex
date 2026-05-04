@@ -16,6 +16,7 @@ Usage:
   python3 reports/equipment_facilities_trace.py
 """
 
+import hashlib
 import json
 import re
 import sys
@@ -175,10 +176,25 @@ def classify_suspicion(c):
     return "weak", flags
 
 
+def _db_fingerprint(raw: dict) -> dict:
+    """Compute a stable fingerprint from the citations array for cross-tool comparison."""
+    cits_json = json.dumps(raw.get("citations", []), separators=(",", ":"), ensure_ascii=False)
+    sha256    = hashlib.sha256(cits_json.encode()).hexdigest()
+    return {
+        "citation_count":    len(raw.get("citations", [])),
+        "generated_at":      raw.get("generated_at", ""),
+        "embed_generated_at": raw.get("embed_generated_at", "not set — run generate_signals.py"),
+        "citations_sha256":  raw.get("citations_sha256", "not set — run generate_signals.py"),
+        "computed_sha256":   sha256,
+        "sha256_match":      raw.get("citations_sha256", "") == sha256,
+    }
+
+
 def main():
     with open(DB_PATH) as f:
         raw = json.load(f)
     cits = raw["citations"]
+    fp   = _db_fingerprint(raw)
 
     # ── Step 1: noise filter (mirrors unifiedFilteredCitations noiseFilter:true) ──
     step1 = [c for c in cits
@@ -268,13 +284,16 @@ def main():
         "authority_counts":        dict(auth_ct.most_common()),
     }
 
+    from datetime import datetime, timezone
     output = {
-        "generated": "2026-05-04",
+        "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "focus_label": "Equipment & facilities",
         "filter_obj": {"primary_gmp_category": "Equipment & facilities"},
+        "dataset_fingerprint": fp,
         "note": (
             "Counts are from citation_database.json. "
-            "signals.html may have slightly different embedded data (live CITATIONS count differs). "
+            "Run generate_signals.py first to ensure signals.html and this DB share the same "
+            "embedded dataset (same citations_sha256). "
             "Filter logic mirrors JS unifiedFilteredCitations + filteredCits() deduplication."
         ),
         "summary": summary,
@@ -380,20 +399,33 @@ def main():
         f.write("\n".join(lines) + "\n")
 
     print("=== Equipment & facilities Trace Audit ===")
-    print(f"DB total:           {len(cits):,}")
-    print(f"After noise filter: {len(step1):,}")
-    print(f"After catFilter:    {len(step2):,}")
-    print(f"After dedup:        {total:,}")
     print()
-    print(f"confirmed:          {confirmed}")
-    print(f"provisional:        {provisional}")
-    print(f"unconfirmed:        {unconfirmed}")
-    print(f"evidence-backed:    {evidence_backed}")
-    print(f"suspicious:         {len(suspicious)}")
-    print(f"weak:               {len(weak)}")
+    print("── Dataset fingerprint ──")
+    print(f"  citation_count:       {fp['citation_count']:,}")
+    print(f"  generated_at (DB):    {fp['generated_at']}")
+    print(f"  embed_generated_at:   {fp['embed_generated_at']}")
+    print(f"  citations_sha256:     {fp['citations_sha256']}")
+    print(f"  computed_sha256:      {fp['computed_sha256']}")
+    print(f"  sha256_match:         {fp['sha256_match']}")
+    if not fp["sha256_match"]:
+        print("  ⚠  Hash mismatch — run generate_signals.py to sync fingerprint in DB file")
     print()
-    print("URL quality:", dict(url_q))
-    print("Authority:   ", dict(auth_ct.most_common()))
+    print("── Filter chain ──")
+    print(f"  DB total:           {len(cits):,}")
+    print(f"  After noise filter: {len(step1):,}")
+    print(f"  After catFilter:    {len(step2):,}")
+    print(f"  After dedup:        {total:,}")
+    print()
+    print("── Evidence & trust ──")
+    print(f"  confirmed:          {confirmed}")
+    print(f"  provisional:        {provisional}")
+    print(f"  unconfirmed:        {unconfirmed}")
+    print(f"  evidence-backed:    {evidence_backed}")
+    print(f"  suspicious:         {len(suspicious)}")
+    print(f"  weak:               {len(weak)}")
+    print()
+    print("  URL quality:", dict(url_q))
+    print("  Authority:  ", dict(auth_ct.most_common()))
     print()
     print(f"Outputs: {OUT_JSON}")
     print(f"         {OUT_MD}")

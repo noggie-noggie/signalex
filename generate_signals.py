@@ -19,6 +19,7 @@ Usage:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -46,16 +47,28 @@ def build_data_block(days: int = 30) -> str:
     cit_raw   = json.loads(CIT_PATH.read_text(encoding="utf-8"))
     citations = cit_raw.get("citations", [])
 
-    last_updated = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    last_updated   = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    citations_json = json.dumps(citations, separators=(",", ":"), ensure_ascii=False)
+    cit_sha256     = hashlib.sha256(citations_json.encode()).hexdigest()
+
     meta = {
-        "lastUpdated":   last_updated,
-        "signalCount":   len(signals_raw),
-        "citationCount": len(citations),
+        "lastUpdated":             last_updated,
+        "signalCount":             len(signals_raw),
+        "citationCount":           len(citations),
+        "citationsGeneratedAt":    cit_raw.get("generated_at", ""),
+        "citationsSha256":         cit_sha256,
     }
 
-    signals_json   = json.dumps(signals_raw, separators=(",", ":"), ensure_ascii=False)
-    citations_json = json.dumps(citations,   separators=(",", ":"), ensure_ascii=False)
-    meta_json      = json.dumps(meta,         separators=(",", ":"))
+    # Write the fingerprint back to citation_database.json so audit scripts can
+    # compare directly without re-computing.
+    cit_raw["citations_sha256"]    = cit_sha256
+    cit_raw["embed_generated_at"]  = last_updated
+    CIT_PATH.write_text(
+        json.dumps(cit_raw, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+    signals_json = json.dumps(signals_raw, separators=(",", ":"), ensure_ascii=False)
+    meta_json    = json.dumps(meta,        separators=(",", ":"))
 
     return (
         "// === SIGNALEX DATA START ===\n"
@@ -95,10 +108,11 @@ def update_data_blob(html_path: Path | None = None, days: int = 30) -> dict:
     meta = json.loads(meta_match.group(1)) if meta_match else {}
 
     return {
-        "signals":      meta.get("signalCount", 0),
-        "citations":    meta.get("citationCount", 0),
-        "last_updated": meta.get("lastUpdated", ""),
-        "html_path":    str(path),
+        "signals":           meta.get("signalCount", 0),
+        "citations":         meta.get("citationCount", 0),
+        "last_updated":      meta.get("lastUpdated", ""),
+        "citations_sha256":  meta.get("citationsSha256", ""),
+        "html_path":         str(path),
     }
 
 
@@ -114,8 +128,9 @@ if __name__ == "__main__":
     result = update_data_blob()
     print(
         f"\nsignals.html data block refreshed\n"
-        f"  Signals:      {result['signals']}\n"
-        f"  Citations:    {result['citations']}\n"
-        f"  Last updated: {result['last_updated']}\n"
-        f"  File:         {result['html_path']}\n"
+        f"  Signals:           {result['signals']}\n"
+        f"  Citations:         {result['citations']}\n"
+        f"  Citations SHA-256: {result['citations_sha256']}\n"
+        f"  Last updated:      {result['last_updated']}\n"
+        f"  File:              {result['html_path']}\n"
     )
