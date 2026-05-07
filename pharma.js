@@ -693,10 +693,13 @@ function renderPharmaOverview() {
   const _setKpi=(id,val)=>{const e=document.getElementById(id);if(e){const v=e.querySelector('.kpi-val');if(v){v.textContent=val;v.classList.add('kpi-updated');setTimeout(()=>v.classList.remove('kpi-updated'),600);}}};
   const _setKpiSub=(id,text)=>{const e=document.getElementById(id);if(e)e.textContent=text;};
   _setKpi('pk-high', p1Groups);
-  _setKpiSub('pk-high-sub', `${p1Raw} raw P1 citation${p1Raw!==1?'s':''}`);
+  _setKpiSub('pk-high-sub', 'Grouped from P1 action-eligible records');
   _setKpi('pk-wl', wl);
-  _setKpi('pk-483', insp || '—');
-  _setKpiSub('pk-483-sub', insp > 0 ? `${insp} inspection finding${insp!==1?'s':''}` : 'No records in current dataset');
+  // pk-483: hide entirely when no inspection_finding records exist (scrape_fda_483() not yet wired into pipeline)
+  const kpi483 = document.getElementById('pk-483');
+  if (kpi483) kpi483.style.display = insp > 0 ? '' : 'none';
+  _setKpi('pk-483', insp);
+  _setKpiSub('pk-483-sub', `${insp} inspection finding${insp!==1?'s':''}`);
   _setKpi('pk-total', data.length);
   _setKpi('pk-diCapa', diCapaFilt);
   _setKpi('pk-tga', tga);
@@ -916,11 +919,24 @@ function renderTopRiskBlocks(risks) {
     const intel    = CAT_INTEL[r.label];
     const meaning  = r.exampleSummary ? r.exampleSummary.slice(0,180) : (intel ? intel.implication.split('.')[0]+'.' : '');
     const action   = r.exampleAction  || (intel ? intel.action : 'Review enforcement pattern and assess site exposure');
-    const p1p2txt  = (r.p1||r.p2) ? `${r.p1} P1 · ${r.p2} P2` : '';
     const filterJs = `navigateToCitationsWithFilter({display_issue:'${r.label.replace(/'/g,"\\'")}'})`
 
     // Build top grouped records using the canonical display_issue predicate.
+    // allMatched includes all filteredCits() (cluster members included) — raw underlying count.
     const allMatched = filteredCits().filter(c => matchesDisplayIssue(c, r.label));
+    const rawP1 = allMatched.filter(c => c.priority === 'P1').length;
+    const rawP2 = allMatched.filter(c => c.priority === 'P2').length;
+    // r.p1/r.p2 = grouped action records (cluster-primary only, from rankPharmaRisks)
+    // rawP1/rawP2 = all underlying evidence records (including cluster members)
+    const p1GroupTip = `title="${r.p1} P1 action group${r.p1!==1?'s':''} (deduplicated); ${rawP1} underlying P1 record${rawP1!==1?'s':''} shown in evidence table"`;
+    const p1Badge = r.p1>0 ? `<span class="risk-impact-badge risk-critical" ${p1GroupTip}>P1&times;${r.p1}</span>` : '';
+    const p2GroupTip = `title="${r.p2} P2 action group${r.p2!==1?'s':''}; ${rawP2} underlying P2 record${rawP2!==1?'s':''} shown in evidence table"`;
+    const p2Badge = r.p2>0 ? `<span class="risk-impact-badge risk-high" ${p2GroupTip}>P2&times;${r.p2}</span>` : '';
+    // Stats line: show both grouped count and raw underlying count when they differ
+    const groupedNote = `${r.total} action group${r.total!==1?'s':''}`;
+    const rawNote = r.clusterSize > r.total ? ` · ${r.clusterSize} underlying record${r.clusterSize!==1?'s':''}` : '';
+    const p1Note = r.p1 > 0 ? ` · ${r.p1} P1 group${r.p1!==1?'s':''}${rawP1 !== r.p1 ? ` (${rawP1} total P1)` : ''}` : '';
+    const p2Note = r.p2 > 0 ? ` · ${r.p2} P2 group${r.p2!==1?'s':''}${rawP2 !== r.p2 ? ` (${rawP2} total P2)` : ''}` : '';
     const ftCts={}, authCts={};
     allMatched.forEach(c=>{
       if(c.facility_type) ftCts[c.facility_type]=(ftCts[c.facility_type]||0)+1;
@@ -937,7 +953,7 @@ function renderTopRiskBlocks(risks) {
       <div style="font-size:10px;color:#4a6278;font-weight:600;margin-bottom:4px">Top grouped records</div>
       ${renderTopGroupedRecords(allMatched, 4)}
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn-secondary" onclick="event.stopPropagation();${filterJs}" style="font-size:10px">View matching citations &rarr;</button>
+        <button class="btn-secondary" onclick="event.stopPropagation();${filterJs}" style="font-size:10px">View all ${allMatched.length} evidence records &rarr;</button>
         <button class="btn-secondary" onclick="event.stopPropagation();_toggleTopRisk(this.closest('.top-risk-block'))" style="font-size:10px">&#10005; Close</button>
       </div>
     </div>`;
@@ -947,12 +963,12 @@ function renderTopRiskBlocks(risks) {
       <div class="trb-body">
         <div class="trb-hd">
           <span class="trb-cat">${r.label}</span>
-          ${r.p1>0?`<span class="risk-impact-badge risk-critical">P1&times;${r.p1}</span>`:''}
-          ${r.p2>0?`<span class="risk-impact-badge risk-high">P2&times;${r.p2}</span>`:''}
+          ${p1Badge}
+          ${p2Badge}
           <span class="vol-bucket">${r.total} grouped finding${r.total!==1?'s':''}</span>
         </div>
         <div class="trb-action">&#8594; ${action.slice(0,140)} <span style="color:#0d9488;font-size:10px">Expand &rarr;</span></div>
-        <div class="trb-stats">${r.clusterSize} related citation${r.clusterSize!==1?'s':''}${p1p2txt?' &middot; '+p1p2txt:''}</div>
+        <div class="trb-stats">${groupedNote}${rawNote}${p1Note}${p2Note}</div>
         ${detailHtml}
       </div>
     </div>`;
@@ -1506,7 +1522,9 @@ function _citRecurrenceBadge(c) {
 function _citDirectionBadge(c) {
   if (c.signal_direction === 'escalating')
     return `<span style="color:#e67e22;font-size:9px;margin-left:6px">&#8593; Escalating</span>`;
-  if (c.signal_direction === 'resolving')
+  // "Resolving" is a backend signal_direction value — shown only in debug mode to avoid
+  // surfacing ambiguous internal pipeline status as user-visible UI text.
+  if (c.signal_direction === 'resolving' && typeof SIGNALEX_DEBUG !== 'undefined' && SIGNALEX_DEBUG)
     return `<span style="color:#27ae60;font-size:9px;margin-left:6px">&#8595; Resolving</span>`;
   return '';
 }
@@ -1660,12 +1678,12 @@ function _citViewBtn(c) {
   const url = c.url || '';
   const q   = url ? _urlQuality(url) : 'missing';
   const copyUrlBtn = url
-    ? `<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(url)}',this)" title="Copy source URL">⎘ URL</button>`
+    ? `<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(url)}',this)" title="Copy source URL">Copy URL</button>`
     : '';
   if (q === 'search_landing') {
     const recall = _citRecallNum(url);
     const copyRecallBtn = recall
-      ? `<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(recall)}',this)" title="Copy recall number for FDA search">⎘ Recall #</button>`
+      ? `<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(recall)}',this)" title="Copy recall number for FDA search">Copy recall #</button>`
       : copyUrlBtn;
     return `${copyRecallBtn}<a class="card-action" href="${url}" target="_blank"
         onclick="event.stopPropagation()"
@@ -1760,20 +1778,22 @@ function citCard(c) {
   const isProvisional = displayIssue.startsWith('Provisional:');
   const issueStyle    = isLimited || isProvisional ? ' style="color:#7A92A8;font-style:italic"' : '';
   const evStyle       = evidenceStatus === 'Confirmed' ? 'color:#2ecc71' : evidenceStatus === 'Provisional' ? 'color:#f39c12' : 'color:#7A92A8';
-  // Raw classification fields shown in collapsible detail (power-user transparency)
-  const rawCat    = c.category || '';
-  const rawPgc    = c.primary_gmp_category || '';
-  const rawFm     = c.failure_mode || '';
-  const rawStatus = c.classification_status || '';
-  const rawDetail = [
-    rawCat  ? `Legacy category: ${rawCat}` : '',
-    rawPgc  ? `GMP category: ${rawPgc}` : '',
-    rawFm   ? `Failure mode: ${rawFm}` : '',
-    rawStatus ? `Class. status: ${rawStatus}` : '',
-  ].filter(Boolean).join(' · ');
-  // Debug tooltip shows enrichment status when window.SIGNALEX_DEBUG = true
-  const debugTip = (typeof SIGNALEX_DEBUG !== 'undefined' && SIGNALEX_DEBUG)
+  // Internal/legacy classification fields: debug-only to keep the expanded panel user-facing.
+  const _isDebug = typeof SIGNALEX_DEBUG !== 'undefined' && SIGNALEX_DEBUG;
+  const rawDetail = _isDebug ? [
+    c.category              ? `Legacy category: ${c.category}` : '',
+    c.primary_gmp_category  ? `GMP category: ${c.primary_gmp_category}` : '',
+    c.failure_mode          ? `Failure mode: ${c.failure_mode}` : '',
+    c.classification_status ? `Class. status: ${c.classification_status}` : '',
+    c.failure_mode_confidence != null ? `FM confidence: ${c.failure_mode_confidence}` : '',
+    c.classification_basis  ? `Basis: ${c.classification_basis}` : '',
+  ].filter(Boolean).join(' · ') : '';
+  // Debug tooltip shows enrichment internals when SIGNALEX_DEBUG = true
+  const debugTip = _isDebug
     ? ` title="enrichment: ${c.enrichment_status||'—'} | ${c.enrichment_source||'—'} | priority: ${c.priority||'—'} | class_status: ${c.classification_status||'—'}"` : '';
+  // User-facing summary and violation text — only show copy button when meaningful text exists
+  const summaryText = (c.clean_title || c.summary || '').trim();
+  const violationText = (c.violation_details || '').trim();
   return `<div class="signal-card ${sc}" style="margin-bottom:8px"${debugTip}>
     <div class="card-top"><div class="card-title">${displaySumm}${groupBadge}</div></div>
     <div class="card-badges">
@@ -1788,7 +1808,7 @@ function citCard(c) {
       ${_citSecondaryCategories(c)}
     </div>
     ${_citTrustNote(c)}
-    ${c.company?`<div class="card-summary" style="color:#3D5268;font-size:10px">Company: ${c.company}${_citRecurrenceBadge(c)}${_citDirectionBadge(c)}<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(c.company)}',this)" title="Copy entity name">&#8669;</button></div>`:''}
+    ${c.company?`<div class="card-summary" style="color:#3D5268;font-size:10px">Company: ${c.company}${_citRecurrenceBadge(c)}${_citDirectionBadge(c)}<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(c.company)}',this)" title="Copy entity name">Copy</button></div>`:''}
     ${_citAiBox(c)}
     <div class="card-footer">
       <div class="card-meta">${c.date?c.date.slice(0,10):'—'} &middot; ${c.country||c.authority||''}</div>
@@ -1799,10 +1819,10 @@ function citCard(c) {
     <details style="margin-top:4px">
       <summary style="font-size:9px;color:#7A92A8;cursor:pointer;list-style:none">&#9432; Details &amp; copy</summary>
       <div style="font-size:9px;color:#7A92A8;padding:4px 0 2px;display:flex;flex-direction:column;gap:3px">
-        ${rawDetail?`<span>${rawDetail}</span>`:''}
-        ${(c.summary||c.clean_title)?`<span style="display:flex;align-items:center;gap:4px">Summary <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(c.clean_title||c.summary||'')}',this)">&#8669; Copy</button></span>`:''}
-        ${c.violation_details?`<span style="display:flex;align-items:center;gap:4px">Violation detail <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(c.violation_details)}',this)">&#8669; Copy</button></span>`:''}
-        ${c.url?`<span style="display:flex;align-items:center;gap:4px;word-break:break-all">${c.url.slice(0,60)}${c.url.length>60?'…':''} <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(c.url)}',this)">&#8669; Copy URL</button></span>`:''}
+        ${rawDetail?`<span style="color:#4a6278">${rawDetail}</span>`:''}
+        ${summaryText?`<span style="display:flex;align-items:center;gap:4px">Summary <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(summaryText)}',this)">Copy</button></span>`:''}
+        ${violationText?`<span style="display:flex;align-items:center;gap:4px">Violation detail <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(violationText)}',this)">Copy</button></span>`:''}
+        ${c.url?`<span style="display:flex;align-items:center;gap:4px;word-break:break-all">${c.url.slice(0,60)}${c.url.length>60?'…':''} <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(c.url)}',this)">Copy URL</button></span>`:''}
       </div>
     </details>
   </div>`;
@@ -1824,10 +1844,16 @@ function renderCitationsInsightStrip() {
   const topSrc=Object.entries(srcCounts).sort((a,b)=>b[1]-a[1])[0];
   const p1Count=data.filter(c=>c.priority==='P1').length;
   const action=topCat&&CAT_INTEL[topCat[0]]?CAT_INTEL[topCat[0]].action:'Review enforcement actions relevant to your site profile.';
+  // When filtered by displayIssue (navigated from Top Action Priorities), explain that this
+  // table shows all underlying evidence records — more than the grouped action count on the card.
+  const issueFilterNote = pF.displayIssue
+    ? `<div class="isb"><div class="isb-dot"></div><div class="isb-text">Showing all underlying evidence records for <b>${pF.displayIssue}</b>. The Top Action Priorities card shows deduplicated action groups — this table includes all individual records and cluster members, so counts may be higher.</div></div>`
+    : '';
   el.innerHTML=`<div class="insight-strip">
     <div class="insight-strip-hd">What this table shows</div>
     <div class="insight-strip-bullets">
       <div class="isb"><div class="isb-dot${p1Count>0?' isb-dot-red':''}"></div><div class="isb-text"><b>${data.length} citation${data.length!==1?'s':''}</b> match current filters${p1Count>0?` — <b>${p1Count} P1 priority</b>`:''}.${data.length===getPharmaCitations().length?' Full dataset — use sidebar or KPI cards to filter.':''}</div></div>
+      ${issueFilterNote}
       ${topCat?`<div class="isb"><div class="isb-dot isb-dot-amber"></div><div class="isb-text"><b>${topCat[0]}</b> is the dominant category (${topCat[1]} citations). ${action}</div></div>`:''}
       ${topAuth?`<div class="isb"><div class="isb-dot"></div><div class="isb-text"><b>${topAuth[0]}</b> leads by authority (${topAuth[1]} actions). Primary source type: <b>${topSrc?topSrc[0]:'—'}</b>.</div></div>`:''}
     </div>
@@ -1842,7 +1868,7 @@ function _citTableSource(c) {
   const q = _urlQuality(url);
   const recall = q === 'search_landing' ? _citRecallNum(url) : '';
   const copyTarget = recall || url;
-  const copyLbl = recall ? `⎘ ${recall.slice(0,10)}` : '⎘';
+  const copyLbl = recall ? 'Copy recall #' : 'Copy URL';
   const copyBtn = `<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(copyTarget)}',this)" title="${recall ? 'Copy recall number' : 'Copy URL'}">${copyLbl}</button>`;
   if (q === 'search_landing')
     return `${copyBtn} <a class="cit-link" href="${url}" target="_blank" onclick="event.stopPropagation()" title="Opens FDA search page — not a direct record">FDA &#8599;</a>`;
@@ -1873,7 +1899,7 @@ function _citTableRow(c, isExpanded) {
   const prioHtml = prio
     ? `<span style="color:${_PRIORITY_COLORS[prio]||'#7f8c8d'};font-weight:700;font-size:10px">${prio}</span>` : '—';
   const entityCopy = entity
-    ? ` <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(entity)}',this)" title="Copy entity name">&#8669;</button>`
+    ? ` <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(entity)}',this)" title="Copy entity name">Copy</button>`
     : '';
   // Row click expands cluster children (if any); does NOT apply filters.
   const rowClick = hasCluster ? '' : '';
@@ -2359,6 +2385,143 @@ function renderFacilities() {
     }).join('');
 }
 
+// ── Issue-specific action text ────────────────────────────────────────
+const _ISSUE_ACTIONS = {
+  'Sterility assurance':        'Review sterile manufacturing controls: media-fill frequency, environmental monitoring trends, and HVAC/barrier integrity at your sites. Assess any contract sterile fill operations.',
+  'Data integrity':             'Audit ALCOA+ compliance across lab systems: check for shared credentials, backdated entries, audit-trail gaps, and paper-to-electronic transcription. Commission a data integrity gap assessment.',
+  'Supplier qualification':     'Verify approved supplier lists are current and qualification audits are on schedule. Audit incoming QC testing for API, excipients, and packaging materials from flagged geographies.',
+  'Labelling':                  'Audit label accuracy against current registered text, including INN, strength, storage, and shelf-life fields. Verify artwork change-control and print-inspection procedures.',
+  'Deviation management':       'Review open deviation backlog: check that investigations reach root cause (not immediate cause), CAPAs are time-bound, and repeat deviations are trend-detected.',
+  'Documentation practices':    'Assess batch record completeness and GDP compliance. Verify contemporaneous recording procedures, correction controls, and document retention policies.',
+  'Equipment & facilities':     'Review preventive maintenance schedules, qualification status (IQ/OQ/PQ), and calibration overdue items. Inspect cleaning validation coverage for shared equipment.',
+  'Contamination control':      'Assess contamination risk for shared product types, verify cleaning validation (worst-case products), and review environmental monitoring alert/action limits.',
+  'Computerised systems':       'Verify 21 CFR Part 11 / Annex 11 compliance: access controls, audit trails, backup/restore procedures, and validated state for critical GxP systems.',
+  'Container closure integrity':'Review CCI testing methods and frequency, especially for parenterals. Confirm method validation status and revalidation triggers after process changes.',
+  'Change control':             'Audit open and recently closed change controls for regulatory impact assessment quality, technical package completeness, and post-implementation verification.',
+  'OOS / OOT investigations':   'Review OOS investigation rates and adequacy: check for invalidated OOS patterns, second analyst re-tests without root cause, and trending OOT results.',
+  'Process validation':         'Confirm process validation status is current (stage 1–3 completed, continued process verification running). Flag any legacy products operating on pre-2011 validation approaches.',
+  'Cold chain / storage':       'Review temperature excursion management procedures, qualified container packaging, and cold-chain monitoring data for distribution.',
+  'Microbial contamination':    'Check bioburden testing results, water system validation, and environmental monitoring trends. Review any batch rejections linked to microbial limits.',
+};
+
+function _getIssueAction(issue) {
+  if (!issue || issue === 'Unclassified') return null;
+  const direct = _ISSUE_ACTIONS[issue];
+  if (direct) return direct;
+  for (const [k, v] of Object.entries(_ISSUE_ACTIONS)) {
+    if (issue.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(issue.toLowerCase())) return v;
+  }
+  return `Review your exposure to ${issue} enforcement patterns and assess CAPA status at relevant sites.`;
+}
+
+// ── Grouped alert helpers ─────────────────────────────────────────────
+function _groupAlerts(all) {
+  const _SO = { confirmed: 0, provisional: 1, unconfirmed: 2 };
+  const map = {};
+  for (const c of all) {
+    const p = c.priority || '';
+    const st = c.classification_status || '';
+    const isP1 = p === 'P1';
+    const isStrongP2 = p === 'P2' && st !== 'unconfirmed';
+    if (!isP1 && !isStrongP2) continue;
+    const issue = getDisplayIssue(c);
+    if (issue === 'Unclassified') continue;
+    const key = issue.startsWith('Provisional: ') ? issue.slice('Provisional: '.length) : issue;
+    if (!map[key]) map[key] = { issue: key, cits: [], p1: 0, p2: 0, confirmed: 0, provisional: 0, authorities: new Set(), facilityTypes: new Set() };
+    const g = map[key];
+    g.cits.push(c);
+    if (isP1) g.p1++;
+    else if (p === 'P2') g.p2++;
+    if (st === 'confirmed') g.confirmed++;
+    else if (st === 'provisional') g.provisional++;
+    if (c.authority) g.authorities.add(c.authority);
+    if (c.facility_type) g.facilityTypes.add(c.facility_type);
+  }
+  // Only show groups with ≥1 P1 record, or ≥2 confirmed P2 records
+  return Object.values(map)
+    .filter(g => g.p1 >= 1 || g.confirmed >= 2)
+    .sort((a, b) => {
+      if (b.p1 !== a.p1) return b.p1 - a.p1;
+      if (b.p2 !== a.p2) return b.p2 - a.p2;
+      if (b.confirmed !== a.confirmed) return b.confirmed - a.confirmed;
+      return b.cits.length - a.cits.length;
+    });
+}
+
+function _toggleAlertExpand(id, btn) {
+  const ev = document.getElementById('alert-ev-' + id);
+  if (!ev) return;
+  const open = ev.style.display !== 'none';
+  ev.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? 'Expand evidence ▸' : 'Collapse evidence ▴';
+}
+
+function issueAlertCard(g, idx) {
+  const topPrio = g.p1 > 0 ? 'P1' : 'P2';
+  const isP1 = topPrio === 'P1';
+  const acClass = isP1 ? 'ac-high' : 'ac-medium';
+  const prioColor = isP1 ? '#ef4444' : '#fb923c';
+  const prioBg = isP1 ? 'rgba(239,68,68,.1)' : 'rgba(251,146,60,.08)';
+  const prioBorder = isP1 ? 'rgba(239,68,68,.25)' : 'rgba(251,146,60,.2)';
+  const countParts = [];
+  if (g.p1 > 0) countParts.push(`${g.p1} P1`);
+  if (g.p2 > 0) countParts.push(`${g.p2} P2`);
+  countParts.push(`${g.cits.length} evidence record${g.cits.length !== 1 ? 's' : ''}`);
+  const countPill = countParts.join(' · ');
+  const authList = Array.from(g.authorities).slice(0, 4).join(', ');
+  const ftList = Array.from(g.facilityTypes).slice(0, 3).join(', ');
+  const evidNote = g.confirmed > 0
+    ? `${g.confirmed} confirmed record${g.confirmed !== 1 ? 's' : ''}`
+    : `${g.provisional} provisional record${g.provisional !== 1 ? 's' : ''}`;
+  const action = _getIssueAction(g.issue) || `Review exposure to ${g.issue} enforcement patterns.`;
+  const navFilter = `navigateToCitationsWithFilter({displayIssue:${JSON.stringify(g.issue)}})`;
+  const expandId = 'ag-' + idx;
+  // Top 5 evidence records (P1 first, then date desc)
+  const sorted = [...g.cits].sort((a, b) => {
+    if ((a.priority === 'P1') !== (b.priority === 'P1')) return a.priority === 'P1' ? -1 : 1;
+    return (b.date || '') > (a.date || '') ? 1 : -1;
+  });
+  const top5 = sorted.slice(0, 5);
+  const evidRows = top5.map(c => {
+    const summ = (c.decision_summary || c.summary || 'Enforcement action').slice(0, 140);
+    const prio = c.priority || '';
+    const pColor = _PRIORITY_COLORS[prio] || '#7f8c8d';
+    const st = (c.source_type || '').replace(/_/g, ' ');
+    const viewBtns = _citViewBtn(c);
+    return `<div style="border-top:1px solid rgba(20,50,80,.08);padding:6px 0;display:flex;flex-direction:column;gap:3px">
+      <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap">
+        <span style="color:${pColor};font-weight:700;font-size:9px">${prio}</span>
+        <span class="badge badge-authority" style="font-size:9px">${c.authority || '—'}</span>
+        <span class="badge badge-type" style="font-size:9px">${st}</span>
+        <span style="font-size:9px;color:#7A92A8;font-style:italic">${c.date ? c.date.slice(0, 10) : '—'}</span>
+      </div>
+      <div style="font-size:10px;color:#2F4558">${summ}</div>
+      ${viewBtns ? `<div style="display:flex;gap:4px;margin-top:2px">${viewBtns}</div>` : ''}
+    </div>`;
+  }).join('');
+  const moreNote = g.cits.length > 5
+    ? `<div style="font-size:9px;color:#7A92A8;padding-top:4px">${g.cits.length - 5} more record${g.cits.length - 5 !== 1 ? 's' : ''} — <a href="#" onclick="event.preventDefault();${navFilter}" style="color:#4a7a9b">view all in evidence table</a></div>`
+    : '';
+  return `<div class="alert-card ${acClass}" style="margin-bottom:10px">
+    <div class="alert-card-meta" style="margin-bottom:4px">
+      <span class="badge" style="background:${prioBg};color:${prioColor};border:1px solid ${prioBorder};font-weight:700">${topPrio}</span>
+      <span style="font-size:9px;color:#7A92A8;margin-left:4px">${countPill}</span>
+      <span style="font-size:9px;color:#7A92A8;margin-left:4px">· ${evidNote}</span>
+    </div>
+    <div class="alert-card-title" style="font-size:13px;font-weight:700;margin-bottom:4px">${g.issue} — action required</div>
+    ${authList ? `<div style="font-size:9px;color:#7A92A8;margin-bottom:2px">Authorities: ${authList}${ftList ? ' · ' + ftList : ''}</div>` : ''}
+    <div class="alert-card-action" style="margin:6px 0"><b>Recommended action:</b> ${action}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+      <button class="card-action card-action-primary" onclick="${navFilter}">View ${g.cits.length} evidence record${g.cits.length !== 1 ? 's' : ''} &#8594;</button>
+      <button class="card-action" onclick="_toggleAlertExpand('${expandId}',this)">Expand evidence &#9658;</button>
+    </div>
+    <div id="alert-ev-${expandId}" style="display:none;margin-top:8px;padding-top:4px">
+      ${evidRows}
+      ${moreNote}
+    </div>
+  </div>`;
+}
+
 // ── Alert card (compact, action-oriented) ────────────────────────────
 function alertCard(c, patterns={}) {
   const prio = c.priority || '';
@@ -2372,7 +2535,7 @@ function alertCard(c, patterns={}) {
   const evidSt = getEvidenceStatus(c);
   const entity = c.company || c.entity || '';
   const entityCopy = entity
-    ? `<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(entity)}',this)" title="Copy entity name">&#9138;</button>`
+    ? `<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(entity)}',this)" title="Copy entity name">Copy</button>`
     : '';
   const intel = CAT_INTEL[c.category || ''] || CAT_INTEL[displayIssue] || null;
   const action = c.recommended_action || (intel ? intel.action : `Review exposure for ${displayIssue} and monitor for similar enforcement patterns across your site types.`);
@@ -2406,28 +2569,13 @@ function alertCard(c, patterns={}) {
 // ── Pharma alerts ────────────────────────────────────────────────────
 function renderPharmaAlerts() {
   const el = document.getElementById('pharma-alerts-feed'); if (!el) return;
-  // Show P1 regardless of severity; show confirmed/provisional P2; exclude unconfirmed non-P1
   const all = getPharmaCitations();
-  const _PO = { P1: 0, P2: 1, P3: 2, P4: 3 };
-  const _SO = { confirmed: 0, provisional: 1, unconfirmed: 2 };
-  const alerts = all.filter(c => {
-    const p = c.priority || '';
-    const st = c.classification_status || '';
-    if (p === 'P1') return true;
-    if (p === 'P2' && st !== 'unconfirmed') return true;
-    if (c.severity === 'high' && st === 'confirmed') return true;
-    return false;
-  }).sort((a, b) => {
-    const pa = _PO[a.priority] ?? 4, pb = _PO[b.priority] ?? 4;
-    if (pa !== pb) return pa - pb;
-    const sa = _SO[a.classification_status] ?? 3, sb = _SO[b.classification_status] ?? 3;
-    if (sa !== sb) return sa - sb;
-    return (b.date || '') > (a.date || '') ? 1 : -1;
-  }).slice(0, 40);
-  const patterns = detectPattern(alerts);
-  el.innerHTML = alerts.length
-    ? alerts.map(c => alertCard(c, patterns)).join('')
-    : '<div class="empty"><div class="empty-icon">&#9989;</div><div class="empty-text">No P1/P2 alerts</div></div>';
+  const groups = _groupAlerts(all);
+  if (!groups.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">&#9989;</div><div class="empty-text">No P1/P2 action alerts in current dataset</div></div>';
+    return;
+  }
+  el.innerHTML = groups.map((g, i) => issueAlertCard(g, i)).join('');
 }
 
 // === PHARMA INTELLIGENCE + PLUMBING ===
