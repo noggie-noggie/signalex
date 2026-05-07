@@ -680,20 +680,23 @@ function renderPharmaOverview() {
   const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.priority!=='all' || pF.dicapa;
 
   // KPI row — single pass over data
-  // p1Groups = cluster-primary P1 records (deduplicated action groups)
-  // p1Raw    = all P1 records before cluster grouping (matches sidebar pill count)
-  let p1Groups=0,p1Raw=0,wl=0,insp=0,diCapaFilt=0,tga=0;
+  // p1Groups = cluster-primary P1 action themes (related records grouped into one review area)
+  // p1RawAll = total P1 evidence records across all sources — matches sidebar pill count
+  let p1Groups=0,wl=0,insp=0,diCapaFilt=0,tga=0;
   for(const c of data){
-    if(c.priority==='P1'){ p1Raw++; if(c.cluster_primary!==false) p1Groups++; }
+    if(c.priority==='P1' && c.cluster_primary!==false) p1Groups++;
     if(c.source_type==='warning_letter')wl++;
     if(c.source_type==='inspection_finding')insp++;
     if(isDiCapa(c))diCapaFilt++;
     if(c.authority==='TGA')tga++;
   }
+  // Use same base as sidebar pill for the "evidence records" count so the two numbers
+  // are directly comparable: sidebar shows 83 P1, KPI subtext will also show 83.
+  const p1RawAll = getPharmaCitations().filter(c => !isLowValueContent(c) && c.priority === 'P1').length;
   const _setKpi=(id,val)=>{const e=document.getElementById(id);if(e){const v=e.querySelector('.kpi-val');if(v){v.textContent=val;v.classList.add('kpi-updated');setTimeout(()=>v.classList.remove('kpi-updated'),600);}}};
   const _setKpiSub=(id,text)=>{const e=document.getElementById(id);if(e)e.textContent=text;};
   _setKpi('pk-high', p1Groups);
-  _setKpiSub('pk-high-sub', 'Grouped from P1 action-eligible records');
+  _setKpiSub('pk-high-sub', `from ${p1RawAll} P1 evidence record${p1RawAll!==1?'s':''}`);
   _setKpi('pk-wl', wl);
   // pk-483: hide entirely when no inspection_finding records exist (scrape_fda_483() not yet wired into pipeline)
   const kpi483 = document.getElementById('pk-483');
@@ -813,7 +816,7 @@ function renderCatGrid(gridId, countId, context) {
         <div class="cat-cell-name">${g.label}</div>
         ${entityBtn}
       </div>
-      <div class="cat-cell-ct">${g.total} grouped finding${g.total!==1?'s':''}${rawNote}</div>
+      <div class="cat-cell-ct">${g.total} action theme${g.total!==1?'s':''}${rawNote}</div>
       <div class="cat-cell-sub">${p1p2 || '<span style="font-size:9px;color:#7A92A8">no priority flags</span>'}${provNote ? ' &middot; ' + provNote : ''}</div>
       ${whyLine}
       ${intelHtml}
@@ -825,7 +828,7 @@ function renderCatGrid(gridId, countId, context) {
   if (limitedGrp && !_showLimitedDetail) {
     el.innerHTML += `<div style="margin-top:6px"><button class="btn-secondary" style="font-size:10px;opacity:.6;padding:3px 8px"
       onclick="_showLimitedDetail=true;renderCatGrid('${gridId}','${countId}','${context||''}')">
-      Show limited detail (${limitedGrp.total} grouped finding${limitedGrp.total!==1?'s':''})</button></div>`;
+      Show limited evidence (${limitedGrp.total} record${limitedGrp.total!==1?'s':''})</button></div>`;
   }
 
   const cc = document.getElementById(countId);
@@ -921,22 +924,24 @@ function renderTopRiskBlocks(risks) {
     const action   = r.exampleAction  || (intel ? intel.action : 'Review enforcement pattern and assess site exposure');
     const filterJs = `navigateToCitationsWithFilter({display_issue:'${r.label.replace(/'/g,"\\'")}'})`
 
-    // Build top grouped records using the canonical display_issue predicate.
-    // allMatched includes all filteredCits() (cluster members included) — raw underlying count.
+    // allMatched = all evidence records for this issue (used for facility/authority breakdowns)
     const allMatched = filteredCits().filter(c => matchesDisplayIssue(c, r.label));
-    const rawP1 = allMatched.filter(c => c.priority === 'P1').length;
-    const rawP2 = allMatched.filter(c => c.priority === 'P2').length;
-    // r.p1/r.p2 = grouped action records (cluster-primary only, from rankPharmaRisks)
-    // rawP1/rawP2 = all underlying evidence records (including cluster members)
-    const p1GroupTip = `title="${r.p1} P1 action group${r.p1!==1?'s':''} (deduplicated); ${rawP1} underlying P1 record${rawP1!==1?'s':''} shown in evidence table"`;
-    const p1Badge = r.p1>0 ? `<span class="risk-impact-badge risk-critical" ${p1GroupTip}>P1&times;${r.p1}</span>` : '';
-    const p2GroupTip = `title="${r.p2} P2 action group${r.p2!==1?'s':''}; ${rawP2} underlying P2 record${rawP2!==1?'s':''} shown in evidence table"`;
-    const p2Badge = r.p2>0 ? `<span class="risk-impact-badge risk-high" ${p2GroupTip}>P2&times;${r.p2}</span>` : '';
-    // Stats line: show both grouped count and raw underlying count when they differ
-    const groupedNote = `${r.total} action group${r.total!==1?'s':''}`;
-    const rawNote = r.clusterSize > r.total ? ` · ${r.clusterSize} underlying record${r.clusterSize!==1?'s':''}` : '';
-    const p1Note = r.p1 > 0 ? ` · ${r.p1} P1 group${r.p1!==1?'s':''}${rawP1 !== r.p1 ? ` (${rawP1} total P1)` : ''}` : '';
-    const p2Note = r.p2 > 0 ? ` · ${r.p2} P2 group${r.p2!==1?'s':''}${rawP2 !== r.p2 ? ` (${rawP2} total P2)` : ''}` : '';
+    // clusteredMatched = what the Citations table actually shows as rows (cluster members
+    // are collapsed into their primary's expandable row, so visible row count may be lower)
+    const clusteredMatched = _pharmaClusterGroupCits(allMatched);
+    // Use clustered counts so card numbers match visible Citations table rows exactly.
+    const visP1 = clusteredMatched.filter(c => c.priority === 'P1').length;
+    const visP2 = clusteredMatched.filter(c => c.priority === 'P2').length;
+    // r.p1/r.p2 = action theme count (cluster-primary P1/P2 only, from rankPharmaRisks)
+    // visP1/visP2 = visible evidence rows in Citations table after cluster grouping
+    const p1Tip = r.p1>0 ? `title="${r.p1} P1 action theme${r.p1!==1?'s':''}; ${visP1} P1 evidence row${visP1!==1?'s':''} in Citations table"` : '';
+    const p1Badge = r.p1>0 ? `<span class="risk-impact-badge risk-critical" ${p1Tip}>P1&times;${r.p1}</span>` : '';
+    const p2Tip = r.p2>0 ? `title="${r.p2} P2 action theme${r.p2!==1?'s':''}; ${visP2} P2 evidence row${visP2!==1?'s':''} in Citations table"` : '';
+    const p2Badge = r.p2>0 ? `<span class="risk-impact-badge risk-high" ${p2Tip}>P2&times;${r.p2}</span>` : '';
+    // Stats line uses visible row counts so they match what the user sees on click-through
+    const themeNote = `${r.total} action theme${r.total!==1?'s':''}`;
+    const p1Stat = visP1 > 0 ? ` · ${visP1} P1 evidence record${visP1!==1?'s':''}` : '';
+    const p2Stat = visP2 > 0 ? ` · ${visP2} P2 evidence record${visP2!==1?'s':''}` : '';
     const ftCts={}, authCts={};
     allMatched.forEach(c=>{
       if(c.facility_type) ftCts[c.facility_type]=(ftCts[c.facility_type]||0)+1;
@@ -950,10 +955,10 @@ function renderTopRiskBlocks(risks) {
       <div style="font-size:11px;color:#2A3E52;margin-bottom:6px"><b>Recommended action:</b> ${action}</div>
       ${topFts?`<div style="font-size:10px;color:#7A92A8;margin-bottom:3px">Facility types: ${topFts}</div>`:''}
       ${topAuths?`<div style="font-size:10px;color:#7A92A8;margin-bottom:8px">Authorities: ${topAuths}</div>`:''}
-      <div style="font-size:10px;color:#4a6278;font-weight:600;margin-bottom:4px">Top grouped records</div>
+      <div style="font-size:10px;color:#4a6278;font-weight:600;margin-bottom:4px">Related records</div>
       ${renderTopGroupedRecords(allMatched, 4)}
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn-secondary" onclick="event.stopPropagation();${filterJs}" style="font-size:10px">View all ${allMatched.length} evidence records &rarr;</button>
+        <button class="btn-secondary" onclick="event.stopPropagation();${filterJs}" style="font-size:10px">View ${clusteredMatched.length} evidence record${clusteredMatched.length!==1?'s':''} &rarr;</button>
         <button class="btn-secondary" onclick="event.stopPropagation();_toggleTopRisk(this.closest('.top-risk-block'))" style="font-size:10px">&#10005; Close</button>
       </div>
     </div>`;
@@ -965,10 +970,10 @@ function renderTopRiskBlocks(risks) {
           <span class="trb-cat">${r.label}</span>
           ${p1Badge}
           ${p2Badge}
-          <span class="vol-bucket">${r.total} grouped finding${r.total!==1?'s':''}</span>
+          <span class="vol-bucket">${r.total} action theme${r.total!==1?'s':''}</span>
         </div>
         <div class="trb-action">&#8594; ${action.slice(0,140)} <span style="color:#0d9488;font-size:10px">Expand &rarr;</span></div>
-        <div class="trb-stats">${groupedNote}${rawNote}${p1Note}${p2Note}</div>
+        <div class="trb-stats">${themeNote}${p1Stat}${p2Stat}</div>
         ${detailHtml}
       </div>
     </div>`;
@@ -1226,7 +1231,7 @@ function renderPharmaFocusBanner() {
         ${brCount > 0 ? `<span style="color:#9aacbb"> (${brCount} without direct evidence)</span>` : ''}
        </span>`
     : `<span style="font-size:11px;color:#4a6278;white-space:nowrap">
-        ${f.groupedCount} grouped finding${f.groupedCount!==1?'s':''} &middot;
+        ${f.groupedCount} action theme${f.groupedCount!==1?'s':''} &middot;
         ${allCits.length} citation${allCits.length!==1?'s':''}
        </span>`;
 
@@ -1844,17 +1849,24 @@ function renderCitationsInsightStrip() {
   const topSrc=Object.entries(srcCounts).sort((a,b)=>b[1]-a[1])[0];
   const p1Count=data.filter(c=>c.priority==='P1').length;
   const action=topCat&&CAT_INTEL[topCat[0]]?CAT_INTEL[topCat[0]].action:'Review enforcement actions relevant to your site profile.';
-  // When filtered by displayIssue (navigated from Top Action Priorities), explain that this
-  // table shows all underlying evidence records — more than the grouped action count on the card.
-  const issueFilterNote = pF.displayIssue
-    ? `<div class="isb"><div class="isb-dot"></div><div class="isb-text">Showing all underlying evidence records for <b>${pF.displayIssue}</b>. The Top Action Priorities card shows deduplicated action groups — this table includes all individual records and cluster members, so counts may be higher.</div></div>`
-    : '';
+  // When filtered by displayIssue (navigated from Top Action Priorities), compare visible
+  // row count (after cluster grouping) to total evidence records, so user understands any gap.
+  let issueFilterNote = '';
+  if (pF.displayIssue) {
+    const clusteredRows = _pharmaClusterGroupCits(data);
+    const visibleP1 = clusteredRows.filter(c => c.priority === 'P1').length;
+    const hiddenInRows = p1Count - visibleP1;
+    const clusterNote = hiddenInRows > 0
+      ? ` (${hiddenInRows} P1 record${hiddenInRows!==1?'s are':' is'} inside expandable related-record rows)`
+      : '';
+    issueFilterNote = `<div class="isb"><div class="isb-dot"></div><div class="isb-text">Evidence records for <b>${pF.displayIssue}</b>. Each row is one evidence record — some rows may expand to show related records grouped together.${clusterNote}</div></div>`;
+  }
   el.innerHTML=`<div class="insight-strip">
     <div class="insight-strip-hd">What this table shows</div>
     <div class="insight-strip-bullets">
-      <div class="isb"><div class="isb-dot${p1Count>0?' isb-dot-red':''}"></div><div class="isb-text"><b>${data.length} citation${data.length!==1?'s':''}</b> match current filters${p1Count>0?` — <b>${p1Count} P1 priority</b>`:''}.${data.length===getPharmaCitations().length?' Full dataset — use sidebar or KPI cards to filter.':''}</div></div>
+      <div class="isb"><div class="isb-dot${p1Count>0?' isb-dot-red':''}"></div><div class="isb-text"><b>${data.length} evidence record${data.length!==1?'s':''}</b> match current filters${p1Count>0?` — <b>${p1Count} P1 priority</b>`:''}.${data.length===getPharmaCitations().length?' Full dataset — use sidebar or KPI cards to filter.':''}</div></div>
       ${issueFilterNote}
-      ${topCat?`<div class="isb"><div class="isb-dot isb-dot-amber"></div><div class="isb-text"><b>${topCat[0]}</b> is the dominant category (${topCat[1]} citations). ${action}</div></div>`:''}
+      ${topCat?`<div class="isb"><div class="isb-dot isb-dot-amber"></div><div class="isb-text"><b>${topCat[0]}</b> is the dominant category (${topCat[1]} records). ${action}</div></div>`:''}
       ${topAuth?`<div class="isb"><div class="isb-dot"></div><div class="isb-text"><b>${topAuth[0]}</b> leads by authority (${topAuth[1]} actions). Primary source type: <b>${topSrc?topSrc[0]:'—'}</b>.</div></div>`:''}
     </div>
   </div>`;
@@ -2149,7 +2161,7 @@ function renderEnfFocusPanel() {
       <div>
         <div style="font-size:13px;font-weight:700;color:#2A3E52">${label}</div>
         <div style="display:flex;gap:8px;margin-top:3px;flex-wrap:wrap">
-          <span style="font-size:10px;color:#4a6278">${primaries.length} grouped finding${primaries.length!==1?'s':''}</span>
+          <span style="font-size:10px;color:#4a6278">${primaries.length} action theme${primaries.length!==1?'s':''}</span>
           ${p1?`<span style="font-size:10px;color:${_PRIORITY_COLORS.P1};font-weight:600">${p1} P1</span>`:''}
           ${p2?`<span style="font-size:10px;color:${_PRIORITY_COLORS.P2}">${p2} P2</span>`:''}
           ${topFts?`<span style="font-size:10px;color:#7A92A8">${topFts}</span>`:''}
