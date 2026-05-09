@@ -680,8 +680,8 @@ function renderPharmaOverview() {
   const isFiltered = pActiveKpi || pCatFilter || pF.auth!=='all' || pF.srctype!=='all' || pF.priority!=='all' || pF.dicapa;
 
   // KPI row — single pass over data
-  // p1Groups = cluster-primary P1 action themes (related records grouped into one review area)
-  // p1RawAll = total P1 evidence records across all sources — matches sidebar pill count
+  // p1Groups = cluster-primary P1 action groups (related records grouped into one review area)
+  // p1RawAll = total P1 citations across all sources — matches sidebar Priority pill count
   let p1Groups=0,wl=0,insp=0,diCapaFilt=0,tga=0;
   for(const c of data){
     if(c.priority==='P1' && c.cluster_primary!==false) p1Groups++;
@@ -690,13 +690,12 @@ function renderPharmaOverview() {
     if(isDiCapa(c))diCapaFilt++;
     if(c.authority==='TGA')tga++;
   }
-  // Use same base as sidebar pill for the "evidence records" count so the two numbers
-  // are directly comparable: sidebar shows 83 P1, KPI subtext will also show 83.
+  // Use same base as sidebar pill so numbers are directly comparable.
   const p1RawAll = getPharmaCitations().filter(c => !isLowValueContent(c) && c.priority === 'P1').length;
   const _setKpi=(id,val)=>{const e=document.getElementById(id);if(e){const v=e.querySelector('.kpi-val');if(v){v.textContent=val;v.classList.add('kpi-updated');setTimeout(()=>v.classList.remove('kpi-updated'),600);}}};
   const _setKpiSub=(id,text)=>{const e=document.getElementById(id);if(e)e.textContent=text;};
   _setKpi('pk-high', p1Groups);
-  _setKpiSub('pk-high-sub', `from ${p1RawAll} P1 evidence record${p1RawAll!==1?'s':''}`);
+  _setKpiSub('pk-high-sub', `${p1RawAll} total P1 citation${p1RawAll!==1?'s':''} · grouped into ${p1Groups} action group${p1Groups!==1?'s':''}`);
   _setKpi('pk-wl', wl);
   // pk-483: hide entirely when no inspection_finding records exist (scrape_fda_483() not yet wired into pipeline)
   const kpi483 = document.getElementById('pk-483');
