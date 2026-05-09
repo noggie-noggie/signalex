@@ -2397,32 +2397,47 @@ function renderFacilities() {
 }
 
 // ── Issue-specific action text ────────────────────────────────────────
+// Keys match _fmLabel output strings exactly so direct lookup always hits.
+// Spec-specified action text is used where provided; others retained from prior work.
 const _ISSUE_ACTIONS = {
-  'Sterility assurance':        'Review sterile manufacturing controls: media-fill frequency, environmental monitoring trends, and HVAC/barrier integrity at your sites. Assess any contract sterile fill operations.',
-  'Data integrity':             'Audit ALCOA+ compliance across lab systems: check for shared credentials, backdated entries, audit-trail gaps, and paper-to-electronic transcription. Commission a data integrity gap assessment.',
-  'Supplier qualification':     'Verify approved supplier lists are current and qualification audits are on schedule. Audit incoming QC testing for API, excipients, and packaging materials from flagged geographies.',
-  'Labelling':                  'Audit label accuracy against current registered text, including INN, strength, storage, and shelf-life fields. Verify artwork change-control and print-inspection procedures.',
-  'Deviation management':       'Review open deviation backlog: check that investigations reach root cause (not immediate cause), CAPAs are time-bound, and repeat deviations are trend-detected.',
-  'Documentation practices':    'Assess batch record completeness and GDP compliance. Verify contemporaneous recording procedures, correction controls, and document retention policies.',
-  'Equipment & facilities':     'Review preventive maintenance schedules, qualification status (IQ/OQ/PQ), and calibration overdue items. Inspect cleaning validation coverage for shared equipment.',
-  'Contamination control':      'Assess contamination risk for shared product types, verify cleaning validation (worst-case products), and review environmental monitoring alert/action limits.',
-  'Computerised systems':       'Verify 21 CFR Part 11 / Annex 11 compliance: access controls, audit trails, backup/restore procedures, and validated state for critical GxP systems.',
-  'Container closure integrity':'Review CCI testing methods and frequency, especially for parenterals. Confirm method validation status and revalidation triggers after process changes.',
-  'Change control':             'Audit open and recently closed change controls for regulatory impact assessment quality, technical package completeness, and post-implementation verification.',
-  'OOS / OOT investigations':   'Review OOS investigation rates and adequacy: check for invalidated OOS patterns, second analyst re-tests without root cause, and trending OOT results.',
-  'Process validation':         'Confirm process validation status is current (stage 1–3 completed, continued process verification running). Flag any legacy products operating on pre-2011 validation approaches.',
-  'Cold chain / storage':       'Review temperature excursion management procedures, qualified container packaging, and cold-chain monitoring data for distribution.',
-  'Microbial contamination':    'Check bioburden testing results, water system validation, and environmental monitoring trends. Review any batch rejections linked to microbial limits.',
+  // ── Sterility / contamination ──────────────────────────────────────────
+  'Sterility assurance':          'Review CCS ownership, EM trends, aseptic interventions, sterilisation/hold-time controls, and batch release checks.',
+  'Microbial contamination':      'Review contamination controls, microbial/chemical contamination investigations, supplier/material controls.',
+  'Chemical contamination':       'Review contamination controls, microbial/chemical contamination investigations, supplier/material controls.',
+  'Cross-contamination':          'Review contamination controls, microbial/chemical contamination investigations, supplier/material controls.',
+  // ── Documentation / data ──────────────────────────────────────────────
+  'Documentation / data integrity':'Review batch records, data integrity controls, deviation documentation, and QA release checks.',
+  // ── Supplier ──────────────────────────────────────────────────────────
+  'Supplier qualification':       'Review supplier qualification, CoA verification, identity testing, FSVP/approved supplier files.',
+  // ── Labelling ─────────────────────────────────────────────────────────
+  'Labelling & claims':           'Review claim substantiation, disease/therapeutic claims, label approvals, web/influencer copy.',
+  'Mislabelling':                 'Review claim substantiation, disease/therapeutic claims, label approvals, web/influencer copy.',
+  // ── Deviation / CAPA ──────────────────────────────────────────────────
+  'Deviation & CAPA':             'Review deviation closure, RCA quality, CAPA effectiveness, and recurrence checks.',
+  // ── Equipment / facilities ────────────────────────────────────────────
+  'Equipment & facilities':       'Review maintenance, calibration, utilities, cleaning validation, and facility condition controls.',
+  // ── Adverse events ────────────────────────────────────────────────────
+  'Adverse event cluster':        'Review complaint handling, MDR/AE escalation, CAPA linkage, and trend review.',
+  'Ingredient safety':            'Review complaint handling, MDR/AE escalation, CAPA linkage, and trend review.',
+  // ── Other classified areas ────────────────────────────────────────────
+  'Computer systems validation':  'Verify 21 CFR Part 11 / Annex 11 compliance: access controls, audit trails, backup/restore, and validated-state for GxP systems.',
+  'Container closure integrity':  'Review CCI testing methods and frequency for parenterals. Confirm validation status and revalidation triggers after process changes.',
+  'Process validation':           'Confirm process validation is current (stages 1–3, continued process verification). Flag legacy products on pre-2011 validation approaches.',
+  'Batch release':                'Review batch record completeness, release testing coverage, OOS trends, and QP/RP sign-off controls.',
+  'Import controls':              'Review supplier qualification, CoA verification, identity testing, FSVP/approved supplier files.',
+  'Adulteration':                 'Review contamination controls, raw material testing, supplier qualification, and finished-product release protocols.',
 };
 
 function _getIssueAction(issue) {
   if (!issue || issue === 'Unclassified') return null;
   const direct = _ISSUE_ACTIONS[issue];
   if (direct) return direct;
+  // Fuzzy fallback: substring match (catches partial or category-level labels)
+  const il = issue.toLowerCase();
   for (const [k, v] of Object.entries(_ISSUE_ACTIONS)) {
-    if (issue.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(issue.toLowerCase())) return v;
+    if (il.includes(k.toLowerCase()) || k.toLowerCase().includes(il)) return v;
   }
-  return `Review your exposure to ${issue} enforcement patterns and assess CAPA status at relevant sites.`;
+  return 'Review the linked evidence records and assess whether the issue applies to your site, product, supplier, or claims profile.';
 }
 
 // ── Grouped alert helpers ─────────────────────────────────────────────
@@ -2481,11 +2496,14 @@ function issueAlertCard(g, idx) {
   const countPill = countParts.join(' · ');
   const authList = Array.from(g.authorities).slice(0, 4).join(', ');
   const ftList = Array.from(g.facilityTypes).slice(0, 3).join(', ');
-  const evidNote = g.confirmed > 0
-    ? `${g.confirmed} confirmed record${g.confirmed !== 1 ? 's' : ''}`
-    : `${g.provisional} provisional record${g.provisional !== 1 ? 's' : ''}`;
-  const action = _getIssueAction(g.issue) || `Review exposure to ${g.issue} enforcement patterns.`;
-  const navFilter = `navigateToCitationsWithFilter({displayIssue:${JSON.stringify(g.issue)}})`;
+  // Show confirmed and provisional counts together so user can assess evidence quality
+  const evidParts = [];
+  if (g.confirmed > 0)   evidParts.push(`${g.confirmed} confirmed`);
+  if (g.provisional > 0) evidParts.push(`${g.provisional} provisional`);
+  const evidNote = evidParts.length ? evidParts.join(' · ') : 'unconfirmed';
+  const action = _getIssueAction(g.issue) || 'Review the linked evidence records and assess whether the issue applies to your site, product, supplier, or claims profile.';
+  // display_issue (underscore) is the key applyPharmaFilter expects
+  const navFilter = `navigateToCitationsWithFilter({display_issue:${JSON.stringify(g.issue)}})`;
   const expandId = 'ag-' + idx;
   // Top 5 evidence records (P1 first, then date desc)
   const sorted = [...g.cits].sort((a, b) => {
