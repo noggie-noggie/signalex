@@ -1563,7 +1563,8 @@ function _displayCategory(c) {
 const _BROAD_CATS = new Set(['GMP violations', 'Other / Insufficient Detail', 'Other', '']);
 
 // Returns the most specific, user-facing "Issue" label for a citation card.
-// Priority: specific failure_mode > specific primary_gmp_category > legacy category > "Limited detail"
+// Priority: specific failure_mode > specific primary_gmp_category > legacy category
+//           > "Mixed issue — review source" (if secondary tags exist) > "Unclassified"
 function getDisplayIssue(c) {
   const fm = c.failure_mode || '';
   if (fm && fm !== 'insufficient_detail' && (c.failure_mode_confidence || 0) >= 0.6) {
@@ -1577,10 +1578,21 @@ function getDisplayIssue(c) {
   }
   const cat = c.category || '';
   if (cat && !_BROAD_CATS.has(cat)) {
-    if (status === 'unconfirmed') return 'Unclassified';
+    if (status === 'unconfirmed') {
+      // Don't label "Unclassified" if secondary tags suggest meaningful classifications.
+      const secs = Array.isArray(c.secondary_gmp_categories)
+        ? c.secondary_gmp_categories.filter(s => s && !_BROAD_CATS.has(s))
+        : [];
+      return secs.length > 0 ? 'Mixed issue — review source' : 'Unclassified';
+    }
     if (status === 'provisional') return `Provisional: ${cat}`;
     return cat;
   }
+  // No specific primary field — check secondary categories before giving up.
+  const secs = Array.isArray(c.secondary_gmp_categories)
+    ? c.secondary_gmp_categories.filter(s => s && !_BROAD_CATS.has(s))
+    : [];
+  if (secs.length > 0) return 'Mixed issue — review source';
   return 'Unclassified';
 }
 
@@ -1824,6 +1836,18 @@ function citCard(c) {
       <summary style="font-size:9px;color:#7A92A8;cursor:pointer;list-style:none">&#9432; Details &amp; copy</summary>
       <div style="font-size:9px;color:#7A92A8;padding:4px 0 2px;display:flex;flex-direction:column;gap:3px">
         ${rawDetail?`<span style="color:#4a6278">${rawDetail}</span>`:''}
+        ${(()=>{
+          // "Mixed issue — review source": show secondary categories so user knows why
+          if (displayIssue === 'Mixed issue — review source') {
+            const secs = Array.isArray(c.secondary_gmp_categories)
+              ? c.secondary_gmp_categories.filter(s => s && !_BROAD_CATS.has(s))
+              : [];
+            return secs.length
+              ? `<span>Related signals: ${secs.join(', ')}</span><span style="color:#9aacbb">This record has multiple possible classifications — review the source to confirm the primary issue.</span>`
+              : '';
+          }
+          return '';
+        })()}
         ${summaryText?`<span style="display:flex;align-items:center;gap:4px">Summary <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(summaryText)}',this)">Copy</button></span>`:''}
         ${violationText?`<span style="display:flex;align-items:center;gap:4px">Violation detail <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(violationText)}',this)">Copy</button></span>`:''}
         ${c.url?`<span style="display:flex;align-items:center;gap:4px;word-break:break-all">${c.url.slice(0,60)}${c.url.length>60?'…':''} <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(c.url)}',this)">Copy URL</button></span>`:''}
@@ -2502,8 +2526,10 @@ function issueAlertCard(g, idx) {
   if (g.provisional > 0) evidParts.push(`${g.provisional} provisional`);
   const evidNote = evidParts.length ? evidParts.join(' · ') : 'unconfirmed';
   const action = _getIssueAction(g.issue) || 'Review the linked evidence records and assess whether the issue applies to your site, product, supplier, or claims profile.';
-  // display_issue (underscore) is the key applyPharmaFilter expects
-  const navFilter = `navigateToCitationsWithFilter({display_issue:${JSON.stringify(g.issue)}})`;
+  // Use single-quoted JS string so the onclick attribute (double-quoted) doesn't break.
+  // JSON.stringify would emit double-quoted strings that terminate the onclick="…" attribute.
+  const issueSafe = g.issue.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const navCall = `navigateToCitationsWithFilter({display_issue:'${issueSafe}'})`;
   const expandId = 'ag-' + idx;
   // Top 5 evidence records (P1 first, then date desc)
   const sorted = [...g.cits].sort((a, b) => {
@@ -2516,20 +2542,24 @@ function issueAlertCard(g, idx) {
     const prio = c.priority || '';
     const pColor = _PRIORITY_COLORS[prio] || '#7f8c8d';
     const st = (c.source_type || '').replace(/_/g, ' ');
+    const evSt = getEvidenceStatus(c);
+    const entity = (c.company || c.entity || '').slice(0, 50);
     const viewBtns = _citViewBtn(c);
     return `<div style="border-top:1px solid rgba(20,50,80,.08);padding:6px 0;display:flex;flex-direction:column;gap:3px">
       <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap">
         <span style="color:${pColor};font-weight:700;font-size:9px">${prio}</span>
         <span class="badge badge-authority" style="font-size:9px">${c.authority || '—'}</span>
         <span class="badge badge-type" style="font-size:9px">${st}</span>
+        <span style="font-size:9px;color:${evSt==='Confirmed'?'#2ecc71':evSt==='Provisional'?'#f39c12':'#7A92A8'};font-style:italic">${evSt}</span>
         <span style="font-size:9px;color:#7A92A8;font-style:italic">${c.date ? c.date.slice(0, 10) : '—'}</span>
+        ${entity?`<span style="font-size:9px;color:#4a6278">${entity}</span>`:''}
       </div>
       <div style="font-size:10px;color:#2F4558">${summ}</div>
-      ${viewBtns ? `<div style="display:flex;gap:4px;margin-top:2px">${viewBtns}</div>` : ''}
+      ${viewBtns ? `<div style="display:flex;gap:4px;margin-top:2px" onclick="event.stopPropagation()">${viewBtns}</div>` : ''}
     </div>`;
   }).join('');
   const moreNote = g.cits.length > 5
-    ? `<div style="font-size:9px;color:#7A92A8;padding-top:4px">${g.cits.length - 5} more record${g.cits.length - 5 !== 1 ? 's' : ''} — <a href="#" onclick="event.preventDefault();${navFilter}" style="color:#4a7a9b">view all in evidence table</a></div>`
+    ? `<div style="font-size:9px;color:#7A92A8;padding-top:4px">${g.cits.length - 5} more record${g.cits.length - 5 !== 1 ? 's' : ''} — <a href="#" onclick="event.preventDefault();event.stopPropagation();${navCall}" style="color:#4a7a9b">view all in evidence table</a></div>`
     : '';
   return `<div class="alert-card ${acClass}" style="margin-bottom:10px">
     <div class="alert-card-meta" style="margin-bottom:4px">
@@ -2541,8 +2571,8 @@ function issueAlertCard(g, idx) {
     ${authList ? `<div style="font-size:9px;color:#7A92A8;margin-bottom:2px">Authorities: ${authList}${ftList ? ' · ' + ftList : ''}</div>` : ''}
     <div class="alert-card-action" style="margin:6px 0"><b>Recommended action:</b> ${action}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-      <button class="card-action card-action-primary" onclick="${navFilter}">View ${g.cits.length} evidence record${g.cits.length !== 1 ? 's' : ''} &#8594;</button>
-      <button class="card-action" onclick="_toggleAlertExpand('${expandId}',this)">Expand evidence &#9658;</button>
+      <button class="card-action card-action-primary" onclick="event.stopPropagation();${navCall}">View ${g.cits.length} evidence record${g.cits.length !== 1 ? 's' : ''} &#8594;</button>
+      <button class="card-action" onclick="event.stopPropagation();_toggleAlertExpand('${expandId}',this)">Expand evidence &#9658;</button>
     </div>
     <div id="alert-ev-${expandId}" style="display:none;margin-top:8px;padding-top:4px">
       ${evidRows}
