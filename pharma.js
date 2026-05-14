@@ -77,7 +77,7 @@ const CAT_INTEL = {
   'GMP violations': {
     urgency:'near-term',
     implication:'Highest-volume finding across all authorities. Repeat documentation and process compliance gaps suggest systemic QMS weaknesses, not isolated incidents.',
-    action:'Review SOP compliance programme and self-inspection schedule. Prioritise sites with repeat deviations in documentation, cleaning, and batch records.',
+    action:'Review repeat documentation and batch record deviations; check CAPA effectiveness for recurring failure modes. Confirm self-inspection frequency and SOP currency at sites with prior findings.',
     opportunity:'QMS gap assessment, SOP system redesign, self-inspection programme',
     client:'"Your site profile likely shares the GMP basics gaps most frequently cited — documentation, batch record discipline, and procedural compliance under operational pressure."',
   },
@@ -204,7 +204,7 @@ const INTEL_ITEMS = [
     trend:'stable', confidence:'high', impact:'high',
     summary:'Highest-volume finding across all authorities. Repeat documentation and process compliance gaps indicate systemic QMS weaknesses, not isolated incidents.',
     whyItMatters:'GMP basics failures remain the foundation of most regulatory actions. High recurrence across sites suggests the issue is execution discipline under operational pressure. Regulatory fatigue is unlikely — enforcement baseline is stable at high volume.',
-    recommendedAction:'Review SOP compliance programme and self-inspection schedule. Prioritise sites with repeat deviations in documentation, cleaning, and batch records.',
+    recommendedAction:'Review repeat documentation and batch record deviations; check CAPA effectiveness for recurring failure modes. Confirm self-inspection frequency and SOP currency at sites with prior findings.',
     likelyClientConversation:'"Your site profile likely shares the GMP basics gaps most frequently cited — documentation, batch record discipline, and procedural compliance under operational pressure."',
     commercialOpportunity:'QMS gap assessment, SOP system redesign, self-inspection programme',
     evidenceSummary:'744 citations — highest volume category. FDA, TGA, MHRA, EFSA. Spans all facility types. Consistent across all enforcement source types.',
@@ -381,6 +381,53 @@ function renderTopGroupedRecords(records, limit) {
       <span style="font-size:9px;color:#7A92A8;white-space:nowrap">${c.date ? c.date.slice(0,7) : '—'}</span>
     </div>${ds ? `<div style="font-size:10px;color:#7A92A8;padding:1px 0 3px 24px">${ds}</div>` : ''}`;
   }).join('');
+}
+
+// ── Credibility display helpers ──────────────────────────────────────────────
+
+// Fix 1: Returns true when text adds no value beyond the category label the user
+// already sees in the Issue column. Catches exact matches and trivial prefixes.
+function _isRedundantSummaryText(text, c) {
+  const t = (text || '').trim().toLowerCase();
+  if (!t || t.length < 4) return true;
+  const cat = (c.category || '').trim().toLowerCase();
+  const pgc = (c.primary_gmp_category || '').trim().toLowerCase();
+  if (cat && (t === cat || t.replace(/[.,;:\s]+$/, '') === cat)) return true;
+  if (pgc && (t === pgc || t.replace(/[.,;:\s]+$/, '') === pgc)) return true;
+  return false;
+}
+
+// Fix 1: Build a meaningful decision summary when the raw text is redundant.
+// Priority: violation_details > decision_summary > cluster member summaries >
+//           CAT_INTEL implication (first sentence) > company context.
+function _buildMeaningfulDetail(c) {
+  const vd = (c.violation_details || '').trim();
+  if (vd && vd.length > 25 && !_isRedundantSummaryText(vd, c)) return vd.slice(0, 130);
+  const ds = (c.decision_summary || '').trim();
+  if (ds && ds.length > 25 && !_isRedundantSummaryText(ds, c)) return ds.slice(0, 130);
+  const members = c._clusterMembers || [];
+  if (members.length > 0) {
+    const ms = members.map(m => (m.decision_summary || m.summary || '').trim())
+                .filter(s => s.length > 25 && !_isRedundantSummaryText(s, c));
+    if (ms.length) return ms[0].slice(0, 130);
+  }
+  const cat = c.primary_gmp_category || c.category || '';
+  const intel = CAT_INTEL[cat];
+  if (intel) return intel.implication.split('.')[0] + '.';
+  const st = (c.source_type || '').replace(/_/g, ' ');
+  if (st) return `Grouped regulatory records — ${st}`;
+  return 'Grouped regulatory records requiring source review';
+}
+
+// Fix 2: Return a labelled cluster badge string like "×3 warning letters".
+// Uses source_type of all grouped records; falls back to "related records".
+function _clusterBadgeLabel(c) {
+  const members = c._clusterMembers || [];
+  const n = members.length + 1;
+  if (n < 2) return null;
+  const types = new Set([c.source_type, ...members.map(m => m.source_type)].filter(Boolean));
+  const lbl = types.size === 1 ? [...types][0].replace(/_/g, ' ') : 'related records';
+  return `\xd7${n} ${lbl}`;  // ×N + narrow-no-break + label
 }
 
 // Apply filter and navigate to Citations.
@@ -562,7 +609,7 @@ const FAC_PROFILES = {
   'General Pharma': {
     exposure: 'GMP violations, labelling non-conformances, contamination controls',
     focus: 'Documentation discipline, batch record completeness, cleaning validation',
-    action: 'Review SOP compliance programme, cleaning validation, and self-inspection schedule against current findings.',
+    action: 'Review batch record discipline and cleaning validation against current findings. Check CAPA effectiveness for recurring deviation types and confirm self-inspection schedule is current.',
   },
   'Sterile / Parenteral': {
     exposure: 'Sterility assurance, contamination & sterility, container closure integrity',
@@ -1775,16 +1822,22 @@ function citCard(c) {
   const sc=c.severity==='high'?'high-sev':'medium-sev';
   const st=(c.source_type||'').replace(/_/g,' ');
   const isImport=(c.source_type||'')==='import_alert';
-  // Prefer LLM clean_title; fall back to family dedup label, then raw summary
+  // Prefer LLM clean_title; fall back to family dedup label, then raw summary.
+  // Guard against redundant text that simply repeats the category label (Fix 1).
   const rawText=(c.summary||'') + ' ' + (c.violation_details||'');
   const family=getPharmaSummaryFamily(rawText);
-  const displaySumm=c.clean_title
-    || (family ? PHARMA_FAMILY_LABELS[family] : (c.summary||c.category||'Enforcement action').slice(0,140));
+  const _rawSumm = c.clean_title
+    || (family ? PHARMA_FAMILY_LABELS[family] : (c.summary||'').trim().slice(0,140));
+  const displaySumm = (_rawSumm && !_isRedundantSummaryText(_rawSumm, c))
+    ? _rawSumm
+    : (_buildMeaningfulDetail(c) || c.category || 'Enforcement action');
   const clusterMembers = c._clusterMembers || [];
-  const groupBadge = clusterMembers.length > 0
-    ? `<span class="cit-group-badge" title="${clusterMembers.length+1} related records grouped (${c.cluster_reason||''})">×${clusterMembers.length+1}</span>`
+  // Fix 2: badge must explain what is being counted — "×3 warning letters", not bare "×3"
+  const _clLbl = clusterMembers.length > 0 ? _clusterBadgeLabel(c) : null;
+  const groupBadge = _clLbl
+    ? `<span class="cit-group-badge" title="${clusterMembers.length+1} related records grouped (${c.cluster_reason||''})">${_clLbl}</span>`
     : (c._groupCount||1) > 1
-    ? `<span class="cit-group-badge" title="${c._groupCount} similar citations grouped">×${c._groupCount}</span>`
+    ? `<span class="cit-group-badge" title="${c._groupCount} similar citations grouped">\xd7${c._groupCount} similar</span>`
     : '';
   // Issue: most specific useful classification (failure_mode > primary_gmp_category > legacy > "Limited detail")
   // Evidence: human-readable classification_status
@@ -1921,11 +1974,15 @@ function _citTableRow(c, isExpanded) {
   const isProvIssue = displayIssue.startsWith('Provisional:');
   const issueStyle = isLimitedIssue || isProvIssue ? 'font-size:10px;max-width:120px;color:#9aacbb;font-style:italic' : 'font-size:10px;max-width:120px';
   const evStyle = evidSt === 'Confirmed' ? 'font-size:9px;color:#2ecc71;font-style:italic' : evidSt === 'Provisional' ? 'font-size:9px;color:#f39c12;font-style:italic' : 'font-size:9px;color:#7A92A8;font-style:italic';
-  const ds = (c.decision_summary || '').slice(0,130) || (c.raw_listing_summary || c.summary || '').slice(0,110);
+  // Fix 1: if raw summary just echoes the category, replace with meaningful detail
+  const _rawDs = (c.decision_summary || '').slice(0,130) || (c.raw_listing_summary || c.summary || '').slice(0,110);
+  const ds = _isRedundantSummaryText(_rawDs, c) ? _buildMeaningfulDetail(c).slice(0, 120) : _rawDs;
   const members = c._clusterMembers || [];
   const hasCluster = members.length > 0;
-  const clusterBadge = hasCluster
-    ? ` <span class="cit-group-badge" title="${members.length+1} related records — ${c.cluster_reason||''}">&#215;${members.length+1}</span>`
+  // Fix 2: badge must state what is being counted
+  const _trLbl = hasCluster ? _clusterBadgeLabel(c) : null;
+  const clusterBadge = _trLbl
+    ? ` <span class="cit-group-badge" title="${members.length+1} related records — ${c.cluster_reason||''}">${_trLbl}</span>`
     : '';
   const toggleBtn = hasCluster
     ? `<button class="cit-cluster-toggle" onclick="event.stopPropagation();_toggleClusterRow(this)" data-expanded="0" style="background:none;border:none;cursor:pointer;font-size:9px;color:#4a6278;padding:0 4px;vertical-align:middle" title="Expand related records">&#9654;</button>`
@@ -2378,21 +2435,30 @@ function renderFacilities() {
     delete e.factypes;
   });
 
+  // Fix 3: only show company cards that carry meaningful data.
+  // Threshold: ≥3 citations, OR any P1 action, OR multiple distinct categories.
   let coItems = Object.values(coMap)
-    .filter(e => e.total >= 1 || e.p1 >= 1 || e.clusters.size >= 1)
+    .filter(e => e.total >= 3 || e.p1 >= 1 || Object.keys(e.cats).length >= 2)
     .sort((a,b) => (b.p1*3 + b.p2 + b.total) - (a.p1*3 + a.p2 + a.total));
 
   if (q) coItems = coItems.filter(e => e.name.toLowerCase().includes(q) || e.factype.toLowerCase().includes(q));
 
   const fc = document.getElementById('fac-count');
-  if (fc) fc.textContent = coItems.length ? `${coItems.length} entit${coItems.length!==1?'ies':'y'} / record${coItems.length!==1?'s':''}` : 'No entity records';
+  if (fc) fc.textContent = coItems.length ? `${coItems.length} entit${coItems.length!==1?'ies':'y'}` : 'No entity records';
 
   renderFacilityFocusPanel();
 
   if (!coItems.length) {
     el.innerHTML = q
       ? '<div class="empty"><div class="empty-icon">&#127981;</div><div class="empty-text">No entities match search</div></div>'
-      : '<div class="facility-limited-msg">No entity-level records available for current filters. Click a facility type above to view the action summary, or clear filters to see all.</div>';
+      : '<div class="facility-limited-msg">No entity-level records meet the threshold for current filters. Click a facility type above to view the action summary, or clear filters to see all.</div>';
+    return;
+  }
+
+  // Fix 3: if fewer than 3 cards survive the threshold (and no search active),
+  // the grid looks sparse/fake — show the limited-data message instead.
+  if (!q && coItems.length < 3) {
+    el.innerHTML = '<div class="facility-limited-msg">Company-level data limited for current filters. See facility type exposure above.</div>';
     return;
   }
 

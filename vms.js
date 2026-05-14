@@ -134,7 +134,8 @@ function signalCard(s) {
   // Prefer LLM-generated fields; fall back to derived equivalents
   const displayTitle = s.clean_title || s.title || 'Untitled Signal';
   const why = s.why_it_matters || _uniqueWhy(s);
-  const ing = s.ingredient_name&&s.ingredient_name!=='unknown'?s.ingredient_name:'';
+  // Fix 4: reject invalid/placeholder ingredient labels before display
+  const ing = _isValidIngredient(s.ingredient_name) ? s.ingredient_name : '';
   const pp = isPreprint(s.authority);
   const ingSafe = ing.replace(/'/g,"\\'");
   const authSafe = (s.authority||'').replace(/'/g,"\\'");
