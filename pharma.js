@@ -318,7 +318,7 @@ const _AU_LABELS = {
 };
 const _PRIORITY_COLORS = { P1:'#c0392b', P2:'#e67e22', P3:'#7f8c8d', P4:'#aab' };
 // Display-only label maps — do NOT use for filtering/sorting logic (use raw values there)
-const _PRIO_LABELS = { P1:'High priority', P2:'Needs review', P3:'Monitor', P4:'Low relevance' };
+const _PRIO_LABELS = { P1:'High priority', P2:'Needs review', P3:'Monitor', P4:'Low actionability' };
 const _EVID_LABELS = { 'Confirmed':'Source-supported', 'Provisional':'Listing-level signal', 'Limited evidence':'Limited source detail' };
 function _prioLabel(p)  { return _PRIO_LABELS[p]  || p; }
 function _evidLabel(s)  { return _EVID_LABELS[s]  || s; }
@@ -2590,8 +2590,8 @@ function issueAlertCard(g, idx) {
   const prioBg = isP1 ? 'rgba(239,68,68,.1)' : 'rgba(251,146,60,.08)';
   const prioBorder = isP1 ? 'rgba(239,68,68,.25)' : 'rgba(251,146,60,.2)';
   const countParts = [];
-  if (g.p1 > 0) countParts.push(`${g.p1} P1`);
-  if (g.p2 > 0) countParts.push(`${g.p2} P2`);
+  if (g.p1 > 0) countParts.push(`${g.p1} high-priority`);
+  if (g.p2 > 0) countParts.push(`${g.p2} needs-review`);
   countParts.push(`${g.cits.length} evidence record${g.cits.length !== 1 ? 's' : ''}`);
   const countPill = countParts.join(' · ');
   const authList = Array.from(g.authorities).slice(0, 4).join(', ');
@@ -2707,7 +2707,7 @@ function renderPharmaAlerts() {
   const all = getPharmaCitations();
   const groups = _groupAlerts(all);
   if (!groups.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">&#9989;</div><div class="empty-text">No P1/P2 action alerts in current dataset</div></div>';
+    el.innerHTML = '<div class="empty"><div class="empty-icon">&#9989;</div><div class="empty-text">No high-priority or needs-review action alerts in current dataset</div></div>';
     return;
   }
   el.innerHTML = groups.map((g, i) => issueAlertCard(g, i)).join('');
