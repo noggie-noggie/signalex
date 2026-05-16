@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-05-03T11:02:03.007106+00:00",
-  "total_citations": 2855,
+  "generated_at": "2026-05-04T05:05:50.909179+00:00",
+  "total_citations": 2853,
   "enrichment": {
     "success": 0,
-    "cached": 751,
+    "cached": 749,
     "failed": 0,
     "not_applicable": 2104
   },
@@ -20,7 +20,7 @@
     "enrichment_phase_ai_calls": 0,
     "intelligence_phase_ai_calls": 0,
     "total_ai_calls": 0,
-    "ai_skipped_due_to_no_ai": 2855,
+    "ai_skipped_due_to_no_ai": 2853,
     "ai_skipped_due_to_max_calls": 0,
     "ai_skipped_due_to_sample": 0,
     "ai_skipped_cached": 0,
@@ -39,7 +39,7 @@
   "sample": {},
   "data_quality": {
     "missing_required_intelligence_fields_count": 0,
-    "raw_listing_summary_populated": 2855,
+    "raw_listing_summary_populated": 2853,
     "raw_listing_summary_blank": 0,
     "decision_summary_populated_count": 0,
     "recommended_action_populated_count": 0,
@@ -47,7 +47,7 @@
     "ai_results_discarded_low_confidence_count": 0
   },
   "priority_breakdown": {
-    "P3": 1735,
+    "P3": 1733,
     "P4": 890,
     "P2": 146,
     "P1": 84
@@ -58,14 +58,14 @@
     "Labelling & claims": 226,
     "Sterility assurance": 186,
     "Computerised systems validation": 163,
-    "Documentation & record keeping": 161,
+    "Documentation & record keeping": 159,
     "GMP violations": 114,
     "Contamination & sterility": 93,
     "Equipment & facilities": 87,
     "Ingredient safety": 82
   },
   "top_failure_modes": {
-    "insufficient_detail": 2060,
+    "insufficient_detail": 2058,
     "sterility_assurance": 245,
     "inadequate_testing": 104,
     "inadequate_stability": 97,
@@ -74,7 +74,7 @@
   "regulatory_pressure": {
     "stable": 128,
     "decreasing": 2397,
-    "increasing": 330
+    "increasing": 328
   },
   "p1p2_clusters": [
     {
