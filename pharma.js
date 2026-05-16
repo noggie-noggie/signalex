@@ -366,7 +366,7 @@ function renderTopGroupedRecords(records, limit) {
     return (b.date || '') > (a.date || '') ? 1 : -1;
   });
   const primaries = sorted.slice(0, limit || 5);
-  if (!primaries.length) return '<div style="font-size:11px;color:#7A92A8;padding:4px 0">No grouped records available.</div>';
+  if (!primaries.length) return '<div style="font-size:11px;color:#8aa4be;padding:4px 0">No grouped records available.</div>';
   return primaries.map(c => {
     const entity  = (c.company || c.cluster_label || c.authority || '').slice(0, 44);
     const prio    = c.priority || '';
@@ -374,12 +374,12 @@ function renderTopGroupedRecords(records, limit) {
     const ds      = (c.decision_summary || c.ai_summary || '').slice(0, 120);
     const clBadge = (c.cluster_size||1) > 1 ? `<span class="cit-group-badge" style="font-size:9px">&#215;${c.cluster_size}</span>` : '';
     const prioCol = _PRIORITY_COLORS[prio] || '#7f8c8d';
-    return `<div style="display:flex;align-items:baseline;gap:6px;padding:3px 0;border-bottom:1px solid rgba(47,69,88,.06)">
+    return `<div style="display:flex;align-items:baseline;gap:6px;padding:4px 0;border-bottom:1px solid rgba(74,98,120,.25)">
       <span style="color:${prioCol};font-weight:700;font-size:9px;min-width:18px">${prio||'—'}</span>
-      <span style="flex:1;font-size:11px;color:#2A3E52">${entity}${clBadge}</span>
-      ${fm ? `<span style="font-size:9px;color:#c0392b;white-space:nowrap">${fm}</span>` : ''}
-      <span style="font-size:9px;color:#7A92A8;white-space:nowrap">${c.date ? c.date.slice(0,7) : '—'}</span>
-    </div>${ds ? `<div style="font-size:10px;color:#7A92A8;padding:1px 0 3px 24px">${ds}</div>` : ''}`;
+      <span style="flex:1;font-size:11px;color:#CBD5E1">${entity}${clBadge}</span>
+      ${fm ? `<span style="font-size:9px;color:#f87171;white-space:nowrap">${fm}</span>` : ''}
+      <span style="font-size:9px;color:#8aa4be;white-space:nowrap">${c.date ? c.date.slice(0,7) : '—'}</span>
+    </div>${ds ? `<div style="font-size:10px;color:#A0B3C8;padding:2px 0 5px 24px;line-height:1.45">${ds}</div>` : ''}`;
   }).join('');
 }
 
@@ -996,12 +996,12 @@ function renderTopRiskBlocks(risks) {
     const topFts   = Object.entries(ftCts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
     const topAuths = Object.entries(authCts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
 
-    const detailHtml = `<div class="trb-detail" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(47,69,88,.1)">
-      ${meaning?`<div style="font-size:11px;color:#2F4558;margin-bottom:8px">${meaning}</div>`:''}
-      <div style="font-size:11px;color:#2A3E52;margin-bottom:6px"><b>Recommended action:</b> ${action}</div>
-      ${topFts?`<div style="font-size:10px;color:#7A92A8;margin-bottom:3px">Facility types: ${topFts}</div>`:''}
-      ${topAuths?`<div style="font-size:10px;color:#7A92A8;margin-bottom:8px">Authorities: ${topAuths}</div>`:''}
-      <div style="font-size:10px;color:#4a6278;font-weight:600;margin-bottom:4px">Related records</div>
+    const detailHtml = `<div class="trb-detail" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(74,98,120,.4)">
+      ${meaning?`<div style="font-size:11px;color:#CBD5E1;line-height:1.5;margin-bottom:10px">${meaning}</div>`:''}
+      <div style="font-size:11px;color:#E2E8F0;line-height:1.5;padding:8px 12px;margin-bottom:10px;background:rgba(13,148,136,.12);border-left:3px solid #0D9488;border-radius:0 4px 4px 0"><span style="display:block;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#2DD4BF;margin-bottom:4px">Recommended action</span>${action}</div>
+      ${topFts?`<div style="font-size:10px;color:#8aa4be;margin-bottom:3px">Facility types: ${topFts}</div>`:''}
+      ${topAuths?`<div style="font-size:10px;color:#8aa4be;margin-bottom:8px">Authorities: ${topAuths}</div>`:''}
+      <div style="font-size:10px;color:#93C5FD;font-weight:600;margin-bottom:4px">Related records</div>
       ${renderTopGroupedRecords(allMatched, 4)}
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn-secondary" onclick="event.stopPropagation();${filterJs}" style="font-size:10px">View ${clusteredMatched.length} evidence record${clusteredMatched.length!==1?'s':''} &rarr;</button>

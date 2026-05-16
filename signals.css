@@ -1364,14 +1364,14 @@ body.cmode .pcl-row { display: flex; }
 .icard-detail { display:none; padding:12px 14px 14px; border-top:1px solid rgba(20,50,85,.3); }
 .icard.expanded .icard-detail { display:block; }
 .icard-detail-row { margin-bottom:10px; }
-.icard-detail-lbl { font-size:9px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#2A3E52; margin-bottom:3px; }
-.icard-detail-txt    { font-size:11px; color:#5A7A90; line-height:1.55; }
-.icard-detail-action { font-size:11px; color:rgba(13,148,136,.8); line-height:1.55; }
+.icard-detail-lbl { font-size:9px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#8aa4be; margin-bottom:3px; }
+.icard-detail-txt    { font-size:11px; color:#CBD5E1; line-height:1.55; }
+.icard-detail-action { font-size:11px; color:#0D9488; line-height:1.55; }
 .icard-detail-action::before { content:'→ '; color:rgba(13,148,136,.4); }
-.icard-detail-client { font-size:11px; color:#4A6580; line-height:1.55; font-style:italic; }
-.icard-detail-footer { display:flex; flex-wrap:wrap; gap:12px; margin-top:8px; padding-top:8px; border-top:1px solid rgba(20,50,85,.2); }
-.icard-detail-opp  { font-size:10px; color:rgba(13,148,136,.55); font-style:italic; }
-.icard-detail-evid { font-size:10px; color:#2A3E52; }
+.icard-detail-client { font-size:11px; color:#A0B3C8; line-height:1.55; font-style:italic; }
+.icard-detail-footer { display:flex; flex-wrap:wrap; gap:12px; margin-top:8px; padding-top:8px; border-top:1px solid rgba(74,98,120,.3); }
+.icard-detail-opp  { font-size:10px; color:rgba(13,148,136,.85); font-style:italic; }
+.icard-detail-evid { font-size:10px; color:#8aa4be; }
 
 /* Micro badge system */
 .mb { font-size:9px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:2px 7px; border-radius:10px; white-space:nowrap; }
@@ -1915,13 +1915,24 @@ body.reading-mode .filter-chip  { opacity: 0.9; }
 .icard-why-brief    { color: var(--slate-dim) !important; font-size: 11px !important; }
 .icard-action-preview { color: var(--teal) !important; font-size: 12px !important; }
 .icard-expand       { color: var(--slate-dim) !important; }
-.icard-detail-lbl   { color: var(--slate) !important; }
+.icard-detail-lbl   { color: var(--slate) !important; letter-spacing: .07em !important; }
 .icard-detail-txt   { color: var(--off2) !important; font-size: 12px !important; line-height: 1.6 !important; }
-.icard-detail-action { color: var(--teal) !important; font-size: 12px !important; font-weight: 600 !important; }
+.icard-detail-action {
+  display: block !important;
+  padding: 8px 12px !important;
+  background: rgba(13,148,136,.12) !important;
+  border-left: 3px solid var(--teal) !important;
+  border-radius: 0 4px 4px 0 !important;
+  color: var(--off) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1.5 !important;
+}
+.icard-detail-action::before { content: '' !important; }
 .icard-detail-client { color: var(--slate) !important; }
 .icard-detail-evid  { color: var(--slate) !important; }
 .icard-detail-opp   { color: rgba(13,148,136,.9) !important; }
-.icard-detail-footer { border-top-color: rgba(37,68,112,.4) !important; }
+.icard-detail-footer { border-top-color: rgba(74,98,120,.4) !important; }
 .mb-conf-medium { color: var(--slate-dim) !important; }
 .mb-conf-low    { color: var(--slate-dim) !important; opacity: .7; }
 
