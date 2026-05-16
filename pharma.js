@@ -1923,24 +1923,29 @@ function renderCitationsInsightStrip() {
   const topCat=Object.entries(catCounts).sort((a,b)=>b[1]-a[1])[0];
   const topAuth=Object.entries(authCounts).sort((a,b)=>b[1]-a[1])[0];
   const topSrc=Object.entries(srcCounts).sort((a,b)=>b[1]-a[1])[0];
-  const p1Count=data.filter(c=>c.priority==='P1').length;
   const action=topCat&&CAT_INTEL[topCat[0]]?CAT_INTEL[topCat[0]].action:'Review enforcement actions relevant to your site profile.';
-  // When filtered by displayIssue (navigated from Top Action Priorities), compare visible
-  // row count (after cluster grouping) to total evidence records, so user understands any gap.
+  // Use the same clustered dataset the table renders so counts always match visible rows.
+  const clustered = _pharmaClusterGroupCits(data);
+  const visibleCount = clustered.length;
+  const rawCount = data.length;
+  const p1Count = clustered.filter(c => c.priority === 'P1').length;
+  const rawP1Count = data.filter(c => c.priority === 'P1').length;
+  // Show underlying record count parenthetically when clustering reduces visible rows.
+  const underlyingNote = rawCount > visibleCount
+    ? ` (${rawCount} underlying records)`
+    : '';
   let issueFilterNote = '';
   if (pF.displayIssue) {
-    const clusteredRows = _pharmaClusterGroupCits(data);
-    const visibleP1 = clusteredRows.filter(c => c.priority === 'P1').length;
-    const hiddenInRows = p1Count - visibleP1;
-    const clusterNote = hiddenInRows > 0
-      ? ` (${hiddenInRows} P1 record${hiddenInRows!==1?'s are':' is'} inside expandable related-record rows)`
+    const hiddenP1 = rawP1Count - p1Count;
+    const clusterNote = hiddenP1 > 0
+      ? ` (${hiddenP1} P1 record${hiddenP1!==1?'s are':' is'} inside expandable related-record rows)`
       : '';
     issueFilterNote = `<div class="isb"><div class="isb-dot"></div><div class="isb-text">Evidence records for <b>${pF.displayIssue}</b>. Each row is one evidence record — some rows may expand to show related records grouped together.${clusterNote}</div></div>`;
   }
   el.innerHTML=`<div class="insight-strip">
     <div class="insight-strip-hd">What this table shows</div>
     <div class="insight-strip-bullets">
-      <div class="isb"><div class="isb-dot${p1Count>0?' isb-dot-red':''}"></div><div class="isb-text"><b>${data.length} evidence record${data.length!==1?'s':''}</b> match current filters${p1Count>0?` — <b>${p1Count} P1 priority</b>`:''}.${data.length===getPharmaCitations().length?' Full dataset — use sidebar or KPI cards to filter.':''}</div></div>
+      <div class="isb"><div class="isb-dot${p1Count>0?' isb-dot-red':''}"></div><div class="isb-text"><b>${visibleCount} row${visibleCount!==1?'s':''}</b> visible in table${underlyingNote}${p1Count>0?` — <b>${p1Count} P1 priority</b>`:''}.${rawCount===getPharmaCitations().length?' Full dataset — use sidebar or KPI cards to filter.':''}</div></div>
       ${issueFilterNote}
       ${topCat?`<div class="isb"><div class="isb-dot isb-dot-amber"></div><div class="isb-text"><b>${topCat[0]}</b> is the dominant category (${topCat[1]} records). ${action}</div></div>`:''}
       ${topAuth?`<div class="isb"><div class="isb-dot"></div><div class="isb-text"><b>${topAuth[0]}</b> leads by authority (${topAuth[1]} actions). Primary source type: <b>${topSrc?topSrc[0]:'—'}</b>.</div></div>`:''}
