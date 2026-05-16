@@ -1915,12 +1915,12 @@ body.reading-mode .filter-chip  { opacity: 0.9; }
 .icard-why-brief    { color: var(--slate-dim) !important; font-size: 11px !important; }
 .icard-action-preview { color: var(--teal) !important; font-size: 12px !important; }
 .icard-expand       { color: var(--slate-dim) !important; }
-.icard-detail-lbl   { color: var(--slate-dim) !important; }
-.icard-detail-txt   { color: var(--slate) !important; font-size: 12px !important; line-height: 1.6 !important; }
-.icard-detail-action { color: var(--teal) !important; font-size: 12px !important; }
-.icard-detail-client { color: var(--slate-dim) !important; }
-.icard-detail-evid  { color: var(--slate-dim) !important; }
-.icard-detail-opp   { color: rgba(13,148,136,.8) !important; }
+.icard-detail-lbl   { color: var(--slate) !important; }
+.icard-detail-txt   { color: var(--off2) !important; font-size: 12px !important; line-height: 1.6 !important; }
+.icard-detail-action { color: var(--teal) !important; font-size: 12px !important; font-weight: 600 !important; }
+.icard-detail-client { color: var(--slate) !important; }
+.icard-detail-evid  { color: var(--slate) !important; }
+.icard-detail-opp   { color: rgba(13,148,136,.9) !important; }
 .icard-detail-footer { border-top-color: rgba(37,68,112,.4) !important; }
 .mb-conf-medium { color: var(--slate-dim) !important; }
 .mb-conf-low    { color: var(--slate-dim) !important; opacity: .7; }
@@ -1965,11 +1965,11 @@ body.reading-mode .filter-chip  { opacity: 0.9; }
 /* ── Top risk blocks ─────────────────────────────────────────── */
 .top-risk-block { background: var(--navy) !important; border-color: var(--border) !important; }
 .top-risk-block:hover { background: var(--navy-mid) !important; border-color: rgba(13,148,136,.3) !important; }
-.trb-rank    { color: var(--slate-dim) !important; }
+.trb-rank    { color: var(--slate) !important; }
 .trb-cat     { color: var(--off2) !important; font-size: 13px !important; }
-.trb-meaning { color: var(--slate-dim) !important; font-size: 11px !important; }
-.trb-action  { color: var(--teal) !important; }
-.trb-stats   { color: var(--slate-dim) !important; }
+.trb-meaning { color: var(--slate) !important; font-size: 11px !important; }
+.trb-action  { color: var(--teal) !important; font-weight: 600 !important; }
+.trb-stats   { color: var(--slate) !important; }
 
 /* ── Start-here action items ─────────────────────────────────── */
 .sha-title { color: var(--off2) !important; }

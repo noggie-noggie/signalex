@@ -2021,15 +2021,15 @@ function _citMemberRow(m) {
   const ds = (m.decision_summary || m.raw_listing_summary || m.summary || '').slice(0, 110);
   const prio = m.priority || '';
   const prioHtml = prio ? `<span style="color:${_PRIORITY_COLORS[prio]||'#7f8c8d'};font-size:9px">${prio}</span>` : '';
-  return `<tr class="cit-cluster-member" style="background:rgba(74,98,120,.035);font-size:10px">
+  return `<tr class="cit-cluster-member" style="background:rgba(74,98,120,.09);border-left:2px solid rgba(74,98,120,.4);font-size:10px">
     <td>${prioHtml}</td>
-    <td><span class="badge badge-authority" style="opacity:.7">${m.authority||'—'}</span></td>
-    <td><span class="badge badge-type" style="white-space:nowrap;opacity:.7">${st}</span></td>
-    <td style="color:#6b8099;font-size:9px;padding-left:14px" title="${entity}">${entity||'—'}</td>
-    <td style="font-size:9px;color:#9aacbb;font-style:italic">${displayIssue}</td>
-    <td style="font-size:9px;color:#7A92A8;font-style:italic">${evidSt}</td>
-    <td style="white-space:nowrap;font-size:9px;color:#6b8099">${m.date?m.date.slice(0,10):'—'}</td>
-    <td style="max-width:260px;font-size:10px;color:#9aacbb">${ds}</td>
+    <td><span class="badge badge-authority" style="opacity:.85">${m.authority||'—'}</span></td>
+    <td><span class="badge badge-type" style="white-space:nowrap;opacity:.85">${st}</span></td>
+    <td style="color:#8aa4be;font-size:9px;padding-left:14px" title="${entity}">${entity||'—'}</td>
+    <td style="font-size:9px;color:#A0B3C8;font-style:italic">${displayIssue}</td>
+    <td style="font-size:9px;color:#8aa4be;font-style:italic">${evidSt}</td>
+    <td style="white-space:nowrap;font-size:9px;color:#8aa4be">${m.date?m.date.slice(0,10):'—'}</td>
+    <td style="max-width:260px;font-size:10px;color:#A0B3C8">${ds}</td>
     <td>${m.url?`<a class="cit-link" href="${m.url}" target="_blank" onclick="event.stopPropagation()">&#8599;</a>`:'—'}</td>
   </tr>`;
 }
