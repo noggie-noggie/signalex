@@ -317,6 +317,11 @@ const _AU_LABELS = {
   reference: 'Global regulatory reference',
 };
 const _PRIORITY_COLORS = { P1:'#c0392b', P2:'#e67e22', P3:'#7f8c8d', P4:'#aab' };
+// Display-only label maps — do NOT use for filtering/sorting logic (use raw values there)
+const _PRIO_LABELS = { P1:'High priority', P2:'Needs review', P3:'Monitor', P4:'Low relevance' };
+const _EVID_LABELS = { 'Confirmed':'Source-supported', 'Provisional':'Listing-level signal', 'Limited evidence':'Limited source detail' };
+function _prioLabel(p)  { return _PRIO_LABELS[p]  || p; }
+function _evidLabel(s)  { return _EVID_LABELS[s]  || s; }
 function _fmLabel(fm) { return _FM_LABELS[fm] || (fm||'').replace(/_/g,' '); }
 function _topFailureMode(cits) {
   const fm = {};
@@ -493,7 +498,7 @@ function getTopImmediateActions(data) {
     const total = p1.length + p2.length;
     actions.push({
       priority: 'now',
-      title: `Review ${p1.length} P1${p2.length?' + '+p2.length+' P2':''} GMP cluster${total!==1?'s':''} requiring decision`,
+      title: `Review ${p1.length} high-priority${p2.length?' + '+p2.length+' needs-review':''} GMP enforcement cluster${total!==1?'s':''} requiring decision`,
       why: topFm ? `Top issue: ${_fmLabel(topFm)}` : 'High-priority enforcement actions require compliance team review',
       onclick: `applyPharmaFilter({priority:'P1'}); scrollToCitationsTable()`
     });
@@ -742,7 +747,7 @@ function renderPharmaOverview() {
   const _setKpi=(id,val)=>{const e=document.getElementById(id);if(e){const v=e.querySelector('.kpi-val');if(v){v.textContent=val;v.classList.add('kpi-updated');setTimeout(()=>v.classList.remove('kpi-updated'),600);}}};
   const _setKpiSub=(id,text)=>{const e=document.getElementById(id);if(e)e.textContent=text;};
   _setKpi('pk-high', p1Groups);
-  _setKpiSub('pk-high-sub', `${p1RawAll} total P1 citation${p1RawAll!==1?'s':''} · grouped into ${p1Groups} action group${p1Groups!==1?'s':''}`);
+  _setKpiSub('pk-high-sub', `${p1RawAll} high-priority citation${p1RawAll!==1?'s':''} · grouped into ${p1Groups} recurring pattern group${p1Groups!==1?'s':''}`);
   _setKpi('pk-wl', wl);
   // pk-483: hide entirely when no inspection_finding records exist (scrape_fda_483() not yet wired into pipeline)
   const kpi483 = document.getElementById('pk-483');
@@ -839,8 +844,8 @@ function renderCatGrid(gridId, countId, context) {
 
     const rawNote  = g.rawCitCount > g.total
       ? ` <span style="font-size:9px;color:#7A92A8">(${g.rawCitCount} related citations)</span>` : '';
-    const p1html   = g.p1 ? `<span style="color:${_PRIORITY_COLORS.P1};font-size:9px;font-weight:600">${g.p1}&thinsp;P1</span>` : '';
-    const p2html   = g.p2 ? `<span style="color:${_PRIORITY_COLORS.P2};font-size:9px">${g.p2}&thinsp;P2</span>` : '';
+    const p1html   = g.p1 ? `<span title="P1" style="color:${_PRIORITY_COLORS.P1};font-size:9px;font-weight:600">${g.p1}&thinsp;${_PRIO_LABELS.P1}</span>` : '';
+    const p2html   = g.p2 ? `<span title="P2" style="color:${_PRIORITY_COLORS.P2};font-size:9px">${g.p2}&thinsp;${_PRIO_LABELS.P2}</span>` : '';
     const p1p2     = [p1html, p2html].filter(Boolean).join(' &middot; ');
     const provNote = g.hasProvisional ? '<span style="font-size:9px;color:#7A92A8;font-style:italic">incl. provisional</span>' : '';
 
@@ -862,7 +867,7 @@ function renderCatGrid(gridId, countId, context) {
         <div class="cat-cell-name">${g.label}</div>
         ${entityBtn}
       </div>
-      <div class="cat-cell-ct">${g.total} action theme${g.total!==1?'s':''}${rawNote}</div>
+      <div class="cat-cell-ct">${g.total} recurring failure pattern${g.total!==1?'s':''}${rawNote}</div>
       <div class="cat-cell-sub">${p1p2 || '<span style="font-size:9px;color:#7A92A8">no priority flags</span>'}${provNote ? ' &middot; ' + provNote : ''}</div>
       ${whyLine}
       ${intelHtml}
@@ -980,14 +985,14 @@ function renderTopRiskBlocks(risks) {
     const visP2 = clusteredMatched.filter(c => c.priority === 'P2').length;
     // r.p1/r.p2 = action theme count (cluster-primary P1/P2 only, from rankPharmaRisks)
     // visP1/visP2 = visible evidence rows in Citations table after cluster grouping
-    const p1Tip = r.p1>0 ? `title="${r.p1} P1 action theme${r.p1!==1?'s':''}; ${visP1} P1 evidence row${visP1!==1?'s':''} in Citations table"` : '';
-    const p1Badge = r.p1>0 ? `<span class="risk-impact-badge risk-critical" ${p1Tip}>P1&times;${r.p1}</span>` : '';
-    const p2Tip = r.p2>0 ? `title="${r.p2} P2 action theme${r.p2!==1?'s':''}; ${visP2} P2 evidence row${visP2!==1?'s':''} in Citations table"` : '';
-    const p2Badge = r.p2>0 ? `<span class="risk-impact-badge risk-high" ${p2Tip}>P2&times;${r.p2}</span>` : '';
+    const p1Tip = r.p1>0 ? `title="${r.p1} high-priority recurring pattern${r.p1!==1?'s':''}; ${visP1} high-priority evidence row${visP1!==1?'s':''} in evidence table"` : '';
+    const p1Badge = r.p1>0 ? `<span class="risk-impact-badge risk-critical" ${p1Tip}>High&times;${r.p1}</span>` : '';
+    const p2Tip = r.p2>0 ? `title="${r.p2} needs-review recurring pattern${r.p2!==1?'s':''}; ${visP2} needs-review evidence row${visP2!==1?'s':''} in evidence table"` : '';
+    const p2Badge = r.p2>0 ? `<span class="risk-impact-badge risk-high" ${p2Tip}>Review&times;${r.p2}</span>` : '';
     // Stats line uses visible row counts so they match what the user sees on click-through
-    const themeNote = `${r.total} action theme${r.total!==1?'s':''}`;
-    const p1Stat = visP1 > 0 ? ` · ${visP1} P1 evidence record${visP1!==1?'s':''}` : '';
-    const p2Stat = visP2 > 0 ? ` · ${visP2} P2 evidence record${visP2!==1?'s':''}` : '';
+    const themeNote = `${r.total} recurring failure pattern${r.total!==1?'s':''}`;
+    const p1Stat = visP1 > 0 ? ` · ${visP1} high-priority evidence record${visP1!==1?'s':''}` : '';
+    const p2Stat = visP2 > 0 ? ` · ${visP2} needs-review evidence record${visP2!==1?'s':''}` : '';
     const ftCts={}, authCts={};
     allMatched.forEach(c=>{
       if(c.facility_type) ftCts[c.facility_type]=(ftCts[c.facility_type]||0)+1;
@@ -1016,7 +1021,7 @@ function renderTopRiskBlocks(risks) {
           <span class="trb-cat">${r.label}</span>
           ${p1Badge}
           ${p2Badge}
-          <span class="vol-bucket">${r.total} action theme${r.total!==1?'s':''}</span>
+          <span class="vol-bucket">${r.total} recurring failure pattern${r.total!==1?'s':''}</span>
         </div>
         <div class="trb-action">&#8594; ${action.slice(0,140)} <span style="color:#0d9488;font-size:10px">Expand &rarr;</span></div>
         <div class="trb-stats">${themeNote}${p1Stat}${p2Stat}</div>
@@ -1277,7 +1282,7 @@ function renderPharmaFocusBanner() {
         ${brCount > 0 ? `<span style="color:#9aacbb"> (${brCount} without direct evidence)</span>` : ''}
        </span>`
     : `<span style="font-size:11px;color:#4a6278;white-space:nowrap">
-        ${f.groupedCount} action theme${f.groupedCount!==1?'s':''} &middot;
+        ${f.groupedCount} recurring failure pattern${f.groupedCount!==1?'s':''} &middot;
         ${allCits.length} citation${allCits.length!==1?'s':''}
        </span>`;
 
@@ -1561,7 +1566,7 @@ function _citPriorityBadge(c) {
   if (!c.priority) return '';
   const cols = {P1:'#c0392b',P2:'#e67e22',P3:'#7f8c8d',P4:'#aab'};
   const col = cols[c.priority] || '#7f8c8d';
-  return `<span class="badge" style="background:transparent;color:${col};border:1px solid ${col};font-size:9px;padding:1px 4px">${c.priority}</span>`;
+  return `<span class="badge" title="${c.priority}" style="background:transparent;color:${col};border:1px solid ${col};font-size:9px;padding:1px 4px">${_prioLabel(c.priority)}</span>`;
 }
 
 function _citRecurrenceBadge(c) {
@@ -1873,7 +1878,7 @@ function citCard(c) {
     </div>
     <div class="card-summary" style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
       <span${issueStyle}>${displayIssue}</span>
-      <span style="font-size:9px;${evStyle};font-style:italic">${evidenceStatus}</span>
+      <span title="${evidenceStatus}" style="font-size:9px;${evStyle};font-style:italic">${_evidLabel(evidenceStatus)}</span>
       ${_citSecondaryCategories(c)}
     </div>
     ${_citTrustNote(c)}
@@ -1938,14 +1943,14 @@ function renderCitationsInsightStrip() {
   if (pF.displayIssue) {
     const hiddenP1 = rawP1Count - p1Count;
     const clusterNote = hiddenP1 > 0
-      ? ` (${hiddenP1} P1 record${hiddenP1!==1?'s are':' is'} inside expandable related-record rows)`
+      ? ` (${hiddenP1} high-priority record${hiddenP1!==1?'s are':' is'} inside expandable related-record rows)`
       : '';
     issueFilterNote = `<div class="isb"><div class="isb-dot"></div><div class="isb-text">Evidence records for <b>${pF.displayIssue}</b>. Each row is one evidence record — some rows may expand to show related records grouped together.${clusterNote}</div></div>`;
   }
   el.innerHTML=`<div class="insight-strip">
     <div class="insight-strip-hd">What this table shows</div>
     <div class="insight-strip-bullets">
-      <div class="isb"><div class="isb-dot${p1Count>0?' isb-dot-red':''}"></div><div class="isb-text"><b>${visibleCount} row${visibleCount!==1?'s':''}</b> visible in table${underlyingNote}${p1Count>0?` — <b>${p1Count} P1 priority</b>`:''}.${rawCount===getPharmaCitations().length?' Full dataset — use sidebar or KPI cards to filter.':''}</div></div>
+      <div class="isb"><div class="isb-dot${p1Count>0?' isb-dot-red':''}"></div><div class="isb-text"><b>${visibleCount} row${visibleCount!==1?'s':''}</b> visible in table${underlyingNote}${p1Count>0?` — <b>${p1Count} high-priority row${p1Count!==1?'s':''}</b>`:''}.${rawCount===getPharmaCitations().length?' Full dataset — use sidebar or KPI cards to filter.':''}</div></div>
       ${issueFilterNote}
       ${topCat?`<div class="isb"><div class="isb-dot isb-dot-amber"></div><div class="isb-text"><b>${topCat[0]}</b> is the dominant category (${topCat[1]} records). ${action}</div></div>`:''}
       ${topAuth?`<div class="isb"><div class="isb-dot"></div><div class="isb-text"><b>${topAuth[0]}</b> leads by authority (${topAuth[1]} actions). Primary source type: <b>${topSrc?topSrc[0]:'—'}</b>.</div></div>`:''}
@@ -1994,7 +1999,7 @@ function _citTableRow(c, isExpanded) {
     : '';
   const prio = c.priority || '';
   const prioHtml = prio
-    ? `<span style="color:${_PRIORITY_COLORS[prio]||'#7f8c8d'};font-weight:700;font-size:10px">${prio}</span>` : '—';
+    ? `<span title="${prio}" style="color:${_PRIORITY_COLORS[prio]||'#7f8c8d'};font-weight:700;font-size:10px">${_prioLabel(prio)}</span>` : '—';
   const entityCopy = entity
     ? ` <button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(entity)}',this)" title="Copy entity name">Copy</button>`
     : '';
@@ -2006,7 +2011,7 @@ function _citTableRow(c, isExpanded) {
     <td><span class="badge badge-type" style="white-space:nowrap">${st}</span></td>
     <td style="color:#3D5268;font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${entity}">${entity||'—'}${entityCopy}</td>
     <td style="${issueStyle}">${displayIssue}</td>
-    <td style="${evStyle}">${evidSt}</td>
+    <td style="${evStyle}">${_evidLabel(evidSt)}</td>
     <td style="white-space:nowrap;font-size:10px;color:#3D5268">${c.date?c.date.slice(0,10):'—'}</td>
     <td style="max-width:260px;font-size:11px;color:#7A92A8">${toggleBtn}${ds}${clusterBadge}</td>
     <td style="white-space:nowrap">${_citTableSource(c)}</td>
@@ -2020,14 +2025,14 @@ function _citMemberRow(m) {
   const evidSt = getEvidenceStatus(m);
   const ds = (m.decision_summary || m.raw_listing_summary || m.summary || '').slice(0, 110);
   const prio = m.priority || '';
-  const prioHtml = prio ? `<span style="color:${_PRIORITY_COLORS[prio]||'#7f8c8d'};font-size:9px">${prio}</span>` : '';
+  const prioHtml = prio ? `<span title="${prio}" style="color:${_PRIORITY_COLORS[prio]||'#7f8c8d'};font-size:9px">${_prioLabel(prio)}</span>` : '';
   return `<tr class="cit-cluster-member" style="background:rgba(74,98,120,.09);border-left:2px solid rgba(74,98,120,.4);font-size:10px">
     <td>${prioHtml}</td>
     <td><span class="badge badge-authority" style="opacity:.85">${m.authority||'—'}</span></td>
     <td><span class="badge badge-type" style="white-space:nowrap;opacity:.85">${st}</span></td>
     <td style="color:#8aa4be;font-size:9px;padding-left:14px" title="${entity}">${entity||'—'}</td>
     <td style="font-size:9px;color:#A0B3C8;font-style:italic">${displayIssue}</td>
-    <td style="font-size:9px;color:#8aa4be;font-style:italic">${evidSt}</td>
+    <td style="font-size:9px;color:#8aa4be;font-style:italic">${_evidLabel(evidSt)}</td>
     <td style="white-space:nowrap;font-size:9px;color:#8aa4be">${m.date?m.date.slice(0,10):'—'}</td>
     <td style="max-width:260px;font-size:10px;color:#A0B3C8">${ds}</td>
     <td>${m.url?`<a class="cit-link" href="${m.url}" target="_blank" onclick="event.stopPropagation()">&#8599;</a>`:'—'}</td>
@@ -2246,9 +2251,9 @@ function renderEnfFocusPanel() {
       <div>
         <div style="font-size:13px;font-weight:700;color:#2A3E52">${label}</div>
         <div style="display:flex;gap:8px;margin-top:3px;flex-wrap:wrap">
-          <span style="font-size:10px;color:#4a6278">${primaries.length} action theme${primaries.length!==1?'s':''}</span>
-          ${p1?`<span style="font-size:10px;color:${_PRIORITY_COLORS.P1};font-weight:600">${p1} P1</span>`:''}
-          ${p2?`<span style="font-size:10px;color:${_PRIORITY_COLORS.P2}">${p2} P2</span>`:''}
+          <span style="font-size:10px;color:#4a6278">${primaries.length} recurring failure pattern${primaries.length!==1?'s':''}</span>
+          ${p1?`<span title="P1" style="font-size:10px;color:${_PRIORITY_COLORS.P1};font-weight:600">${p1} high-priority</span>`:''}
+          ${p2?`<span title="P2" style="font-size:10px;color:${_PRIORITY_COLORS.P2}">${p2} needs-review</span>`:''}
           ${topFts?`<span style="font-size:10px;color:#7A92A8">${topFts}</span>`:''}
           ${topAuths&&topAuths!==topFts?`<span style="font-size:10px;color:#7A92A8">${topAuths}</span>`:''}
         </div>
@@ -2384,8 +2389,8 @@ function renderFacilityFocusPanel() {
     </div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px">
       <span style="font-size:11px;color:#2A3E52"><b>${records.length}</b> citation${records.length!==1?'s':''}</span>
-      ${p1?`<span style="font-size:11px;color:#c0392b"><b>${p1}</b> P1</span>`:''}
-      ${p2?`<span style="font-size:11px;color:#e67e22"><b>${p2}</b> P2</span>`:''}
+      ${p1?`<span title="P1" style="font-size:11px;color:#c0392b"><b>${p1}</b> high-priority</span>`:''}
+      ${p2?`<span title="P2" style="font-size:11px;color:#e67e22"><b>${p2}</b> needs-review</span>`:''}
       <span style="font-size:11px;color:#7A92A8">${auths.join(' / ')}</span>
     </div>
     ${topCats.length?`<div style="margin-bottom:8px">
@@ -2481,8 +2486,8 @@ function renderFacilities() {
         <div class="facility-type-label">${e.factype} &middot; ${authStr}</div>
         <div class="facility-stats">
           <span class="facility-stat">${e.total} citation${e.total!==1?'s':''}</span>
-          ${e.p1>0?`<span class="facility-stat fsr">${e.p1} P1</span>`:''}
-          ${e.p2>0?`<span class="facility-stat" style="color:#e67e22">${e.p2} P2</span>`:''}
+          ${e.p1>0?`<span title="P1" class="facility-stat fsr">${e.p1} high-priority</span>`:''}
+          ${e.p2>0?`<span title="P2" class="facility-stat" style="color:#e67e22">${e.p2} needs-review</span>`:''}
           ${clusterStr?`<span class="facility-stat">${clusterStr}</span>`:''}
         </div>
         ${topFmLabel?`<div class="facility-cats">Top issue: ${topFmLabel}</div>`:''}
@@ -2618,10 +2623,10 @@ function issueAlertCard(g, idx) {
     const viewBtns = _citViewBtn(c);
     return `<div style="border-top:1px solid rgba(20,50,80,.08);padding:6px 0;display:flex;flex-direction:column;gap:3px">
       <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap">
-        <span style="color:${pColor};font-weight:700;font-size:9px">${prio}</span>
+        <span title="${prio}" style="color:${pColor};font-weight:700;font-size:9px">${_prioLabel(prio)}</span>
         <span class="badge badge-authority" style="font-size:9px">${c.authority || '—'}</span>
         <span class="badge badge-type" style="font-size:9px">${st}</span>
-        <span style="font-size:9px;color:${evSt==='Confirmed'?'#2ecc71':evSt==='Provisional'?'#f39c12':'#7A92A8'};font-style:italic">${evSt}</span>
+        <span title="${evSt}" style="font-size:9px;color:${evSt==='Confirmed'?'#2ecc71':evSt==='Provisional'?'#f39c12':'#7A92A8'};font-style:italic">${_evidLabel(evSt)}</span>
         <span style="font-size:9px;color:#7A92A8;font-style:italic">${c.date ? c.date.slice(0, 10) : '—'}</span>
         ${entity?`<span style="font-size:9px;color:#4a6278">${entity}</span>`:''}
       </div>
@@ -2634,7 +2639,7 @@ function issueAlertCard(g, idx) {
     : '';
   return `<div class="alert-card ${acClass}" style="margin-bottom:10px">
     <div class="alert-card-meta" style="margin-bottom:4px">
-      <span class="badge" style="background:${prioBg};color:${prioColor};border:1px solid ${prioBorder};font-weight:700">${topPrio}</span>
+      <span class="badge" title="${topPrio}" style="background:${prioBg};color:${prioColor};border:1px solid ${prioBorder};font-weight:700">${_prioLabel(topPrio)}</span>
       <span style="font-size:9px;color:#7A92A8;margin-left:4px">${countPill}</span>
       <span style="font-size:9px;color:#7A92A8;margin-left:4px">· ${evidNote}</span>
     </div>
@@ -2672,7 +2677,7 @@ function alertCard(c, patterns={}) {
   const pBadge = patterns[c.company]
     ? `<span class="pattern-badge">Pattern: recurring ${(c.company || '').slice(0, 28)}</span>`
     : '';
-  const prioBadge = prio ? `<span class="badge" style="background:${isP1?'rgba(239,68,68,.1)':isP2?'rgba(251,146,60,.08)':'rgba(20,50,80,.15)'};color:${isP1?'#ef4444':isP2?'#fb923c':'#7A92A8'};border:1px solid ${isP1?'rgba(239,68,68,.25)':isP2?'rgba(251,146,60,.2)':'rgba(20,50,80,.3)'}">${prio}</span>` : '';
+  const prioBadge = prio ? `<span class="badge" title="${prio}" style="background:${isP1?'rgba(239,68,68,.1)':isP2?'rgba(251,146,60,.08)':'rgba(20,50,80,.15)'};color:${isP1?'#ef4444':isP2?'#fb923c':'#7A92A8'};border:1px solid ${isP1?'rgba(239,68,68,.25)':isP2?'rgba(251,146,60,.2)':'rgba(20,50,80,.3)'}">${_prioLabel(prio)}</span>` : '';
   const issueBadge = displayIssue !== 'Unclassified'
     ? `<span class="badge" style="background:rgba(20,50,80,.2);color:#3A5570;border:1px solid rgba(20,50,80,.3)">${displayIssue}</span>`
     : '';
@@ -2685,7 +2690,7 @@ function alertCard(c, patterns={}) {
       <span class="badge badge-type"${isImport ? ` title="${_IMPORT_ALERT_TIP}"` : ''} style="${isImport ? 'cursor:help' : ''}">${st}</span>
       ${c.facility_type ? `<span class="badge" style="background:rgba(139,92,246,.06);color:rgba(139,92,246,.5);border:1px solid rgba(139,92,246,.1)">${c.facility_type}</span>` : ''}
       ${issueBadge}
-      <span class="badge" style="background:rgba(20,50,80,.1);color:#3A5570;border:1px solid rgba(20,50,80,.2)">${evidSt}</span>
+      <span class="badge" title="${evidSt}" style="background:rgba(20,50,80,.1);color:#3A5570;border:1px solid rgba(20,50,80,.2)">${_evidLabel(evidSt)}</span>
       ${pBadge}
     </div>
     <div class="alert-card-action"><b>Action:</b> ${action}</div>
