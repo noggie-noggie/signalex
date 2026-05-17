@@ -438,7 +438,10 @@ function _clusterBadgeLabel(c) {
 // Apply filter and navigate to Citations.
 // Returns true if the filter has results, false otherwise (caller should show a message).
 function navigateToCitationsWithFilter(filterObj) {
-  if (!hasResultsForFilter(filterObj)) return false;
+  // display_issue navigations must always proceed — cards are built from the full dataset
+  // so the records exist even if current pF filters temporarily exclude them.
+  // Guard only non-issue filters where a no-results navigate is genuinely confusing.
+  if (filterObj.display_issue === undefined && !hasResultsForFilter(filterObj)) return false;
   applyPharmaFilter(filterObj);
   scrollToCitationsTable();
   return true;
@@ -1616,7 +1619,7 @@ const _BROAD_CATS = new Set(['GMP violations', 'Other / Insufficient Detail', 'O
 
 // Returns the most specific, user-facing "Issue" label for a citation card.
 // Priority: specific failure_mode > specific primary_gmp_category > legacy category
-//           > "Mixed issue — review source" (if secondary tags exist) > "Unclassified"
+//           > first secondary category (if secondary tags exist) > "Unclassified"
 function getDisplayIssue(c) {
   const fm = c.failure_mode || '';
   if (fm && fm !== 'insufficient_detail' && (c.failure_mode_confidence || 0) >= 0.6) {
@@ -1631,20 +1634,22 @@ function getDisplayIssue(c) {
   const cat = c.category || '';
   if (cat && !_BROAD_CATS.has(cat)) {
     if (status === 'unconfirmed') {
-      // Don't label "Unclassified" if secondary tags suggest meaningful classifications.
+      // Prefer the most specific secondary category over "Unclassified".
+      // Never show "Mixed issue" — pick the dominant signal instead.
       const secs = Array.isArray(c.secondary_gmp_categories)
         ? c.secondary_gmp_categories.filter(s => s && !_BROAD_CATS.has(s))
         : [];
-      return secs.length > 0 ? 'Mixed issue — review source' : 'Unclassified';
+      return secs.length > 0 ? secs[0] : 'Unclassified';
     }
     if (status === 'provisional') return `Provisional: ${cat}`;
     return cat;
   }
-  // No specific primary field — check secondary categories before giving up.
+  // No specific primary field — use best secondary category if available.
+  // Never surface "Mixed issue" as a label; pick the dominant signal instead.
   const secs = Array.isArray(c.secondary_gmp_categories)
     ? c.secondary_gmp_categories.filter(s => s && !_BROAD_CATS.has(s))
     : [];
-  if (secs.length > 0) return 'Mixed issue — review source';
+  if (secs.length > 0) return secs[0];
   return 'Unclassified';
 }
 
@@ -2589,10 +2594,15 @@ function issueAlertCard(g, idx) {
   const prioColor = isP1 ? '#ef4444' : '#fb923c';
   const prioBg = isP1 ? 'rgba(239,68,68,.1)' : 'rgba(251,146,60,.08)';
   const prioBorder = isP1 ? 'rgba(239,68,68,.25)' : 'rgba(251,146,60,.2)';
+  // Compute the exact count the evidence table will show for this issue:
+  // clustered view of filteredCits() filtered to this issue — same dataset the table renders.
+  const _allMatched = filteredCits().filter(c => matchesDisplayIssue(c, g.issue));
+  const _clusteredMatched = _pharmaClusterGroupCits(_allMatched);
+  const visibleCount = _clusteredMatched.length;
   const countParts = [];
   if (g.p1 > 0) countParts.push(`${g.p1} high-priority`);
   if (g.p2 > 0) countParts.push(`${g.p2} needs-review`);
-  countParts.push(`${g.cits.length} evidence record${g.cits.length !== 1 ? 's' : ''}`);
+  countParts.push(`${visibleCount} evidence record${visibleCount !== 1 ? 's' : ''}`);
   const countPill = countParts.join(' · ');
   const authList = Array.from(g.authorities).slice(0, 4).join(', ');
   const ftList = Array.from(g.facilityTypes).slice(0, 3).join(', ');
@@ -2634,8 +2644,8 @@ function issueAlertCard(g, idx) {
       ${viewBtns ? `<div style="display:flex;gap:4px;margin-top:2px" onclick="event.stopPropagation()">${viewBtns}</div>` : ''}
     </div>`;
   }).join('');
-  const moreNote = g.cits.length > 5
-    ? `<div style="font-size:9px;color:#7A92A8;padding-top:4px">${g.cits.length - 5} more record${g.cits.length - 5 !== 1 ? 's' : ''} — <a href="#" onclick="event.preventDefault();event.stopPropagation();${navCall}" style="color:#4a7a9b">view all in evidence table</a></div>`
+  const moreNote = visibleCount > 5
+    ? `<div style="font-size:9px;color:#7A92A8;padding-top:4px">${visibleCount - 5} more record${visibleCount - 5 !== 1 ? 's' : ''} — <a href="#" onclick="event.preventDefault();event.stopPropagation();${navCall}" style="color:#4a7a9b">view all in evidence table</a></div>`
     : '';
   return `<div class="alert-card ${acClass}" style="margin-bottom:10px">
     <div class="alert-card-meta" style="margin-bottom:4px">
@@ -2647,7 +2657,7 @@ function issueAlertCard(g, idx) {
     ${authList ? `<div style="font-size:9px;color:#7A92A8;margin-bottom:2px">Authorities: ${authList}${ftList ? ' · ' + ftList : ''}</div>` : ''}
     <div class="alert-card-action" style="margin:6px 0"><b>Recommended action:</b> ${action}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-      <button class="card-action card-action-primary" onclick="event.stopPropagation();${navCall}">View ${g.cits.length} evidence record${g.cits.length !== 1 ? 's' : ''} &#8594;</button>
+      <button class="card-action card-action-primary" onclick="event.stopPropagation();${navCall}">View ${visibleCount} evidence record${visibleCount !== 1 ? 's' : ''} &#8594;</button>
       <button class="card-action" onclick="event.stopPropagation();_toggleAlertExpand('${expandId}',this)">Expand evidence &#9658;</button>
     </div>
     <div id="alert-ev-${expandId}" style="display:none;margin-top:8px;padding-top:4px">
