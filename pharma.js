@@ -322,6 +322,27 @@ const _PRIO_LABELS = { P1:'High priority', P2:'Needs review', P3:'Monitor', P4:'
 const _EVID_LABELS = { 'Confirmed':'Source-supported', 'Provisional':'Listing-level signal', 'Limited evidence':'Limited source detail' };
 function _prioLabel(p)  { return _PRIO_LABELS[p]  || p; }
 function _evidLabel(s)  { return _EVID_LABELS[s]  || s; }
+
+// Normalize entity/company names for display only.
+// Title-cases words; preserves legal suffixes (LLC, Inc., Ltd.) and d/b/a.
+// Does NOT mutate source data or DB values.
+function _normalizeEntityName(raw) {
+  if (!raw) return '';
+  // Normalise d/b/a variants before word-boundary processing (slashes break \b)
+  let s = raw.replace(/\bd\/b\/a\b/gi, '\x00DBA\x00');
+  const _UPPER = new Set(['LLC','LLP','LP','PLC','PC','USA','US','UK','AU','FDA','TGA','GMP','CGMP','EU','UN','AB','AG']);
+  const _STD   = { 'inc':'Inc.','inc.':'Inc.','ltd':'Ltd.','ltd.':'Ltd.','corp':'Corp.','corp.':'Corp.','co.':'Co.' };
+  const _SMALL = new Set(['and','the','of','for','by','in','at','to','a','an','or']);
+  s = s.replace(/\b[\w.']+\b/g, (word, offset) => {
+    const lo = word.toLowerCase();
+    const up = word.toUpperCase().replace(/\.$/, '');
+    if (_UPPER.has(up)) return up;
+    if (_STD[lo])       return _STD[lo];
+    if (_SMALL.has(lo) && offset > 0) return lo;
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  });
+  return s.replace(/\x00DBA\x00/g, 'd/b/a');
+}
 function _fmLabel(fm) { return _FM_LABELS[fm] || (fm||'').replace(/_/g,' '); }
 function _topFailureMode(cits) {
   const fm = {};
@@ -2588,48 +2609,71 @@ function _toggleAlertExpand(id, btn) {
 }
 
 function issueAlertCard(g, idx) {
-  const topPrio = g.p1 > 0 ? 'P1' : 'P2';
-  const isP1 = topPrio === 'P1';
-  const acClass = isP1 ? 'ac-high' : 'ac-medium';
-  const prioColor = isP1 ? '#ef4444' : '#fb923c';
-  const prioBg = isP1 ? 'rgba(239,68,68,.1)' : 'rgba(251,146,60,.08)';
-  const prioBorder = isP1 ? 'rgba(239,68,68,.25)' : 'rgba(251,146,60,.2)';
-  // Compute the exact count the evidence table will show for this issue:
-  // clustered view of filteredCits() filtered to this issue — same dataset the table renders.
-  const _allMatched = filteredCits().filter(c => matchesDisplayIssue(c, g.issue));
+  // ── Single authoritative dataset: exactly what the evidence table renders ──────
+  // All counts, labels, priorities, previews, and auth/facility lists are derived
+  // from this array only. No g.p1/g.p2/g.cits/g.authorities used for display.
+  const _allMatched      = filteredCits().filter(c => matchesDisplayIssue(c, g.issue));
   const _clusteredMatched = _pharmaClusterGroupCits(_allMatched);
-  const visibleCount = _clusteredMatched.length;
+
+  const visibleCount  = _clusteredMatched.length;
+  const visP1         = _clusteredMatched.filter(c => c.priority === 'P1').length;
+  const visP2         = _clusteredMatched.filter(c => c.priority === 'P2').length;
+  const visP3         = _clusteredMatched.filter(c => c.priority === 'P3').length;
+  const visConfirmed  = _clusteredMatched.filter(c => (c.classification_status || '') === 'confirmed').length;
+  const visProvisional = _clusteredMatched.filter(c => (c.classification_status || '') === 'provisional').length;
+
+  // Priority class/colour driven by the visible dataset, not the pre-filter group
+  const topPrio    = visP1 > 0 ? 'P1' : 'P2';
+  const isP1       = topPrio === 'P1';
+  const acClass    = isP1 ? 'ac-high' : 'ac-medium';
+  const prioColor  = isP1 ? '#ef4444' : '#fb923c';
+  const prioBg     = isP1 ? 'rgba(239,68,68,.1)'  : 'rgba(251,146,60,.08)';
+  const prioBorder = isP1 ? 'rgba(239,68,68,.25)' : 'rgba(251,146,60,.2)';
+
+  // Count pill — all figures from _clusteredMatched
   const countParts = [];
-  if (g.p1 > 0) countParts.push(`${g.p1} high-priority`);
-  if (g.p2 > 0) countParts.push(`${g.p2} needs-review`);
+  if (visP1 > 0) countParts.push(`${visP1} high-priority`);
+  if (visP2 > 0) countParts.push(`${visP2} needs-review`);
+  if (visP3 > 0) countParts.push(`${visP3} monitor`);
   countParts.push(`${visibleCount} evidence record${visibleCount !== 1 ? 's' : ''}`);
   const countPill = countParts.join(' · ');
-  const authList = Array.from(g.authorities).slice(0, 4).join(', ');
-  const ftList = Array.from(g.facilityTypes).slice(0, 3).join(', ');
-  // Show confirmed and provisional counts together so user can assess evidence quality
+
+  // Authority / facility lists from the visible clustered dataset
+  const _authCts = {}, _ftCts = {};
+  _clusteredMatched.forEach(c => {
+    if (c.authority)    _authCts[c.authority]    = (_authCts[c.authority]    || 0) + 1;
+    if (c.facility_type) _ftCts[c.facility_type] = (_ftCts[c.facility_type] || 0) + 1;
+  });
+  const authList = Object.entries(_authCts).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([k])=>k).join(', ');
+  const ftList   = Object.entries(_ftCts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
+
+  // Evidence confidence note from visible dataset
   const evidParts = [];
-  if (g.confirmed > 0)   evidParts.push(`${g.confirmed} confirmed`);
-  if (g.provisional > 0) evidParts.push(`${g.provisional} provisional`);
+  if (visConfirmed   > 0) evidParts.push(`${visConfirmed} confirmed`);
+  if (visProvisional > 0) evidParts.push(`${visProvisional} provisional`);
   const evidNote = evidParts.length ? evidParts.join(' · ') : 'unconfirmed';
+
   const action = _getIssueAction(g.issue) || 'Review the linked evidence records and assess whether the issue applies to your site, product, supplier, or claims profile.';
   // Use single-quoted JS string so the onclick attribute (double-quoted) doesn't break.
-  // JSON.stringify would emit double-quoted strings that terminate the onclick="…" attribute.
   const issueSafe = g.issue.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-  const navCall = `navigateToCitationsWithFilter({display_issue:'${issueSafe}'})`;
-  const expandId = 'ag-' + idx;
-  // Top 5 evidence records (P1 first, then date desc)
-  const sorted = [...g.cits].sort((a, b) => {
-    if ((a.priority === 'P1') !== (b.priority === 'P1')) return a.priority === 'P1' ? -1 : 1;
+  const navCall   = `navigateToCitationsWithFilter({display_issue:'${issueSafe}'})`;
+  const expandId  = 'ag-' + idx;
+
+  // Preview rows: top 5 from the clustered visible dataset (P1 first, then date desc)
+  const _sorted = [..._clusteredMatched].sort((a, b) => {
+    const pa = ['P1','P2','P3','P4'].indexOf(a.priority||'P4');
+    const pb = ['P1','P2','P3','P4'].indexOf(b.priority||'P4');
+    if (pa !== pb) return pa - pb;
     return (b.date || '') > (a.date || '') ? 1 : -1;
   });
-  const top5 = sorted.slice(0, 5);
+  const top5    = _sorted.slice(0, 5);
   const evidRows = top5.map(c => {
-    const summ = (c.decision_summary || c.summary || 'Enforcement action').slice(0, 140);
-    const prio = c.priority || '';
+    const summ   = (c.decision_summary || c.summary || 'Enforcement action').slice(0, 140);
+    const prio   = c.priority || '';
     const pColor = _PRIORITY_COLORS[prio] || '#7f8c8d';
-    const st = (c.source_type || '').replace(/_/g, ' ');
-    const evSt = getEvidenceStatus(c);
-    const entity = (c.company || c.entity || '').slice(0, 50);
+    const st     = (c.source_type || '').replace(/_/g, ' ');
+    const evSt   = getEvidenceStatus(c);
+    const entity = _normalizeEntityName((c.company || c.entity || '').slice(0, 50));
     const viewBtns = _citViewBtn(c);
     return `<div style="border-top:1px solid rgba(20,50,80,.08);padding:6px 0;display:flex;flex-direction:column;gap:3px">
       <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap">
@@ -2638,9 +2682,9 @@ function issueAlertCard(g, idx) {
         <span class="badge badge-type" style="font-size:9px">${st}</span>
         <span title="${evSt}" style="font-size:9px;color:${evSt==='Confirmed'?'#2ecc71':evSt==='Provisional'?'#f39c12':'#7A92A8'};font-style:italic">${_evidLabel(evSt)}</span>
         <span style="font-size:9px;color:#7A92A8;font-style:italic">${c.date ? c.date.slice(0, 10) : '—'}</span>
-        ${entity?`<span style="font-size:9px;color:#4a6278">${entity}</span>`:''}
+        ${entity ? `<span style="font-size:9px;color:#4a6278">${entity}</span>` : ''}
       </div>
-      <div style="font-size:10px;color:#2F4558">${summ}</div>
+      <div style="font-size:10px;color:#CBD5E1">${summ}</div>
       ${viewBtns ? `<div style="display:flex;gap:4px;margin-top:2px" onclick="event.stopPropagation()">${viewBtns}</div>` : ''}
     </div>`;
   }).join('');
