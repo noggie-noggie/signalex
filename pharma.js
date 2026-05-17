@@ -323,25 +323,57 @@ const _EVID_LABELS = { 'Confirmed':'Source-supported', 'Provisional':'Listing-le
 function _prioLabel(p)  { return _PRIO_LABELS[p]  || p; }
 function _evidLabel(s)  { return _EVID_LABELS[s]  || s; }
 
-// Normalize entity/company names for display only.
-// Title-cases words; preserves legal suffixes (LLC, Inc., Ltd.) and d/b/a.
+// Normalize entity/company names for display only — presentation layer only.
+// Title-cases words; preserves legal suffixes, abbreviations, and d/b/a notation.
 // Does NOT mutate source data or DB values.
 function _normalizeEntityName(raw) {
   if (!raw) return '';
-  // Normalise d/b/a variants before word-boundary processing (slashes break \b)
-  let s = raw.replace(/\bd\/b\/a\b/gi, '\x00DBA\x00');
-  const _UPPER = new Set(['LLC','LLP','LP','PLC','PC','USA','US','UK','AU','FDA','TGA','GMP','CGMP','EU','UN','AB','AG']);
-  const _STD   = { 'inc':'Inc.','inc.':'Inc.','ltd':'Ltd.','ltd.':'Ltd.','corp':'Corp.','corp.':'Corp.','co.':'Co.' };
-  const _SMALL = new Set(['and','the','of','for','by','in','at','to','a','an','or']);
-  s = s.replace(/\b[\w.']+\b/g, (word, offset) => {
-    const lo = word.toLowerCase();
-    const up = word.toUpperCase().replace(/\.$/, '');
-    if (_UPPER.has(up)) return up;
-    if (_STD[lo])       return _STD[lo];
-    if (_SMALL.has(lo) && offset > 0) return lo;
-    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  // Exact-casing map — keyed on lowercased token (with any trailing period included).
+  // Articles/prepositions are here too so they get lowercased when not the first word.
+  const _EXACT = {
+    'llc':'LLC', 'llp':'LLP', 'lp':'LP', 'plc':'PLC', 'pc':'PC',
+    'inc':'Inc.', 'inc.':'Inc.',
+    'ltd':'Ltd.', 'ltd.':'Ltd.',
+    'corp':'Corp.', 'corp.':'Corp.',
+    'co.':'Co.',
+    'gmbh':'GmbH',
+    's.a.':'S.A.',
+    'rx':'Rx',
+    'dba':'d/b/a', 'd/b/a':'d/b/a',
+    'usa':'USA', 'us':'US', 'uk':'UK', 'au':'AU',
+    'fda':'FDA', 'tga':'TGA', 'gmp':'GMP', 'cgmp':'CGMP',
+    'api':'API', 'eu':'EU', 'un':'UN',
+    'ab':'AB', 'ag':'AG', 'nv':'NV', 'bv':'BV',
+    'and':'and', 'the':'the', 'of':'of', 'or':'or',
+    // Common 3-letter words that must be title-cased, not treated as acronyms
+    'new':'New', 'for':'for', 'all':'All', 'old':'Old', 'big':'Big', 'top':'Top',
+  };
+  let wordIdx = 0;
+  return raw.replace(/[^\s]+/g, token => {
+    // Split each space-delimited token into: leading punctuation | core | trailing punctuation
+    // Core charset includes '.' and '/' so "inc." and "d/b/a" stay intact for lookup.
+    const pre  = token.match(/^[^A-Za-z0-9]*/)[0];
+    const rest = token.slice(pre.length);
+    const suf  = rest.match(/[^A-Za-z0-9.'/-]*$/)[0];
+    const core = rest.slice(0, rest.length - suf.length);
+    if (!core) { wordIdx++; return token; }
+    const lo = core.toLowerCase();
+    let result;
+    if (lo in _EXACT) {
+      result = _EXACT[lo];
+      // First word: even an article must start with a capital
+      if (wordIdx === 0 && result[0] === result[0].toLowerCase()) {
+        result = result[0].toUpperCase() + result.slice(1);
+      }
+    } else if (core.length <= 3 && /^[A-Z]+$/.test(core)) {
+      result = core; // short all-caps token — treat as acronym, preserve as-is
+      // Common 3-letter words (NEW, FOR, ALL…) are in _EXACT above so they resolve first
+    } else {
+      result = core[0].toUpperCase() + core.slice(1).toLowerCase();
+    }
+    wordIdx++;
+    return pre + result + suf;
   });
-  return s.replace(/\x00DBA\x00/g, 'd/b/a');
 }
 function _fmLabel(fm) { return _FM_LABELS[fm] || (fm||'').replace(/_/g,' '); }
 function _topFailureMode(cits) {
@@ -394,7 +426,7 @@ function renderTopGroupedRecords(records, limit) {
   const primaries = sorted.slice(0, limit || 5);
   if (!primaries.length) return '<div style="font-size:11px;color:#8aa4be;padding:4px 0">No grouped records available.</div>';
   return primaries.map(c => {
-    const entity  = (c.company || c.cluster_label || c.authority || '').slice(0, 44);
+    const entity  = _normalizeEntityName((c.company || c.cluster_label || c.authority || '').slice(0, 44));
     const prio    = c.priority || '';
     const fm      = (c.failure_mode && c.failure_mode !== 'insufficient_detail') ? _fmLabel(c.failure_mode) : '';
     const ds      = (c.decision_summary || c.ai_summary || '').slice(0, 120);
@@ -1596,7 +1628,7 @@ function _citPriorityBadge(c) {
 function _citRecurrenceBadge(c) {
   const n = c.recurrence_count_company_90d || 0;
   if (n < 2 || !c.company) return '';
-  return `<span title="${n} citations for ${c.company} in last 90 days" style="color:#c0392b;font-size:9px;margin-left:4px">&#9679; ${n} in 90d</span>`;
+  return `<span title="${n} citations for ${_normalizeEntityName(c.company)} in last 90 days" style="color:#c0392b;font-size:9px;margin-left:4px">&#9679; ${n} in 90d</span>`;
 }
 
 function _citDirectionBadge(c) {
@@ -1908,7 +1940,7 @@ function citCard(c) {
       ${_citSecondaryCategories(c)}
     </div>
     ${_citTrustNote(c)}
-    ${c.company?`<div class="card-summary" style="color:#3D5268;font-size:10px">Company: ${c.company}${_citRecurrenceBadge(c)}${_citDirectionBadge(c)}<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(c.company)}',this)" title="Copy entity name">Copy</button></div>`:''}
+    ${c.company?`<div class="card-summary" style="color:#3D5268;font-size:10px">Company: ${_normalizeEntityName(c.company)}${_citRecurrenceBadge(c)}${_citDirectionBadge(c)}<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(c.company)}',this)" title="Copy entity name">Copy</button></div>`:''}
     ${_citAiBox(c)}
     <div class="card-footer">
       <div class="card-meta">${c.date?c.date.slice(0,10):'—'} &middot; ${c.country||c.authority||''}</div>
@@ -2003,7 +2035,7 @@ function _citTableSource(c) {
 
 function _citTableRow(c, isExpanded) {
   const st = (c.source_type||'').replace(/_/g,' ');
-  const entity = (c.company || c.cluster_label || c.authority || '').slice(0, 45);
+  const entity = _normalizeEntityName((c.company || c.cluster_label || c.authority || '').slice(0, 45));
   const displayIssue = getDisplayIssue(c);
   const evidSt = getEvidenceStatus(c);
   const isLimitedIssue = displayIssue === 'Unclassified';
@@ -2046,7 +2078,7 @@ function _citTableRow(c, isExpanded) {
 
 function _citMemberRow(m) {
   const st = (m.source_type||'').replace(/_/g,' ');
-  const entity = (m.company || m.authority || '').slice(0, 40);
+  const entity = _normalizeEntityName((m.company || m.authority || '').slice(0, 40));
   const displayIssue = getDisplayIssue(m);
   const evidSt = getEvidenceStatus(m);
   const ds = (m.decision_summary || m.raw_listing_summary || m.summary || '').slice(0, 110);
@@ -2504,11 +2536,12 @@ function renderFacilities() {
       const topFmLabel = sortedFm.length ? _fmLabel(sortedFm[0][0]) : '';
       const authStr = [...e.auths].join(' / ');
       const clusterStr = e.clusters.size > 1 ? ` · ${e.clusters.size} clusters` : '';
-      const nSafe = e.name.replace(/'/g, "\\'");
+      const nSafe      = e.name.replace(/'/g, "\\'");      // raw — used for filter key only
+      const displayName = _normalizeEntityName(e.name);
       // TODO(Phase 3): Facilities entity clicks navigate unconditionally — replace with
       // an entity-level focus panel that stays in context (Phase 3 rewrite).
-      return `<div class="facility-card" onclick="applyPharmaFilter({entity:'${nSafe}'}); scrollToCitationsTable()" style="cursor:pointer" title="View citations for ${e.name}">
-        <div class="facility-name">${e.name}</div>
+      return `<div class="facility-card" onclick="applyPharmaFilter({entity:'${nSafe}'}); scrollToCitationsTable()" style="cursor:pointer" title="View citations for ${displayName}">
+        <div class="facility-name">${displayName}</div>
         <div class="facility-type-label">${e.factype} &middot; ${authStr}</div>
         <div class="facility-stats">
           <span class="facility-stat">${e.total} citation${e.total!==1?'s':''}</span>
@@ -2722,14 +2755,15 @@ function alertCard(c, patterns={}) {
   const summ = (c.decision_summary || c.summary || 'Enforcement action').slice(0, 160);
   const displayIssue = getDisplayIssue(c);
   const evidSt = getEvidenceStatus(c);
-  const entity = c.company || c.entity || '';
-  const entityCopy = entity
-    ? `<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(entity)}',this)" title="Copy entity name">Copy</button>`
+  const entityRaw = c.company || c.entity || '';
+  const entity    = _normalizeEntityName(entityRaw);       // display only
+  const entityCopy = entityRaw
+    ? `<button class="cit-copy-btn" onclick="event.stopPropagation();_copyText('${_escOnclick(entityRaw)}',this)" title="Copy entity name">Copy</button>`
     : '';
   const intel = CAT_INTEL[c.category || ''] || CAT_INTEL[displayIssue] || null;
   const action = c.recommended_action || (intel ? intel.action : `Review exposure for ${displayIssue} and monitor for similar enforcement patterns across your site types.`);
   const pBadge = patterns[c.company]
-    ? `<span class="pattern-badge">Pattern: recurring ${(c.company || '').slice(0, 28)}</span>`
+    ? `<span class="pattern-badge">Pattern: recurring ${_normalizeEntityName((c.company || '').slice(0, 28))}</span>`
     : '';
   const prioBadge = prio ? `<span class="badge" title="${prio}" style="background:${isP1?'rgba(239,68,68,.1)':isP2?'rgba(251,146,60,.08)':'rgba(20,50,80,.15)'};color:${isP1?'#ef4444':isP2?'#fb923c':'#7A92A8'};border:1px solid ${isP1?'rgba(239,68,68,.25)':isP2?'rgba(251,146,60,.2)':'rgba(20,50,80,.3)'}">${_prioLabel(prio)}</span>` : '';
   const issueBadge = displayIssue !== 'Unclassified'
