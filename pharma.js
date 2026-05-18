@@ -566,8 +566,8 @@ function getTopImmediateActions(data) {
     const total = p1.length + p2.length;
     actions.push({
       priority: 'now',
-      title: `Review ${p1.length} high-priority${p2.length?' + '+p2.length+' needs-review':''} GMP enforcement cluster${total!==1?'s':''} requiring decision`,
-      why: topFm ? `Top issue: ${_fmLabel(topFm)}` : 'High-priority enforcement actions require compliance team review',
+      title: `${p1.length} high-priority${p2.length?' + '+p2.length+' needs-review':''} GMP enforcement cluster${total!==1?'s':''} identified`,
+      why: topFm ? `Top issue: ${_fmLabel(topFm)}` : 'High-priority enforcement clusters identified in current dataset',
       onclick: `applyPharmaFilter({priority:'P1'}); scrollToCitationsTable()`
     });
   } else {
@@ -589,8 +589,8 @@ function getTopImmediateActions(data) {
   if (highItems.length) {
     actions.push({
       priority: 'urgent',
-      title: `${highItems.length} high-severity action${highItems.length!==1?'s':''} require immediate attention`,
-      why: 'High severity citations indicate enforcement escalation risk — act before inspection',
+      title: `${highItems.length} high-severity enforcement signal${highItems.length!==1?'s':''} identified`,
+      why: 'High severity citations indicate enforcement escalation risk',
       onclick: `applyPharmaFilter({severity:'high'}); scrollToCitationsTable()`
     });
   }
@@ -841,10 +841,6 @@ function renderPharmaOverview() {
   // Decision-first sections
   renderStartHereActions(data);
   renderTopRiskBlocks(rankPharmaRisks(data));
-  renderAllCategoriesCollapsed(data);
-
-  // Authority activity
-  renderAuthBars('pharma-auth-bars');
 
   // Recent feed
   _renderOvFeed(data, isFiltered);
@@ -1037,7 +1033,7 @@ function renderTopRiskBlocks(risks) {
     el.innerHTML='<div class="empty"><div class="empty-text">No prioritised risk groups found — adjust filters or check AI summary coverage</div></div>';
     return;
   }
-  el.innerHTML=risks.map((r,i)=>{
+  const allBlocks=risks.map((r,i)=>{
     const intel    = CAT_INTEL[r.label];
     const meaning  = r.exampleSummary ? r.exampleSummary.slice(0,180) : (intel ? intel.implication.split('.')[0]+'.' : '');
     const action   = r.exampleAction  || (intel ? intel.action : 'Review enforcement pattern and assess site exposure');
@@ -1096,9 +1092,25 @@ function renderTopRiskBlocks(risks) {
         ${detailHtml}
       </div>
     </div>`;
-  }).join('');
+  });
+  const top3   = allBlocks.slice(0, 3);
+  const rest   = allBlocks.slice(3);
+  let html     = top3.join('');
+  if (rest.length > 0) {
+    html += `<div id="trb-extra" style="display:none">${rest.join('')}</div>`;
+    html += `<button class="btn-secondary" id="trb-show-all" onclick="_toggleAllRisks(${risks.length})" style="margin-top:10px;font-size:11px">View all ${risks.length} priority groups &darr;</button>`;
+  }
+  el.innerHTML = html;
   const countEl=document.getElementById('top-risks-count');
   if(countEl) countEl.textContent=`(${risks.length} action priority groups)`;
+}
+function _toggleAllRisks(total) {
+  const extra = document.getElementById('trb-extra');
+  const btn   = document.getElementById('trb-show-all');
+  if (!extra || !btn) return;
+  const showing = extra.style.display !== 'none';
+  extra.style.display = showing ? 'none' : '';
+  btn.textContent = showing ? `View all ${total} priority groups ↓` : '↑ Show fewer';
 }
 
 function _toggleTopRisk(card) {
@@ -2967,6 +2979,13 @@ function _setPActiveKpi(id) {
   if(pActiveKpi) { const prev=document.getElementById(pActiveKpi); if(prev) prev.classList.remove('pk-active'); }
   pActiveKpi=id;
   if(id) { const el=document.getElementById(id); if(el) el.classList.add('pk-active'); }
+}
+function pHighKpiClick() {
+  // Navigate to the grouped Top Action Priorities section — more decision-useful
+  // than dropping into a raw filtered evidence table.
+  _setPActiveKpi('pk-high');
+  const section = document.getElementById('pharma-top-risks-section');
+  if (section) section.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function pKpiClick(kpiId, dim, val) {
   pCatFilter=null;

@@ -453,9 +453,9 @@
 <div class="pharma-page p-active" id="pharma-page-overview">
 
   <div class="pharma-kpi-grid">
-    <div class="kpi-card danger" id="pk-high" onclick="pKpiClick('pk-high','priority','P1')" title="Immediate client risks: high-priority enforcement signals grouped into recurring risk themes. Click to filter evidence table to P1 records.">
-      <div class="kpi-label">Immediate Client Risks</div><div class="kpi-val text-red">—</div>
-      <div class="kpi-sub" id="pk-high-sub">Immediate review</div>
+    <div class="kpi-card danger" id="pk-high" onclick="pHighKpiClick()" title="Priority review themes: high-priority enforcement signals grouped into recurring risk patterns. Click to view grouped action priorities.">
+      <div class="kpi-label">Priority Review Themes</div><div class="kpi-val text-red">—</div>
+      <div class="kpi-sub" id="pk-high-sub">High-priority signals</div>
     </div>
     <div class="kpi-card warning" id="pk-wl" onclick="pKpiClick('pk-wl','srctype','warning_letter')" title="Filter to warning letters">
       <div class="kpi-label">Warning Letters</div><div class="kpi-val text-amber">109</div>
@@ -488,7 +488,7 @@
   </div>
 
   <!-- Top Action Priorities -->
-  <div class="pharma-section">
+  <div class="pharma-section" id="pharma-top-risks-section">
     <div class="pharma-section-hd">Top Action Priorities <span id="top-risks-count" class="section-count"></span>
       <span class="section-hd-sub">Grouped by issue type &mdash; click any block to expand evidence and recommended action</span>
     </div>
@@ -502,7 +502,7 @@
       <div style="flex:1;min-width:0">
         <div class="pharma-ai-title">ENFORCEMENT SIGNAL SUMMARY</div>
       </div>
-      <button class="cmode-inline-btn" onclick="toggleCMode()" id="cmode-inline-btn" title="Create a consultant-ready summary of current regulatory risks">&#129488; Generate client briefing</button>
+      <button class="cmode-inline-btn" onclick="toggleCMode()" id="cmode-inline-btn" title="Generate a structured action brief summarising current regulatory risks">&#129488; Generate action brief</button>
     </div>
     <div id="pharma-ai-body"></div>
     <div class="pharma-so-what" id="pharma-so-what" style="display:none"></div>
@@ -537,20 +537,6 @@
 
   <!-- Overview focus banner — rendered by renderPharmaFocusBanner() -->
   <div id="pharma-focus-banner"></div>
-
-  <!-- All Findings by Category — collapsed by default -->
-  <div class="pharma-section">
-    <div class="pharma-section-hd collapsible-hd" onclick="toggleAllCategories()">All Findings by Category <span id="pharma-cat-count"></span><span id="all-cats-toggle-icon" class="cat-toggle-icon">&#9660; Show all</span></div>
-    <div id="pharma-cats-collapsed" style="display:none">
-      <div class="cat-grid" id="pharma-cat-grid"></div>
-    </div>
-  </div>
-
-  <!-- Authority Activity -->
-  <div class="pharma-section">
-    <div class="pharma-section-hd" id="pharma-auth-bars-hd">Authority Activity</div>
-    <div id="pharma-auth-bars"></div>
-  </div>
 
   <!-- Recent Enforcement Actions -->
   <div class="pharma-section">
