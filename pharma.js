@@ -310,6 +310,18 @@ const _FM_LABELS = {
   adulteration:                 'Adulteration',
   mislabelling:                 'Mislabelling',
   insufficient_detail:          'Limited detail',
+  // Extended failure modes from live data
+  adverse_event_cluster:        'Adverse event escalation',
+  recall_mandatory:             'Recall exposure',
+  recall_voluntary:             'Voluntary recall',
+  cleaning_validation:          'Cleaning validation failure',
+  contamination_foreign:        'Foreign contamination',
+  equipment_calibration:        'Equipment calibration gap',
+  import_detention:             'Import detention',
+  inadequate_stability:         'Stability data gaps',
+  inadequate_testing:           'Inadequate testing',
+  labelling_error:              'Labelling error',
+  out_of_specification:         'Out-of-specification result',
 };
 const _AU_LABELS = {
   direct:    'Direct AU relevance',
@@ -375,7 +387,7 @@ function _normalizeEntityName(raw) {
     return pre + result + suf;
   });
 }
-function _fmLabel(fm) { return _FM_LABELS[fm] || (fm||'').replace(/_/g,' '); }
+function _fmLabel(fm) { return _FM_LABELS[fm] || (fm||'').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase()); }
 function _topFailureMode(cits) {
   const fm = {};
   cits.forEach(c => {
@@ -803,7 +815,7 @@ function renderPharmaOverview() {
   const _setKpi=(id,val)=>{const e=document.getElementById(id);if(e){const v=e.querySelector('.kpi-val');if(v){v.textContent=val;v.classList.add('kpi-updated');setTimeout(()=>v.classList.remove('kpi-updated'),600);}}};
   const _setKpiSub=(id,text)=>{const e=document.getElementById(id);if(e)e.textContent=text;};
   _setKpi('pk-high', p1Groups);
-  _setKpiSub('pk-high-sub', `${p1RawAll} high-priority citation${p1RawAll!==1?'s':''} · grouped into ${p1Groups} recurring pattern group${p1Groups!==1?'s':''}`);
+  _setKpiSub('pk-high-sub', `${p1RawAll} high-priority signal${p1RawAll!==1?'s':''} across ${p1Groups} recurring risk theme${p1Groups!==1?'s':''}`);
   _setKpi('pk-wl', wl);
   // pk-483: hide entirely when no inspection_finding records exist (scrape_fda_483() not yet wired into pipeline)
   const kpi483 = document.getElementById('pk-483');
@@ -2560,30 +2572,42 @@ function renderFacilities() {
 // Spec-specified action text is used where provided; others retained from prior work.
 const _ISSUE_ACTIONS = {
   // ── Sterility / contamination ──────────────────────────────────────────
-  'Sterility assurance':          'Review CCS ownership, EM trends, aseptic interventions, sterilisation/hold-time controls, and batch release checks.',
-  'Microbial contamination':      'Review contamination controls, microbial/chemical contamination investigations, supplier/material controls.',
-  'Chemical contamination':       'Review contamination controls, microbial/chemical contamination investigations, supplier/material controls.',
-  'Cross-contamination':          'Review contamination controls, microbial/chemical contamination investigations, supplier/material controls.',
+  'Sterility assurance':          'Review CCS ownership, EM trends, intervention qualification, and aseptic control effectiveness.',
+  'Microbial contamination':      'Review contamination controls, investigation robustness, and supplier/material microbial risk.',
+  'Chemical contamination':       'Review raw material testing, contamination source investigations, and supplier qualification controls.',
+  'Cross-contamination':          'Review cleaning validation, line clearance procedures, dedicated-equipment policy, and campaign controls.',
+  'Foreign contamination':        'Review particulate controls, visual inspection procedures, line clearance, and packaging material sourcing.',
   // ── Documentation / data ──────────────────────────────────────────────
-  'Documentation / data integrity':'Review batch records, data integrity controls, deviation documentation, and QA release checks.',
+  'Documentation / data integrity':'Review batch record discipline, GDP failures, and repeat documentation gaps.',
   // ── Supplier ──────────────────────────────────────────────────────────
-  'Supplier qualification':       'Review supplier qualification, CoA verification, identity testing, FSVP/approved supplier files.',
+  'Supplier qualification':       'Review supplier qualification controls, FSVP exposure, and incoming material oversight.',
   // ── Labelling ─────────────────────────────────────────────────────────
-  'Labelling & claims':           'Review claim substantiation, disease/therapeutic claims, label approvals, web/influencer copy.',
-  'Mislabelling':                 'Review claim substantiation, disease/therapeutic claims, label approvals, web/influencer copy.',
+  'Labelling & claims':           'Review promotional claims, substantiation evidence, and jurisdiction-specific enforcement exposure.',
+  'Mislabelling':                 'Review label reconciliation, artwork control, version management, and batch-specific proofing.',
+  'Labelling error':              'Review label reconciliation, artwork control, version management, and batch-specific proofing.',
   // ── Deviation / CAPA ──────────────────────────────────────────────────
-  'Deviation & CAPA':             'Review deviation closure, RCA quality, CAPA effectiveness, and recurrence checks.',
+  'Deviation & CAPA':             'Review recurring deviation patterns, investigation quality, and CAPA effectiveness.',
   // ── Equipment / facilities ────────────────────────────────────────────
-  'Equipment & facilities':       'Review maintenance, calibration, utilities, cleaning validation, and facility condition controls.',
-  // ── Adverse events ────────────────────────────────────────────────────
-  'Adverse event cluster':        'Review complaint handling, MDR/AE escalation, CAPA linkage, and trend review.',
-  'Ingredient safety':            'Review complaint handling, MDR/AE escalation, CAPA linkage, and trend review.',
+  'Equipment & facilities':       'Review maintenance schedules, calibration status, utilities qualification, and facility condition records.',
+  'Equipment calibration gap':    'Review calibration programme coverage, out-of-tolerance findings, and impact assessments on released batches.',
+  'Cleaning validation failure':  'Review cleaning validation protocols, worst-case product selection, acceptance criteria, and hold-time studies.',
+  // ── Adverse events / recall ───────────────────────────────────────────
+  'Adverse event escalation':     'Review complaint handling, MDR/AE escalation procedures, CAPA linkage, and signal-trend monitoring.',
+  'Ingredient safety':            'Review adverse event reporting, safety substantiation for key ingredients, and post-market surveillance.',
+  'Recall exposure':              'Assess affected product exposure and client response readiness.',
+  'Voluntary recall':             'Assess affected product exposure and client response readiness.',
+  // ── Testing / release ─────────────────────────────────────────────────
+  'Inadequate testing':           'Review testing scope, method validation status, and release-testing coverage against specification.',
+  'Out-of-specification result':  'Review OOS investigation procedure, Phase I/II workflows, invalidation controls, and product disposition records.',
+  'Stability data gaps':          'Review stability programme coverage, ICH conditions, ongoing stability commitments, and shelf-life justification.',
+  // ── Import / trade ────────────────────────────────────────────────────
+  'Import controls':              'Review supplier qualification, CoA verification, identity testing, and FSVP/approved supplier files.',
+  'Import detention':             'Review FDA import alert status, prior notice compliance, and reinspection strategy for affected product lines.',
   // ── Other classified areas ────────────────────────────────────────────
   'Computer systems validation':  'Verify 21 CFR Part 11 / Annex 11 compliance: access controls, audit trails, backup/restore, and validated-state for GxP systems.',
   'Container closure integrity':  'Review CCI testing methods and frequency for parenterals. Confirm validation status and revalidation triggers after process changes.',
   'Process validation':           'Confirm process validation is current (stages 1–3, continued process verification). Flag legacy products on pre-2011 validation approaches.',
   'Batch release':                'Review batch record completeness, release testing coverage, OOS trends, and QP/RP sign-off controls.',
-  'Import controls':              'Review supplier qualification, CoA verification, identity testing, FSVP/approved supplier files.',
   'Adulteration':                 'Review contamination controls, raw material testing, supplier qualification, and finished-product release protocols.',
 };
 
