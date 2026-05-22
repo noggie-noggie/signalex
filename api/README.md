@@ -8,6 +8,20 @@ FastAPI layer exposing regulatory intelligence data from:
 
 ---
 
+## Database setup
+
+Before starting the API on a fresh clone, apply the domain backfill migration
+so that `domain` filtering works correctly:
+
+```bash
+python migrations/backfill_vms_domain.py
+```
+
+This is safe to re-run — already-tagged rows are never modified.  
+Expected result: `domain=vms` 1117, `domain=food` 81, empty 0.
+
+---
+
 ## Start locally
 
 ```bash

@@ -124,6 +124,24 @@ python main.py --digest-now
 
 ---
 
+## Migrations
+
+One-off database migrations live in `migrations/`.  Run them in order on a fresh
+clone before starting the API or scheduler.
+
+| Script | Purpose |
+|--------|---------|
+| `migrations/backfill_vms_domain.py` | Set `domain='vms'` on all untagged signals |
+
+```bash
+python migrations/backfill_vms_domain.py
+
+# Preview without writing:
+python migrations/backfill_vms_domain.py --dry-run
+```
+
+---
+
 ## Environment variables
 
 | Variable | Required | Description |
