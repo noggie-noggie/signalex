@@ -107,3 +107,11 @@ def _print_summary(s: dict) -> None:
         print(f"   {src:30s}  {count:4d} new")
     print(f"   {'TOTAL':30s}  {s['total_new']:4d} new")
     print("=" * 55 + "\n")
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
+    )
+    run_food_pipeline()
