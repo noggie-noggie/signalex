@@ -92,6 +92,13 @@ def get_conn() -> sqlite3.Connection:
         ("inspection_risk",    "TEXT    DEFAULT ''"),
         ("is_noise",           "INTEGER DEFAULT 0"),
         ("noise_reason",       "TEXT    DEFAULT ''"),
+        # Food domain columns (v2 — safe to add, harmless for VMS/pharma rows)
+        ("domain",             "TEXT    DEFAULT ''"),
+        ("company",            "TEXT    DEFAULT ''"),
+        ("brand",              "TEXT    DEFAULT ''"),
+        ("product_name",       "TEXT    DEFAULT ''"),
+        ("allergen",           "TEXT    DEFAULT ''"),
+        ("claim",              "TEXT    DEFAULT ''"),
     ]:
         try:
             conn.execute(f"ALTER TABLE signals ADD COLUMN {col} {defn}")
@@ -148,6 +155,70 @@ def save_signal(sig: "ClassifiedSignal") -> bool:
         return inserted
     finally:
         conn.close()
+
+
+def save_food_signal(d: dict) -> bool:
+    """
+    Insert a food-domain signal from a plain dict (no ClassifiedSignal needed).
+    Returns True if inserted, False if source_id already existed.
+
+    Expected keys (all optional except source_id):
+      source_id, title, summary, url, scraped_at, severity, signal_type,
+      source_label, domain, company, brand, product_name, ingredient_name,
+      allergen, claim, product_category, recommended_action, authority
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    conn = get_conn()
+    try:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO signals (
+                source_id, authority, url, title, scraped_at,
+                ingredient_name, event_type, severity, summary,
+                source_label, product_category, signal_type,
+                recommended_action, created_at,
+                domain, company, brand, product_name, allergen, claim
+            ) VALUES (
+                :source_id, :authority, :url, :title, :scraped_at,
+                :ingredient_name, :event_type, :severity, :summary,
+                :source_label, :product_category, :signal_type,
+                :recommended_action, :created_at,
+                :domain, :company, :brand, :product_name, :allergen, :claim
+            )
+            """,
+            {
+                "source_id":         d.get("source_id", ""),
+                "authority":         d.get("authority", "food"),
+                "url":               d.get("url", ""),
+                "title":             d.get("title", ""),
+                "scraped_at":        d.get("scraped_at") or now,
+                "ingredient_name":   d.get("ingredient", "") or d.get("ingredient_name", ""),
+                "event_type":        d.get("signal_type", "") or d.get("event_type", ""),
+                "severity":          d.get("severity", ""),
+                "summary":           d.get("summary", ""),
+                "source_label":      d.get("source", "") or d.get("source_label", ""),
+                "product_category":  d.get("category", "") or d.get("product_category", ""),
+                "signal_type":       d.get("signal_type", ""),
+                "recommended_action": d.get("recommended_action", ""),
+                "created_at":        now,
+                "domain":            d.get("domain", "food"),
+                "company":           d.get("company", ""),
+                "brand":             d.get("brand", ""),
+                "product_name":      d.get("product_name", ""),
+                "allergen":          d.get("allergen", ""),
+                "claim":             d.get("claim", ""),
+            },
+        )
+        inserted = conn.execute("SELECT changes()").fetchone()[0] > 0
+        conn.commit()
+        return inserted
+    finally:
+        conn.close()
+
+
+def save_food_signals_batch(signals: list[dict]) -> int:
+    """Save a batch of food-domain dicts. Returns count of new insertions."""
+    return sum(1 for s in signals if save_food_signal(s))
 
 
 def save_signals_batch(signals: list["ClassifiedSignal"]) -> int:

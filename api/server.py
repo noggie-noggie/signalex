@@ -532,3 +532,402 @@ def ingredients():
         ]
     finally:
         conn.close()
+
+
+# ===========================================================================
+# FOOD DOMAIN ENDPOINTS
+# All food signals share domain='food' in the signals table.
+# ===========================================================================
+
+def _food_conn() -> sqlite3.Connection:
+    """Read-only connection; identical to _get_conn() — separate alias for clarity."""
+    return _get_conn()
+
+
+def _food_db_available() -> bool:
+    return _SIGNALS_DB.exists()
+
+
+def _food_columns() -> set[str]:
+    return _ensure_columns()
+
+
+# ---------------------------------------------------------------------------
+# GET /api/food/dashboard
+# ---------------------------------------------------------------------------
+
+@app.get("/api/food/dashboard")
+def food_dashboard():
+    """
+    Aggregate food-domain overview + recent signals by category.
+
+    Returns:
+      overview.signals        — total food signals
+      overview.risks          — high/critical severity food signals
+      overview.newLaunches    — new_product signals (Open Food Facts)
+      overview.ruleUpdates    — rule_update signals (FSANZ updates)
+      recentSignals           — last 20 food signals
+      recalls                 — food recall signals (fsanz_recalls)
+      ruleUpdates             — rule_update signals
+      competitorProducts      — open_food_facts product signals
+      claimSignals            — signals with a non-empty claim field
+      ingredientTrends        — top ingredients in food signals
+    """
+    if not _food_db_available():
+        empty: dict = {
+            "overview": {"signals": 0, "risks": 0, "newLaunches": 0, "ruleUpdates": 0},
+            "recentSignals": [], "recalls": [], "ruleUpdates": [],
+            "competitorProducts": [], "claimSignals": [], "ingredientTrends": [],
+            "note": "signals.db not found",
+        }
+        return empty
+
+    cols = _food_columns()
+    has_domain  = "domain"       in cols
+    has_claim   = "claim"        in cols
+    has_company = "company"      in cols
+
+    conn = _food_conn()
+    try:
+        domain_filter = "domain = 'food'" if has_domain else "source_label LIKE 'food_%' OR source_label = 'open_food_facts'"
+
+        # Overview counts
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM signals WHERE {domain_filter}"
+        ).fetchone()[0]
+
+        risks = conn.execute(
+            f"SELECT COUNT(*) FROM signals WHERE {domain_filter} "
+            f"AND severity IN ('high','critical','severe')"
+        ).fetchone()[0]
+
+        new_launches = conn.execute(
+            f"SELECT COUNT(*) FROM signals WHERE {domain_filter} "
+            f"AND (signal_type = 'new_product' OR source_label = 'open_food_facts')"
+        ).fetchone()[0]
+
+        rule_updates_count = conn.execute(
+            f"SELECT COUNT(*) FROM signals WHERE {domain_filter} "
+            f"AND (signal_type = 'rule_update' OR source_label = 'food_fsanz_updates')"
+        ).fetchone()[0]
+
+        # Recent signals (last 20)
+        recent_rows = conn.execute(
+            f"SELECT * FROM signals WHERE {domain_filter} "
+            f"ORDER BY scraped_at DESC LIMIT 20"
+        ).fetchall()
+        recent_signals = [dict(r) for r in recent_rows]
+
+        # Recalls
+        recall_rows = conn.execute(
+            f"SELECT * FROM signals WHERE {domain_filter} "
+            f"AND (signal_type = 'recall' OR source_label = 'food_fsanz_recalls') "
+            f"ORDER BY scraped_at DESC LIMIT 50"
+        ).fetchall()
+        recalls = [dict(r) for r in recall_rows]
+
+        # Rule updates
+        rule_rows = conn.execute(
+            f"SELECT * FROM signals WHERE {domain_filter} "
+            f"AND (signal_type = 'rule_update' OR source_label = 'food_fsanz_updates') "
+            f"ORDER BY scraped_at DESC LIMIT 50"
+        ).fetchall()
+        rule_updates = [dict(r) for r in rule_rows]
+
+        # Competitor products (Open Food Facts)
+        product_rows = conn.execute(
+            f"SELECT * FROM signals WHERE {domain_filter} "
+            f"AND source_label = 'open_food_facts' "
+            f"ORDER BY scraped_at DESC LIMIT 50"
+        ).fetchall()
+        competitor_products = [dict(r) for r in product_rows]
+
+        # Claim signals (have a non-empty claim field)
+        claim_rows: list = []
+        if has_claim:
+            claim_rows = conn.execute(
+                f"SELECT * FROM signals WHERE {domain_filter} "
+                f"AND claim IS NOT NULL AND claim != '' "
+                f"ORDER BY scraped_at DESC LIMIT 50"
+            ).fetchall()
+        claim_signals = [dict(r) for r in claim_rows]
+
+        # Ingredient trends (top ingredients within food domain)
+        ing_rows = conn.execute(
+            f"SELECT ingredient_name, COUNT(*) AS cnt "
+            f"FROM signals "
+            f"WHERE {domain_filter} "
+            f"AND ingredient_name IS NOT NULL AND ingredient_name != '' "
+            f"GROUP BY ingredient_name ORDER BY cnt DESC LIMIT 30"
+        ).fetchall()
+        ingredient_trends = [{"ingredient": r[0], "count": r[1]} for r in ing_rows]
+
+        return {
+            "overview": {
+                "signals":    total,
+                "risks":      risks,
+                "newLaunches": new_launches,
+                "ruleUpdates": rule_updates_count,
+            },
+            "recentSignals":      recent_signals,
+            "recalls":            recalls,
+            "ruleUpdates":        rule_updates,
+            "competitorProducts": competitor_products,
+            "claimSignals":       claim_signals,
+            "ingredientTrends":   ingredient_trends,
+        }
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# GET /api/food/signals
+# ---------------------------------------------------------------------------
+
+@app.get("/api/food/signals")
+def food_signals(
+    severity:   Optional[str] = None,
+    signal_type: Optional[str] = None,
+    source:     Optional[str] = None,
+    ingredient: Optional[str] = None,
+    allergen:   Optional[str] = None,
+    company:    Optional[str] = None,
+    limit:  int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0,  ge=0),
+):
+    """
+    List food-domain signals with optional filters. Max limit 500.
+
+    Filters: severity, signal_type, source (maps to source_label),
+             ingredient (maps to ingredient_name), allergen, company.
+    """
+    if not _food_db_available():
+        return {"total": 0, "limit": limit, "offset": offset,
+                "results": [], "note": "signals.db not found"}
+
+    cols = _food_columns()
+    has_domain  = "domain"   in cols
+    has_allergen = "allergen" in cols
+    has_company  = "company"  in cols
+
+    domain_clause = "domain = 'food'" if has_domain else \
+        "(source_label LIKE 'food_%' OR source_label = 'open_food_facts')"
+
+    where_clauses = [domain_clause]
+    params: list = []
+
+    filters = [
+        ("severity",   "severity",        True),
+        ("signal_type","signal_type",      True),
+        ("source",     "source_label",     True),
+        ("ingredient", "ingredient_name",  True),
+    ]
+    if has_allergen:
+        filters.append(("allergen", "allergen", True))
+    if has_company:
+        filters.append(("company",  "company",  True))
+
+    for param_val, col, use_like in filters:
+        value = locals().get(param_val.replace(" ", "_"))
+        if value and col in cols:
+            where_clauses.append(f"{col} LIKE ?")
+            params.append(f"%{value}%")
+
+    where_sql = "WHERE " + " AND ".join(where_clauses)
+
+    conn = _food_conn()
+    try:
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM signals {where_sql}", params
+        ).fetchone()[0]
+        rows = conn.execute(
+            f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC LIMIT ? OFFSET ?",
+            params + [limit, offset],
+        ).fetchall()
+        return {
+            "total":   total,
+            "limit":   limit,
+            "offset":  offset,
+            "results": [dict(r) for r in rows],
+        }
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# GET /api/food/products
+# ---------------------------------------------------------------------------
+
+@app.get("/api/food/products")
+def food_products(
+    brand:      Optional[str] = None,
+    ingredient: Optional[str] = None,
+    allergen:   Optional[str] = None,
+    claim:      Optional[str] = None,
+    limit:  int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0,  ge=0),
+):
+    """
+    List food product signals from Open Food Facts.
+    Filters: brand, ingredient, allergen, claim.
+    """
+    if not _food_db_available():
+        return {"total": 0, "limit": limit, "offset": offset,
+                "results": [], "note": "signals.db not found"}
+
+    cols = _food_columns()
+    has_domain  = "domain"   in cols
+    has_brand   = "brand"    in cols
+    has_allergen = "allergen" in cols
+    has_claim    = "claim"    in cols
+
+    domain_clause = "domain = 'food'" if has_domain else "source_label = 'open_food_facts'"
+    where_clauses = [domain_clause, "source_label = 'open_food_facts'"]
+    params: list = []
+
+    if brand and has_brand and "brand" in cols:
+        where_clauses.append("brand LIKE ?")
+        params.append(f"%{brand}%")
+    if ingredient and "ingredient_name" in cols:
+        where_clauses.append("ingredient_name LIKE ?")
+        params.append(f"%{ingredient}%")
+    if allergen and has_allergen:
+        where_clauses.append("allergen LIKE ?")
+        params.append(f"%{allergen}%")
+    if claim and has_claim:
+        where_clauses.append("claim LIKE ?")
+        params.append(f"%{claim}%")
+
+    where_sql = "WHERE " + " AND ".join(where_clauses)
+
+    conn = _food_conn()
+    try:
+        total = conn.execute(f"SELECT COUNT(*) FROM signals {where_sql}", params).fetchone()[0]
+        rows  = conn.execute(
+            f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC LIMIT ? OFFSET ?",
+            params + [limit, offset],
+        ).fetchall()
+        return {
+            "total":   total,
+            "limit":   limit,
+            "offset":  offset,
+            "results": [dict(r) for r in rows],
+        }
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# GET /api/food/recalls
+# ---------------------------------------------------------------------------
+
+@app.get("/api/food/recalls")
+def food_recalls(
+    allergen: Optional[str] = None,
+    severity: Optional[str] = None,
+    company:  Optional[str] = None,
+    limit:  int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0,  ge=0),
+):
+    """
+    List food recall signals from FSANZ.
+    Filters: allergen, severity, company.
+    """
+    if not _food_db_available():
+        return {"total": 0, "limit": limit, "offset": offset,
+                "results": [], "note": "signals.db not found"}
+
+    cols = _food_columns()
+    has_domain   = "domain"   in cols
+    has_allergen = "allergen" in cols
+    has_company  = "company"  in cols
+
+    domain_clause = "domain = 'food'" if has_domain else "source_label = 'food_fsanz_recalls'"
+    where_clauses = [
+        domain_clause,
+        "(signal_type = 'recall' OR source_label = 'food_fsanz_recalls')",
+    ]
+    params: list = []
+
+    if allergen and has_allergen:
+        where_clauses.append("allergen LIKE ?")
+        params.append(f"%{allergen}%")
+    if severity:
+        where_clauses.append("severity LIKE ?")
+        params.append(f"%{severity}%")
+    if company and has_company:
+        where_clauses.append("company LIKE ?")
+        params.append(f"%{company}%")
+
+    where_sql = "WHERE " + " AND ".join(where_clauses)
+
+    conn = _food_conn()
+    try:
+        total = conn.execute(f"SELECT COUNT(*) FROM signals {where_sql}", params).fetchone()[0]
+        rows  = conn.execute(
+            f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC LIMIT ? OFFSET ?",
+            params + [limit, offset],
+        ).fetchall()
+        return {
+            "total":   total,
+            "limit":   limit,
+            "offset":  offset,
+            "results": [dict(r) for r in rows],
+        }
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# GET /api/food/rules
+# ---------------------------------------------------------------------------
+
+@app.get("/api/food/rules")
+def food_rules(
+    severity: Optional[str] = None,
+    keyword:  Optional[str] = None,
+    limit:  int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0,  ge=0),
+):
+    """
+    List FSANZ food standards / regulatory update signals.
+    Filters: severity, keyword (partial match on title or summary).
+    """
+    if not _food_db_available():
+        return {"total": 0, "limit": limit, "offset": offset,
+                "results": [], "note": "signals.db not found"}
+
+    cols = _food_columns()
+    has_domain = "domain" in cols
+
+    domain_clause = "domain = 'food'" if has_domain else "source_label = 'food_fsanz_updates'"
+    where_clauses = [
+        domain_clause,
+        "(signal_type = 'rule_update' OR source_label = 'food_fsanz_updates')",
+    ]
+    params: list = []
+
+    if severity:
+        where_clauses.append("severity LIKE ?")
+        params.append(f"%{severity}%")
+    if keyword:
+        where_clauses.append("(title LIKE ? OR summary LIKE ?)")
+        params.extend([f"%{keyword}%", f"%{keyword}%"])
+
+    where_sql = "WHERE " + " AND ".join(where_clauses)
+
+    conn = _food_conn()
+    try:
+        total = conn.execute(f"SELECT COUNT(*) FROM signals {where_sql}", params).fetchone()[0]
+        rows  = conn.execute(
+            f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC LIMIT ? OFFSET ?",
+            params + [limit, offset],
+        ).fetchall()
+        return {
+            "total":   total,
+            "limit":   limit,
+            "offset":  offset,
+            "results": [dict(r) for r in rows],
+        }
+    finally:
+        conn.close()
