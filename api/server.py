@@ -282,7 +282,7 @@ def citation_by_id(cit_id: str):
 # ---------------------------------------------------------------------------
 
 _SIGNAL_PARAM_MAP: dict[str, str] = {
-    "domain":     "source_label",    # no 'domain' column; maps to source_label
+    "domain":     "domain",          # real column now — filters by domain (vms/food/pharma)
     "source":     "source_label",
     "ingredient": "ingredient_name",
     "category":   "event_type",      # no 'category' column; maps to event_type
