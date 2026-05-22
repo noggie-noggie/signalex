@@ -21,3 +21,7 @@ tinydb==4.8.0               # lightweight local JSON store (swap for Postgres la
 python-dotenv==1.0.1
 pydantic==2.9.2             # signal schema validation
 tenacity==9.0.0             # retry logic for scrapers / API calls
+
+# API
+fastapi>=0.115.0            # read-only REST API layer
+uvicorn[standard]>=0.30.0   # ASGI server
