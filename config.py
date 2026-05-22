@@ -18,8 +18,8 @@ BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
-# TinyDB flat-file store; swap DB_PATH for a connection string when migrating
-# to Postgres / SQLite.
+# Legacy TinyDB path — no longer used (persistence is in analytics/db.py → signals.db).
+# Kept as a constant so any remaining references don't cause NameError.
 DB_PATH = DATA_DIR / "signals.json"
 
 # Jinja2 template directory used by the email digest.
@@ -42,14 +42,15 @@ CLAUDE_MAX_TOKENS: int = 1024
 # ---------------------------------------------------------------------------
 SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER: str = os.environ["SMTP_USER"]
-SMTP_PASSWORD: str = os.environ["SMTP_PASSWORD"]
+SMTP_USER: str = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
 EMAIL_FROM: str = os.getenv("EMAIL_FROM", SMTP_USER)
 
 # Comma-separated list of recipient addresses, e.g. "a@co.com,b@co.com"
+# Empty string → empty list; digest/alert code checks len(EMAIL_RECIPIENTS) before sending.
 EMAIL_RECIPIENTS: list[str] = [
     addr.strip()
-    for addr in os.environ["EMAIL_RECIPIENTS"].split(",")
+    for addr in os.getenv("EMAIL_RECIPIENTS", "").split(",")
     if addr.strip()
 ]
 

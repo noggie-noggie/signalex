@@ -40,8 +40,7 @@ from scrapers.biorxiv import BiorxivScraper
 from scrapers.semantic_scholar import SemanticScholarScraper
 from classifier.claude import SignalClassifier
 from alerts.dispatcher import AlertDispatcher
-from storage.signals import SignalStore          # existing TinyDB store (unchanged)
-from analytics.db import save_signals_batch     # new SQLite store
+from analytics.db import save_signals_batch     # SQLite store (sole persistence layer)
 from analytics.feedback import build_few_shot_examples, log_accuracy_run
 
 logger = logging.getLogger(__name__)
@@ -127,10 +126,8 @@ def _unpatch_prompts(classifier: SignalClassifier) -> None:
 
 def scrape_and_classify() -> None:
     """
-    Job 1: Scrape original sources, classify with Claude, persist.
-    Unchanged from original behaviour; also saves to SQLite now.
+    Job 1: Scrape original sources (TGA/FDA/ARTG), classify with Claude, persist to SQLite.
     """
-    store      = SignalStore()
     classifier = SignalClassifier()
 
     scrapers_cfg = [
@@ -151,12 +148,8 @@ def scrape_and_classify() -> None:
             logger.info("%s returned %d raw signal(s)", scraper.authority, len(raw_signals))
 
             classified = _classify_with_feedback(classifier, raw_signals, key)
-            saved_tinydb = store.save_batch(classified)
-            saved_sqlite = save_signals_batch(classified)
-            logger.info(
-                "Saved %d (TinyDB) / %d (SQLite) new signal(s) from %s",
-                saved_tinydb, saved_sqlite, scraper.authority,
-            )
+            saved = save_signals_batch(classified)
+            logger.info("Saved %d new signal(s) from %s", saved, scraper.authority)
             all_classified.extend(classified)
 
         except Exception:
@@ -209,7 +202,6 @@ def run_full_pipeline() -> dict:
     logger.info("Full pipeline started at %s", started_at.isoformat())
 
     classifier  = SignalClassifier()
-    store       = SignalStore()
     dispatcher  = AlertDispatcher()
 
     # ------------------------------------------------------------------
@@ -265,8 +257,6 @@ def run_full_pipeline() -> dict:
 
             classified = _classify_with_feedback(classifier, raw_signals, classify_method)
             saved_sqlite = save_signals_batch(classified)
-            # Also save to TinyDB for backwards-compat
-            store.save_batch(classified)
 
             source_counts[label] = saved_sqlite
             all_classified.extend(classified)

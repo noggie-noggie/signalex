@@ -24,3 +24,7 @@ data/accuracy_log.csv
 # OS
 .DS_Store
 Thumbs.db
+
+# Reports caches (large, rebuilt from source)
+reports/ai_cache.json
+reports/enrichment_cache.json
