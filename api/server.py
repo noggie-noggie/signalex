@@ -401,6 +401,88 @@ def signals(
 
 
 # ---------------------------------------------------------------------------
+# GET /api/schema
+# ---------------------------------------------------------------------------
+
+@app.get("/api/schema")
+def schema():
+    """
+    Describe available fields, filterable params, and sample records.
+    Useful for front-end developers and API consumers building queries.
+    """
+    # Citation fields — static list; supplemented from live data if available
+    citation_fields = [
+        "id", "authority", "source_type", "company", "date", "category",
+        "severity", "summary", "url", "product_type", "country", "facility_type",
+        "priority", "issue_type", "failure_modes", "ingredient_name",
+        "ingredient_cluster", "action_required", "inspection_risk",
+        "market_significance", "australia_relevance", "australia_reasoning",
+        "relevance_to_vms", "signal_type", "ingredient_relevance",
+        "potential_impact", "trend_relevance", "sentiment",
+        "sentiment_confidence", "sentiment_reasoning", "ai_summary",
+        "clean_title", "why_it_matters", "recommended_action",
+    ]
+
+    # Signal fields — derived from actual signals.db PRAGMA (real column names)
+    signal_fields = [
+        "id", "source_id", "authority", "url", "title", "scraped_at",
+        "ingredient_name", "event_type", "severity", "summary",
+        "source_label", "product_category", "competitor_signal",
+        "market_significance", "australia_relevance", "australia_reasoning",
+        "relevance_to_vms", "signal_type", "ingredient_relevance",
+        "potential_impact", "trend_relevance", "sentiment",
+        "sentiment_confidence", "sentiment_reasoning", "created_at",
+        "digest_sent", "ai_summary", "clean_title", "why_it_matters",
+        "recommended_action", "inspection_risk", "is_noise", "noise_reason",
+    ]
+
+    citation_filters = [
+        "authority", "category", "facility_type", "source_type",
+        "severity", "company", "priority",
+    ]
+
+    signal_filters = [
+        "domain (→ source_label)",
+        "source (→ source_label)",
+        "severity",
+        "sentiment",
+        "ingredient (→ ingredient_name)",
+        "category (→ event_type)",
+    ]
+
+    # Sample citation from loaded data
+    sample_citation: dict = _citations[0] if _citations else {}
+
+    # Merge any extra keys from live data into the static citation_fields list
+    if _citations:
+        known = set(citation_fields)
+        for k in _citations[0].keys():
+            if k not in known:
+                citation_fields.append(k)
+
+    # Sample signal from SQLite
+    sample_signal: dict = {}
+    if _SIGNALS_DB.exists():
+        try:
+            conn = _get_conn()
+            row  = conn.execute("SELECT * FROM signals LIMIT 1").fetchone()
+            conn.close()
+            if row:
+                sample_signal = dict(row)
+        except Exception:
+            pass
+
+    return {
+        "citationFields":  citation_fields,
+        "signalFields":    signal_fields,
+        "citationFilters": citation_filters,
+        "signalFilters":   signal_filters,
+        "sampleCitation":  sample_citation,
+        "sampleSignal":    sample_signal,
+    }
+
+
+# ---------------------------------------------------------------------------
 # GET /api/ingredients
 # ---------------------------------------------------------------------------
 
