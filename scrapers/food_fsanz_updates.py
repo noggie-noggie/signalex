@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
@@ -37,6 +38,38 @@ _MEDIUM_KEYWORDS = [
     "consultation", "call for comment", "maximum level", "permitted",
     "approved", "rejected", "gazettal", "application",
 ]
+
+
+def _strip_html(text: str) -> str:
+    """
+    Strip HTML tags and decode entities from a text fragment.
+
+    The FSANZ RSS <description> element contains raw HTML with schema.org
+    author annotations, <span>, <time>, and other markup.  This function:
+      1. Re-parses the fragment as HTML with BeautifulSoup.
+      2. Removes <span> elements carrying schema:Person author data
+         (they contribute usernames like "nina.fahey", not signal content).
+      3. Returns collapsed plain text, capped at 1000 chars.
+    """
+    if not text or "<" not in text:
+        return text.strip()[:1000]
+
+    soup = BeautifulSoup(text, "lxml")
+
+    # Drop schema.org author annotations — they add noise (internal usernames)
+    for el in soup.find_all(attrs={"typeof": "schema:Person"}):
+        el.decompose()
+    # Drop enclosing parent spans that become empty after the above
+    for el in soup.find_all("span"):
+        if not el.get_text(strip=True):
+            el.decompose()
+
+    clean = soup.get_text(separator=" ", strip=True)
+    clean = re.sub(r"\s+", " ", clean).strip()
+    clean = clean[:1000]
+    # Remove any dangling partial tag that the 1000-char cap may have exposed
+    clean = re.sub(r"<[^>]*$", "", clean).strip()
+    return clean
 
 
 def _make_source_id(url: str, title: str) -> str:
@@ -100,10 +133,10 @@ def _scrape_rss(session: requests.Session) -> list[dict]:
         desc_el  = item.find("description")
         pub_el   = item.find("pubDate")
 
-        title   = title_el.get_text(strip=True) if title_el else ""
-        url     = link_el.get_text(strip=True)  if link_el  else _RSS_URL
-        summary = desc_el.get_text(strip=True)  if desc_el  else ""
-        pub     = _parse_rfc2822(pub_el.get_text()) if pub_el else _now_iso()
+        title   = title_el.get_text(strip=True)                        if title_el else ""
+        url     = link_el.get_text(strip=True)                         if link_el  else _RSS_URL
+        summary = _strip_html(desc_el.get_text(strip=False))           if desc_el  else ""
+        pub     = _parse_rfc2822(pub_el.get_text())                    if pub_el   else _now_iso()
 
         if not title:
             continue
