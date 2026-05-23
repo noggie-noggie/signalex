@@ -17,7 +17,7 @@ Endpoints:
     GET /api/citations              ?authority=&category=&facility_type=&source_type=&severity=&company=&priority=&limit=50&offset=0
     GET /api/citations/summary
     GET /api/citations/{id}
-    GET /api/signals                ?domain=&source=&severity=&sentiment=&ingredient=&category=&limit=50&offset=0
+    GET /api/signals                ?domain=&source=&severity=&sentiment=&ingredient=&category=&include_noise=false&include_low_quality_sources=false&limit=50&offset=0
     GET /api/signals/summary
     GET /api/ingredients
 """
@@ -343,12 +343,31 @@ def signals(
     sentiment:  Optional[str] = None,
     ingredient: Optional[str] = None,
     category:   Optional[str] = None,
+    include_noise: bool = Query(
+        default=False,
+        description="Include rows where is_noise=1. Default false (noise rows hidden).",
+    ),
+    include_low_quality_sources: bool = Query(
+        default=False,
+        description=(
+            "Include biorxiv and europe_pmc in domain=vms results. "
+            "Default false — these sources are hidden from VMS default views "
+            "due to low current relevance. Has no effect on other domains. "
+            "Passing source=biorxiv or source=europe_pmc explicitly always returns those rows."
+        ),
+    ),
     limit:  int = Query(default=50,  ge=1, le=500),
     offset: int = Query(default=0,   ge=0),
 ):
     """
-    List signals from SQLite with optional filters. Parameterized SQL only.
-    'domain' maps to source_label; 'category' maps to event_type.
+    List signals from SQLite with optional filters. Parameterised SQL only.
+
+    Default behaviour (domain=vms):
+      - Rows with is_noise=1 are excluded unless include_noise=true.
+      - biorxiv and europe_pmc are excluded unless include_low_quality_sources=true
+        or source= is set explicitly to one of those values.
+
+    food domain and /api/citations are unaffected by these flags.
     Any filter whose mapped column doesn't exist is silently ignored.
     Max limit 500.
     """
@@ -362,6 +381,7 @@ def signals(
     where_clauses: list[str] = []
     params:        list      = []
 
+    # ── Standard column filters (LIKE-based) ─────────────────────────────────
     for param_name, value in [
         ("domain",     domain),
         ("source",     source),
@@ -378,6 +398,26 @@ def signals(
             continue
         where_clauses.append(f"{col} LIKE ?")
         params.append(f"%{value}%")
+
+    # ── is_noise filter (default: hide noise rows) ────────────────────────────
+    if not include_noise and "is_noise" in columns:
+        where_clauses.append("(is_noise = 0 OR is_noise IS NULL)")
+
+    # ── Low-quality source filter (VMS default views only) ────────────────────
+    # Applied when:
+    #   • domain=vms is explicitly requested
+    #   • source= is NOT set (if the caller pins a source we always honour it)
+    #   • include_low_quality_sources is false
+    _LOW_QUALITY_SOURCES = ("biorxiv", "europe_pmc")
+    if (
+        domain == "vms"
+        and source is None
+        and not include_low_quality_sources
+        and "source_label" in columns
+    ):
+        placeholders = ", ".join("?" * len(_LOW_QUALITY_SOURCES))
+        where_clauses.append(f"source_label NOT IN ({placeholders})")
+        params.extend(_LOW_QUALITY_SOURCES)
 
     where_sql  = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
     count_sql  = f"SELECT COUNT(*) FROM signals {where_sql}"

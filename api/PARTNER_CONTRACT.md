@@ -94,8 +94,25 @@ Paginated list of signals. Filters by `domain` to separate VMS from food.
 | `sentiment` | `sentiment` | `positive`, `negative`, `neutral` | Partial match |
 | `ingredient` | `ingredient_name` | `melatonin` | Partial match |
 | `category` | `event_type` | `recall`, `safety_alert` | Partial match |
+| `include_noise` | `is_noise` | `true`, `false` | Default **false** — rows with `is_noise=1` are hidden. Pass `true` to include them. |
+| `include_low_quality_sources` | `source_label` | `true`, `false` | Default **false** — `biorxiv` and `europe_pmc` are hidden from `domain=vms` default views (see note below). Pass `true` to include them. |
 | `limit` | — | `50` | Max 500, default 50 |
 | `offset` | — | `0` | Pagination offset |
+
+**VMS default visibility note**
+
+Two sources are excluded from `domain=vms` responses by default:
+
+| Source | Reason |
+|--------|--------|
+| `biorxiv` | Current stored dataset is 100% off-topic for VMS (preprints pulled without ingredient pre-filter). |
+| `europe_pmc` | ~90% of stored rows are non-VMS molecular biology. Scraper query is being tightened. |
+
+These sources are still in the database and accessible via:
+- `?source=biorxiv` or `?source=europe_pmc` — always returns those rows regardless of other flags
+- `?domain=vms&include_low_quality_sources=true` — includes them in the normal VMS result set
+
+This flag has **no effect** on `domain=food` or other domains.
 
 **Response envelope:**
 
@@ -108,9 +125,21 @@ Paginated list of signals. Filters by `domain` to separate VMS from food.
 }
 ```
 
-**VMS example:**
+**VMS examples:**
 ```bash
+# Default — clean dashboard-ready view (no noise, no low-quality sources)
 curl "http://localhost:8000/api/signals?domain=vms&limit=10"
+
+# Include noise rows (audit / debug)
+curl "http://localhost:8000/api/signals?domain=vms&include_noise=true&limit=10"
+
+# Include biorxiv and europe_pmc
+curl "http://localhost:8000/api/signals?domain=vms&include_low_quality_sources=true&limit=10"
+
+# Explicit source lookup — always returns that source (bypasses visibility defaults)
+curl "http://localhost:8000/api/signals?source=biorxiv&limit=10"
+curl "http://localhost:8000/api/signals?source=europe_pmc&limit=10"
+
 curl "http://localhost:8000/api/signals?domain=vms&severity=high&limit=10"
 curl "http://localhost:8000/api/signals?source=pubmed&ingredient=melatonin&limit=10"
 ```
@@ -417,8 +446,10 @@ not necessarily products that launched this week. A `first_seen` column would be
 needed to distinguish genuine new launches from routine data updates.
 
 ### Food summaries may contain raw HTML
-Some `food_fsanz_updates` records have raw HTML fragments in the `summary` field
-(from the FSANZ RSS description element). Strip HTML before rendering.
+Some `food_fsanz_updates` records ingested before the HTML cleanup migration
+may have raw HTML fragments in the `summary` field. Run
+`python migrations/clean_food_fsanz_html.py` to clean existing rows. New
+records from `food_fsanz_updates` are cleaned at ingestion time.
 
 ### Signal counts grow on each pipeline run
 `INSERT OR IGNORE` deduplication is by `source_id` (URL + title hash). If a
