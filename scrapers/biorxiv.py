@@ -35,6 +35,15 @@ _VMS_TERMS = {
     "ashwagandha", "turmeric", "curcumin", "cbd", "cannabidiol", "magnesium",
     "biotin", "antioxidant", "adaptogen", "prebiotic", "microbiome",
     "nootropic", "nmn", "nad", "coenzyme q10", "coq10", "resveratrol",
+    # herbal / botanical general terms
+    "herb", "herbs", "herbal medicine", "botanicals", "botanical extract",
+    "plant extract", "medicinal plant", "traditional medicine",
+    "phytochemical", "phytochemicals", "natural product",
+    "complementary medicine", "alternative medicine",
+    # common herbal VMS ingredients
+    "echinacea", "ginkgo", "ginseng", "milk thistle", "st john's wort",
+    "kratom", "green tea extract", "berberine",
+    "st johns wort",  # apostrophe-free form for scraped text variants
 }
 
 

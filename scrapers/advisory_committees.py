@@ -32,6 +32,13 @@ _VMS_KEYWORDS = [
     "omega", "probiotic", "melatonin", "kava", "echinacea", "valerian",
     "coenzyme", "coq10", "adapto", "ashwagandha", "turmeric", "curcumin",
     "green tea", "ginkgo", "ginseng", "elderberry", "cannabidiol", "cbd",
+    # herbal / botanical general terms
+    "herb", "herbs", "herbal medicine", "botanicals", "botanical extract",
+    "plant extract", "medicinal plant",
+    "phytochemical", "phytochemicals",
+    "complementary medicine", "alternative medicine",
+    # common herbal VMS ingredients
+    "milk thistle", "st john's wort", "st johns wort", "kratom", "green tea extract", "berberine",
 ]
 
 

@@ -28,6 +28,14 @@ _VMS_KEYWORDS = [
     "botanical", "listed medicine", "ingredient", "schedule", "scheduling",
     "natural", "traditional", "nutraceutical", "dietary", "food", "kava",
     "melatonin", "omega", "probiotic", "toxicology", "safety assessment",
+    # herbal / botanical general terms
+    "herb", "herbs", "herbal medicine", "botanicals", "botanical extract",
+    "plant extract", "medicinal plant", "traditional medicine",
+    "phytochemical", "phytochemicals", "natural product",
+    "complementary medicine", "alternative medicine",
+    # common herbal VMS ingredients
+    "ashwagandha", "turmeric", "curcumin", "echinacea", "ginkgo", "ginseng",
+    "milk thistle", "st john's wort", "st johns wort", "kratom", "green tea extract", "berberine",
 ]
 
 

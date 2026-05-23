@@ -40,6 +40,14 @@ _VMS_KEYWORDS = [
     "supplement", "vitamin", "mineral", "herbal", "botanical", "dietary",
     "nutraceutical", "natural product", "probiotic", "protein powder",
     "energy drink", "weight loss", "sports nutrition",
+    # herbal / botanical general terms
+    "herb", "herbs", "herbal medicine", "botanicals", "botanical extract",
+    "plant extract", "medicinal plant", "traditional medicine",
+    "phytochemical", "phytochemicals",
+    "complementary medicine", "alternative medicine",
+    # common herbal VMS ingredients
+    "ashwagandha", "turmeric", "curcumin", "echinacea", "ginkgo", "ginseng",
+    "milk thistle", "st john's wort", "st johns wort", "kratom", "green tea extract", "berberine",
 ]
 
 
