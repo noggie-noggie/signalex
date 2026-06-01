@@ -298,6 +298,90 @@ curl "http://localhost:8000/api/food/products?claim=organic"
 curl "http://localhost:8000/api/food/products?allergen=milk"
 ```
 
+#### `POST /api/food/claims/guide`
+
+Deterministic food claim concept guidance. **v1 — no AI, no regulatory approval.**
+
+Takes a claim string, food type, and market (default: Australia) and returns structured
+guidance: risk classification, claim pathways, safer wording, wording to avoid,
+competitor product examples, related FSANZ rules, and related VMS evidence.
+
+**Request body (JSON):**
+
+```json
+{
+  "claim":     "Supports gut health",
+  "food_type": "yoghurt drink",
+  "market":    "Australia",
+  "refresh":   false
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `claim` | string | Yes | The claim text to assess |
+| `food_type` | string | Yes | Product format, e.g. "yoghurt drink", "protein bar" |
+| `market` | string | No | Default `"Australia"` |
+| `refresh` | boolean | No | Default `false`. Pass `true` to bypass cache and regenerate. |
+
+**Response fields:**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `assessment_level` | string | Always `"concept_guidance"` in v1 |
+| `cached` | boolean | `true` if response was served from cache |
+| `input` | object | Echo of the request inputs |
+| `status` | string | `"needs_product_details"`, `"high_risk_claim_detected"`, or `"ready_for_review"` |
+| `theme` | string \| null | Detected claim theme (e.g. `"gut_health"`, `"muscle_recovery"`) |
+| `claim_type` | string | `"health_claim"`, `"nutrient_content_claim"`, or `"unknown"` |
+| `risk_level` | string | `"low"`, `"medium"`, `"high"`, or `"unknown"` |
+| `risk_reasons` | array | High-risk terms detected in the claim, if any |
+| `summary` | string | Plain-English summary of the risk assessment |
+| `food_type_fit` | string | `"low"`, `"medium"`, or `"high"` — how well the food type suits the claim theme |
+| `claim_pathways` | array | Regulatory pathways available for this theme and food type |
+| `possible_ingredients` | array | Ingredients that could support the claim |
+| `missing_information` | array | Product details needed before a full assessment |
+| `safer_wording` | array | Suggested lower-risk alternative claim wordings |
+| `avoid_wording` | array | Wording that raises regulatory risk |
+| `competitor_examples` | array | Open Food Facts product signals matching the claim/theme |
+| `related_rules` | array | FSANZ regulatory update signals matching the claim/theme |
+| `related_evidence` | array | VMS domain signals (scientific evidence) matching the claim/theme |
+| `next_questions` | array | Questions to answer before proceeding |
+| `disclaimer` | string | Fixed concept-guidance disclaimer |
+
+**Examples:**
+
+```bash
+# Gut health claim on a yoghurt drink
+curl -X POST "http://localhost:8000/api/food/claims/guide" \
+  -H "Content-Type: application/json" \
+  -d '{"claim":"Supports gut health","food_type":"yoghurt drink","market":"Australia"}'
+
+# Muscle recovery claim on a protein bar
+curl -X POST "http://localhost:8000/api/food/claims/guide" \
+  -H "Content-Type: application/json" \
+  -d '{"claim":"Supports muscle recovery","food_type":"protein bar","market":"Australia"}'
+
+# High-risk therapeutic claim
+curl -X POST "http://localhost:8000/api/food/claims/guide" \
+  -H "Content-Type: application/json" \
+  -d '{"claim":"Treats IBS","food_type":"yoghurt drink","market":"Australia"}'
+
+# Force regeneration (bypass cache)
+curl -X POST "http://localhost:8000/api/food/claims/guide" \
+  -H "Content-Type: application/json" \
+  -d '{"claim":"Supports gut health","food_type":"yoghurt drink","refresh":true}'
+```
+
+**Important limitations:**
+
+- v1 is **fully deterministic** — no AI, no LLM, no Claude API calls.
+- Results are **concept guidance only**. They are not regulatory advice or approval.
+- Final claim acceptability depends on formulation, ingredient levels, serving size, nutrition panel, exact wording, evidence, and regulatory review.
+- Repeated identical requests return `cached: true` unless `refresh: true` is passed.
+- The guidance covers 10 initial themes: `gut_health`, `immunity`, `energy`, `muscle_recovery`, `hydration`, `bone_health`, `antioxidant`, `heart_health`, `low_sugar`, `high_protein`.
+- Claims not matching a known theme return `theme: null` and `risk_level: "medium"` as a conservative default.
+
 ---
 
 ### Ingredients

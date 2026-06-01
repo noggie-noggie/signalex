@@ -1,0 +1,810 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "description": "Static deterministic pathway data for food claim concept guidance. Not regulatory advice.",
+    "market": "Australia",
+    "last_updated": "2026-05-23"
+  },
+  "themes": {
+    "gut_health": {
+      "keywords": [
+        "gut", "digestive", "digestion", "microbiome", "bowel", "bloating",
+        "probiotic", "prebiotic", "fibre", "fiber", "intestinal", "intestine",
+        "stomach", "fermented", "live cultures", "flora", "microflora",
+        "lactobacillus", "bifidobacterium", "regularity", "transit", "prebiotics",
+        "probiotics", "inulin", "fos", "gos"
+      ],
+      "claim_type": "health_claim",
+      "default_risk_level": "medium",
+      "high_risk_terms": [
+        "treats ibs", "cures bloating", "repairs gut lining", "reduces gut inflammation",
+        "restores microbiome imbalance", "heals leaky gut", "treats crohn",
+        "treats colitis", "irritable bowel syndrome", "ibs", "colitis"
+      ],
+      "pathways": [
+        {
+          "name": "Probiotic route",
+          "description": "Contains specific live bacterial strains at substantiated CFU levels.",
+          "requirements": [
+            "Identified strain(s) with Lactobacillus or Bifidobacterium genus/species/strain",
+            "Minimum viable CFU count at end-of-shelf-life (not just at manufacture)",
+            "Evidence linking specific strain to claimed function",
+            "Survival through product matrix to end of shelf life"
+          ],
+          "suitable_food_types": ["yoghurt", "yoghurt drink", "kefir", "fermented drink", "capsule", "supplement"]
+        },
+        {
+          "name": "Prebiotic fibre route",
+          "description": "Contains dietary fibre that selectively feeds beneficial gut bacteria.",
+          "requirements": [
+            "Quantified fibre content per serve",
+            "Identified fibre type (inulin, FOS, GOS, PHGG, resistant starch, pectin)",
+            "Meets FSANZ high-fibre threshold if making high-fibre claim",
+            "Evidence for fermentability and prebiotic effect of selected fibre"
+          ],
+          "suitable_food_types": ["yoghurt", "bar", "cereal", "drink", "supplement", "bread", "snack"]
+        },
+        {
+          "name": "Fermented culture route",
+          "description": "Contains live fermented dairy or food cultures contributing to digestive wellbeing.",
+          "requirements": [
+            "Confirmed live cultures present at point of consumption",
+            "Culture identity declared",
+            "Claim limited to general digestive wellbeing — not specific strain health claims"
+          ],
+          "suitable_food_types": ["yoghurt", "yoghurt drink", "kefir", "cultured milk", "cheese"]
+        }
+      ],
+      "possible_ingredients": [
+        "Lactobacillus acidophilus", "Lactobacillus rhamnosus", "Lactobacillus casei",
+        "Bifidobacterium lactis", "Bifidobacterium longum", "Bifidobacterium bifidum",
+        "Live cultures", "Inulin", "Fructooligosaccharides (FOS)",
+        "Galactooligosaccharides (GOS)", "Resistant starch", "PHGG",
+        "Pectin", "Psyllium husk"
+      ],
+      "safer_wording": [
+        "Supports digestive wellbeing",
+        "Contains live cultures",
+        "Made with fermented dairy cultures",
+        "Contains fibre to support digestive wellbeing",
+        "Contains [strain name] live cultures",
+        "A source of fibre",
+        "High in fibre"
+      ],
+      "avoid_wording": [
+        "Treats IBS",
+        "Cures bloating",
+        "Repairs gut lining",
+        "Reduces gut inflammation",
+        "Restores microbiome imbalance",
+        "Heals leaky gut",
+        "Fixes digestion",
+        "Treats irritable bowel",
+        "Clinically proven to cure"
+      ],
+      "information_needed": [
+        "Probiotic strains with genus/species/strain designation",
+        "CFU count at end of shelf life (not manufacture date)",
+        "Fibre type and quantity per serve",
+        "Product matrix (dairy, plant-based, bar, drink)",
+        "Shelf life and storage conditions (live cultures must survive)",
+        "Any therapeutic or disease claims intended"
+      ],
+      "next_questions": [
+        "Does the product contain live probiotic cultures — if so, what specific strains?",
+        "What is the CFU count at end of shelf life?",
+        "Does the product contain added prebiotic fibre — if so, what type and how much per serve?",
+        "Is the product dairy-based, plant-based, or other?",
+        "What is the intended claim — general digestive wellbeing or a specific function?"
+      ]
+    },
+
+    "immunity": {
+      "keywords": [
+        "immune", "immunity", "defence", "defense", "immune system", "immune support",
+        "immune health", "immune function", "vitamin c", "zinc", "vitamin d",
+        "immune boost", "resist", "resilience", "wellbeing"
+      ],
+      "claim_type": "health_claim",
+      "default_risk_level": "medium",
+      "high_risk_terms": [
+        "prevents colds", "fights infection", "antiviral", "antibacterial",
+        "cures illness", "kills virus", "kills bacteria", "prevents flu",
+        "prevents covid", "treats infection", "boosts immunity", "supercharges immune"
+      ],
+      "pathways": [
+        {
+          "name": "Vitamin C route",
+          "description": "Vitamin C contributes to the normal function of the immune system.",
+          "requirements": [
+            "Minimum 15% RDI vitamin C per serve for 'source of' claim",
+            "Minimum 30% RDI per serve for 'good source of' claim",
+            "Declared on nutrition information panel",
+            "FSANZ Standard 1.2.7 / 1.3.2 compliance"
+          ],
+          "suitable_food_types": ["drink", "juice", "smoothie", "bar", "snack", "supplement", "yoghurt"]
+        },
+        {
+          "name": "Zinc route",
+          "description": "Zinc contributes to the normal function of the immune system.",
+          "requirements": [
+            "Minimum 25% RDI zinc per serve",
+            "Form of zinc with acceptable bioavailability",
+            "Declared on nutrition information panel"
+          ],
+          "suitable_food_types": ["supplement", "bar", "fortified food", "cereal"]
+        },
+        {
+          "name": "Vitamin D route",
+          "description": "Vitamin D contributes to the normal function of the immune system.",
+          "requirements": [
+            "Minimum 25% RDI vitamin D per serve",
+            "Stability data for vitamin D in product matrix",
+            "Declared on nutrition information panel"
+          ],
+          "suitable_food_types": ["supplement", "fortified milk", "fortified drink", "yoghurt"]
+        },
+        {
+          "name": "Probiotic route",
+          "description": "Specific probiotic strains with evidence for immune modulation.",
+          "requirements": [
+            "Strain-specific evidence for immune function",
+            "CFU count at end of shelf life",
+            "Claim linked to specific strain, not general probiotics"
+          ],
+          "suitable_food_types": ["yoghurt", "yoghurt drink", "fermented drink", "supplement"]
+        }
+      ],
+      "possible_ingredients": [
+        "Vitamin C (ascorbic acid)", "Zinc (gluconate, citrate, picolinate)",
+        "Vitamin D3 (cholecalciferol)", "Selenium", "Elderberry extract",
+        "Echinacea extract", "Probiotics (strain-specific)"
+      ],
+      "safer_wording": [
+        "Supports immune health",
+        "Contains vitamin C to support normal immune function",
+        "A source of zinc, which supports normal immune function",
+        "Contains vitamin D to support immune health"
+      ],
+      "avoid_wording": [
+        "Prevents colds",
+        "Fights infection",
+        "Antiviral",
+        "Cures illness",
+        "Kills viruses",
+        "Boosts your immune system",
+        "Supercharges immunity",
+        "Prevents flu"
+      ],
+      "information_needed": [
+        "Vitamin C, zinc, vitamin D content per serve",
+        "% RDI of key nutrients per serve",
+        "Nutrition information panel",
+        "Any therapeutic intent or disease prevention claims planned"
+      ],
+      "next_questions": [
+        "What micronutrients does the product contain that are relevant to immune function?",
+        "What is the % RDI of vitamin C, zinc, or vitamin D per serve?",
+        "Is the intended claim nutrient-based or structure/function based?",
+        "Are any specific pathogens or diseases referenced in the intended claim?"
+      ]
+    },
+
+    "energy": {
+      "keywords": [
+        "energy", "energise", "energize", "vitality", "alertness", "fatigue",
+        "tiredness", "mental focus", "mental energy", "b vitamins", "iron",
+        "magnesium", "caffeine", "sustained energy", "slow release", "fuel"
+      ],
+      "claim_type": "health_claim",
+      "default_risk_level": "medium",
+      "high_risk_terms": [
+        "treats fatigue", "cures tiredness", "treats anaemia", "treats iron deficiency",
+        "cures low energy", "treats chronic fatigue", "stimulant", "speeds metabolism"
+      ],
+      "pathways": [
+        {
+          "name": "B vitamins route",
+          "description": "B vitamins (B1, B2, B3, B5, B6, B12, folate) contribute to normal energy-yielding metabolism.",
+          "requirements": [
+            "Minimum 25% RDI per serve for at least one B vitamin",
+            "Declared on nutrition information panel",
+            "Claim tied to metabolic function, not subjective energy sensation"
+          ],
+          "suitable_food_types": ["drink", "bar", "cereal", "supplement", "yoghurt", "snack"]
+        },
+        {
+          "name": "Iron route",
+          "description": "Iron contributes to normal energy-yielding metabolism and reduction of tiredness.",
+          "requirements": [
+            "Minimum 25% RDI iron per serve",
+            "Form of iron with good bioavailability",
+            "Declared on nutrition information panel"
+          ],
+          "suitable_food_types": ["fortified cereal", "supplement", "fortified drink", "bar"]
+        },
+        {
+          "name": "Low GI / sustained energy route",
+          "description": "Carbohydrates with low glycaemic index providing sustained energy release.",
+          "requirements": [
+            "GI testing of product by accredited laboratory",
+            "Low GI certification or supporting GI data",
+            "Claim framed around slow energy release, not boosting energy"
+          ],
+          "suitable_food_types": ["bar", "cereal", "bread", "snack", "drink"]
+        }
+      ],
+      "possible_ingredients": [
+        "Vitamin B1 (thiamine)", "Vitamin B2 (riboflavin)", "Vitamin B3 (niacin)",
+        "Vitamin B5 (pantothenic acid)", "Vitamin B6 (pyridoxine)", "Vitamin B12",
+        "Folate", "Iron", "Magnesium", "Oats", "Wholegrains"
+      ],
+      "safer_wording": [
+        "Contains B vitamins to support normal energy metabolism",
+        "A source of iron, which contributes to normal energy metabolism",
+        "Slow-release energy from wholegrains",
+        "Provides sustained energy"
+      ],
+      "avoid_wording": [
+        "Gives you energy",
+        "Cures tiredness",
+        "Treats fatigue",
+        "Boosts energy levels",
+        "Fights low energy",
+        "Treats anaemia"
+      ],
+      "information_needed": [
+        "B vitamin content and % RDI per serve",
+        "Iron content and % RDI per serve",
+        "Carbohydrate source and GI data if relevant",
+        "Nutrition information panel"
+      ],
+      "next_questions": [
+        "Does the product contain B vitamins — which ones and at what % RDI per serve?",
+        "Does the product contain iron — in what form and at what level?",
+        "Is the energy claim based on nutrient content or carbohydrate GI?",
+        "Is the target audience a general healthy population or a specific group?"
+      ]
+    },
+
+    "muscle_recovery": {
+      "keywords": [
+        "muscle", "recovery", "strength", "protein", "active", "exercise", "workout",
+        "post workout", "post-workout", "resistance", "training", "lean muscle",
+        "muscle growth", "muscle maintenance", "amino acid", "bcaa", "creatine",
+        "rebuild", "repair", "electrolyte", "magnesium"
+      ],
+      "claim_type": "health_claim",
+      "default_risk_level": "medium",
+      "high_risk_terms": [
+        "repairs muscle damage", "treats injury", "speeds injury recovery",
+        "prevents muscle loss", "treats muscle disease", "cures soreness",
+        "anabolic", "builds muscle mass", "rapid muscle gain", "muscle tear"
+      ],
+      "pathways": [
+        {
+          "name": "Protein route",
+          "description": "Protein contributes to the maintenance and growth of muscle mass.",
+          "requirements": [
+            "Minimum 10g protein per serve for meaningful claim",
+            "Complete amino acid profile or declared essential amino acids",
+            "High-quality protein source (PDCAAS or DIAAS score)",
+            "Declared on nutrition information panel"
+          ],
+          "suitable_food_types": [
+            "protein bar", "protein shake", "protein drink", "yoghurt",
+            "yoghurt drink", "snack", "supplement"
+          ]
+        },
+        {
+          "name": "Magnesium route",
+          "description": "Magnesium contributes to normal muscle function.",
+          "requirements": [
+            "Minimum 25% RDI magnesium per serve",
+            "Form with good bioavailability (citrate, glycinate, malate)",
+            "Declared on nutrition information panel"
+          ],
+          "suitable_food_types": ["supplement", "bar", "drink", "fortified food"]
+        },
+        {
+          "name": "Electrolyte route",
+          "description": "Electrolytes (sodium, potassium, magnesium) support normal muscle function during exercise.",
+          "requirements": [
+            "Declared sodium, potassium, magnesium levels",
+            "Context of use framed around active/sporting consumers",
+            "Not framed as treatment for cramping or injury"
+          ],
+          "suitable_food_types": [
+            "sports drink", "electrolyte drink", "hydration drink", "tablet", "powder"
+          ]
+        }
+      ],
+      "possible_ingredients": [
+        "Whey protein", "Whey protein isolate", "Pea protein", "Soy protein",
+        "Collagen peptides", "Casein protein", "Magnesium (citrate, glycinate)",
+        "Sodium", "Potassium", "BCAAs (leucine, isoleucine, valine)", "Creatine monohydrate"
+      ],
+      "safer_wording": [
+        "High in protein",
+        "Supports active lifestyles",
+        "Protein contributes to muscle maintenance",
+        "Contains magnesium which contributes to normal muscle function",
+        "A source of protein for muscle maintenance and growth"
+      ],
+      "avoid_wording": [
+        "Repairs muscle damage",
+        "Treats injury",
+        "Speeds injury recovery",
+        "Prevents muscle loss",
+        "Builds muscle mass fast",
+        "Anabolic",
+        "Rapid muscle gain"
+      ],
+      "information_needed": [
+        "Protein content and source per serve",
+        "Amino acid profile (essential amino acids)",
+        "Magnesium content and form",
+        "Electrolyte levels (sodium, potassium) if relevant",
+        "Target consumer — general population or active/sporting?"
+      ],
+      "next_questions": [
+        "How many grams of protein per serve?",
+        "What is the protein source (whey, pea, soy, collagen)?",
+        "Does the product contain added electrolytes or magnesium?",
+        "Is the target consumer an active or sporting individual?",
+        "Is there any therapeutic intent (injury recovery, disease treatment)?"
+      ]
+    },
+
+    "hydration": {
+      "keywords": [
+        "hydration", "hydrate", "hydrating", "electrolyte", "thirst", "fluid",
+        "water", "replenish", "rehydrate", "isotonic", "sports", "sweat",
+        "sodium", "potassium", "magnesium"
+      ],
+      "claim_type": "health_claim",
+      "default_risk_level": "low",
+      "high_risk_terms": [
+        "treats dehydration", "cures dehydration", "treats heat stroke",
+        "medical hydration", "oral rehydration therapy", "clinical rehydration"
+      ],
+      "pathways": [
+        {
+          "name": "Electrolyte replenishment route",
+          "description": "Product contains electrolytes lost through sweat to support hydration during exercise.",
+          "requirements": [
+            "Declared electrolyte levels (sodium, potassium, magnesium)",
+            "Claim framed in context of exercise or physical activity",
+            "Osmolality data for isotonic claims"
+          ],
+          "suitable_food_types": [
+            "sports drink", "electrolyte drink", "hydration drink",
+            "hydration tablet", "coconut water", "beverage"
+          ]
+        },
+        {
+          "name": "Water content route",
+          "description": "High water content food contributing to daily fluid intake.",
+          "requirements": [
+            "No specific nutrient required",
+            "Claim framed generally — contributes to fluid intake",
+            "Not making disease/medical claims"
+          ],
+          "suitable_food_types": ["drink", "beverage", "water", "juice", "smoothie"]
+        }
+      ],
+      "possible_ingredients": [
+        "Sodium (chloride)", "Potassium (chloride, citrate)",
+        "Magnesium (chloride)", "Calcium", "Coconut water",
+        "Electrolyte blend"
+      ],
+      "safer_wording": [
+        "Helps maintain hydration during exercise",
+        "Replenishes electrolytes lost through sweat",
+        "Supports fluid balance",
+        "Contains electrolytes"
+      ],
+      "avoid_wording": [
+        "Treats dehydration",
+        "Cures dehydration",
+        "Medical rehydration",
+        "Clinical hydration therapy"
+      ],
+      "information_needed": [
+        "Sodium, potassium, magnesium content per serve",
+        "Product format (drink, tablet, powder, ready-to-drink)",
+        "Osmolality (for isotonic claims)",
+        "Intended use context (exercise, general hydration)"
+      ],
+      "next_questions": [
+        "What electrolytes does the product contain and at what levels?",
+        "Is the product intended for use during or after exercise?",
+        "Is an isotonic claim intended?",
+        "What is the sodium content per 100mL?"
+      ]
+    },
+
+    "bone_health": {
+      "keywords": [
+        "bone", "bones", "calcium", "vitamin d", "osteoporosis", "bone density",
+        "bone strength", "skeletal", "joint", "teeth", "dental", "phosphorus",
+        "magnesium", "vitamin k", "bone health"
+      ],
+      "claim_type": "health_claim",
+      "default_risk_level": "medium",
+      "high_risk_terms": [
+        "treats osteoporosis", "cures osteoporosis", "prevents bone fracture",
+        "reverses bone loss", "treats bone disease", "prevents osteoporosis"
+      ],
+      "pathways": [
+        {
+          "name": "Calcium route",
+          "description": "Calcium is needed for normal maintenance of bones and teeth.",
+          "requirements": [
+            "Minimum 25% RDI calcium per serve (250mg)",
+            "Bioavailable form of calcium",
+            "Declared on nutrition information panel",
+            "Vitamin D co-presence improves claim credibility"
+          ],
+          "suitable_food_types": [
+            "milk", "dairy", "yoghurt", "cheese", "fortified drink",
+            "plant-based milk", "supplement"
+          ]
+        },
+        {
+          "name": "Vitamin D route",
+          "description": "Vitamin D is needed for normal absorption and utilisation of calcium and normal maintenance of bones.",
+          "requirements": [
+            "Minimum 25% RDI vitamin D per serve",
+            "Stability data for product matrix",
+            "Often used in conjunction with calcium claim"
+          ],
+          "suitable_food_types": ["fortified milk", "yoghurt", "supplement", "fortified cereal"]
+        }
+      ],
+      "possible_ingredients": [
+        "Calcium (carbonate, citrate, lactate)",
+        "Vitamin D3 (cholecalciferol)",
+        "Vitamin K2 (menaquinone)",
+        "Magnesium", "Phosphorus", "Zinc"
+      ],
+      "safer_wording": [
+        "Calcium is needed for the maintenance of normal bones",
+        "Contains calcium and vitamin D to support bone health",
+        "A good source of calcium"
+      ],
+      "avoid_wording": [
+        "Treats osteoporosis",
+        "Prevents bone fracture",
+        "Reverses bone loss",
+        "Cures brittle bones"
+      ],
+      "information_needed": [
+        "Calcium content and % RDI per serve",
+        "Vitamin D content if fortified",
+        "Nutrition information panel",
+        "Product matrix and bioavailability of calcium form"
+      ],
+      "next_questions": [
+        "How much calcium is in the product per serve?",
+        "Is vitamin D included to support calcium absorption?",
+        "What form of calcium is used?",
+        "Is the product dairy or plant-based?"
+      ]
+    },
+
+    "antioxidant": {
+      "keywords": [
+        "antioxidant", "antioxidants", "free radical", "free radicals", "oxidative stress",
+        "polyphenol", "polyphenols", "flavonoid", "resveratrol", "lycopene",
+        "vitamin e", "vitamin c", "selenium", "beta carotene", "carotenoid",
+        "green tea", "berry", "berries", "acai", "blueberry", "superfood"
+      ],
+      "claim_type": "health_claim",
+      "default_risk_level": "low",
+      "high_risk_terms": [
+        "prevents cancer", "treats cancer", "anti-cancer", "prevents disease",
+        "reverses ageing", "reverses aging", "reverses oxidative damage",
+        "treats chronic disease", "slows ageing"
+      ],
+      "pathways": [
+        {
+          "name": "Vitamin E route",
+          "description": "Vitamin E contributes to the protection of cells from oxidative stress.",
+          "requirements": [
+            "Minimum 25% RDI vitamin E per serve",
+            "Declared on nutrition information panel"
+          ],
+          "suitable_food_types": ["supplement", "bar", "fortified food", "oil", "drink"]
+        },
+        {
+          "name": "Vitamin C route",
+          "description": "Vitamin C contributes to the protection of cells from oxidative stress.",
+          "requirements": [
+            "Minimum 15% RDI vitamin C per serve",
+            "Declared on nutrition information panel"
+          ],
+          "suitable_food_types": ["drink", "juice", "bar", "supplement", "yoghurt"]
+        },
+        {
+          "name": "Selenium route",
+          "description": "Selenium contributes to the protection of cells from oxidative stress.",
+          "requirements": [
+            "Minimum 25% RDI selenium per serve",
+            "Bioavailable form of selenium"
+          ],
+          "suitable_food_types": ["supplement", "fortified food", "bar"]
+        },
+        {
+          "name": "Polyphenol / botanical route",
+          "description": "Products high in polyphenols with general antioxidant characterisation.",
+          "requirements": [
+            "ORAC or FRAP antioxidant capacity data",
+            "Identified polyphenol source",
+            "Claim limited to general antioxidant characterisation, not disease prevention"
+          ],
+          "suitable_food_types": ["juice", "drink", "bar", "supplement", "tea", "coffee"]
+        }
+      ],
+      "possible_ingredients": [
+        "Vitamin E (tocopherol)", "Vitamin C (ascorbic acid)",
+        "Selenium", "Beta-carotene", "Lycopene",
+        "Green tea extract (EGCG)", "Resveratrol",
+        "Acai extract", "Blueberry extract", "Pomegranate extract"
+      ],
+      "safer_wording": [
+        "Contains antioxidants",
+        "A source of vitamin C, which helps protect cells from oxidative stress",
+        "Rich in antioxidants",
+        "Contains polyphenols"
+      ],
+      "avoid_wording": [
+        "Prevents cancer",
+        "Treats cancer",
+        "Reverses ageing",
+        "Prevents chronic disease",
+        "Slows ageing"
+      ],
+      "information_needed": [
+        "Vitamin E, C, selenium content and % RDI per serve",
+        "Polyphenol source and estimated content",
+        "ORAC or antioxidant capacity data if available",
+        "Any disease prevention intent"
+      ],
+      "next_questions": [
+        "What is the primary antioxidant source in the product?",
+        "Does the product contain vitamin C, E, or selenium at meaningful levels?",
+        "Is antioxidant capacity characterised (ORAC or similar)?",
+        "Is there any disease prevention intent in the claim?"
+      ]
+    },
+
+    "heart_health": {
+      "keywords": [
+        "heart", "cardiovascular", "cholesterol", "ldl", "hdl", "blood pressure",
+        "omega 3", "omega-3", "dha", "epa", "plant sterol", "beta glucan",
+        "heart health", "cardiac", "circulatory", "blood lipid", "triglyceride"
+      ],
+      "claim_type": "health_claim",
+      "default_risk_level": "high",
+      "high_risk_terms": [
+        "treats heart disease", "prevents heart attack", "cures cardiovascular disease",
+        "treats hypertension", "lowers blood pressure", "reduces heart disease risk",
+        "prevents stroke", "unclogs arteries", "treats angina"
+      ],
+      "pathways": [
+        {
+          "name": "Plant sterol route",
+          "description": "Plant sterols reduce blood cholesterol — well-established FSANZ-approved pathway.",
+          "requirements": [
+            "Minimum 0.8g plant sterols per serve",
+            "Product complies with FSANZ Standard 1.2.7 Schedule 4",
+            "Mandated advisory statement for specific populations",
+            "Claim wording must follow permitted format"
+          ],
+          "suitable_food_types": ["spread", "margarine", "yoghurt", "milk", "fortified product"]
+        },
+        {
+          "name": "Beta-glucan route",
+          "description": "Oat beta-glucan reduces blood cholesterol — FSANZ-approved claim.",
+          "requirements": [
+            "Minimum 3g beta-glucan per day from oat sources",
+            "Product context is oat-based food",
+            "Claim wording follows FSANZ permitted format"
+          ],
+          "suitable_food_types": ["oat cereal", "oat bar", "oat drink", "porridge"]
+        },
+        {
+          "name": "Omega-3 route",
+          "description": "DHA and EPA contribute to normal heart function.",
+          "requirements": [
+            "Minimum 250mg combined EPA+DHA per serve for general heart health reference",
+            "Higher amounts for lipid-related claims",
+            "Source (fish oil, algal oil) declared"
+          ],
+          "suitable_food_types": [
+            "supplement", "fortified food", "fish", "yoghurt", "drink", "bar"
+          ]
+        }
+      ],
+      "possible_ingredients": [
+        "Plant sterols / phytosterols", "Oat beta-glucan",
+        "Omega-3 fatty acids (EPA, DHA)", "Soluble fibre",
+        "Almonds", "Walnuts", "Psyllium"
+      ],
+      "safer_wording": [
+        "Contains plant sterols which have been shown to reduce blood cholesterol",
+        "Oat beta-glucan helps reduce cholesterol when consumed as part of a balanced diet",
+        "Contains omega-3 DHA which contributes to the maintenance of normal blood triglyceride levels"
+      ],
+      "avoid_wording": [
+        "Prevents heart attack",
+        "Treats heart disease",
+        "Lowers blood pressure",
+        "Cures cardiovascular disease",
+        "Unclogs arteries",
+        "Prevents stroke"
+      ],
+      "information_needed": [
+        "Plant sterol level per serve (if applicable)",
+        "Beta-glucan level per serve (if applicable)",
+        "EPA and DHA content per serve (if applicable)",
+        "Full product formulation and format",
+        "Any cardiovascular disease prevention intent"
+      ],
+      "next_questions": [
+        "Does the product contain plant sterols — at what level per serve?",
+        "Is the product oat-based and does it contain beta-glucan?",
+        "What is the EPA and DHA content per serve?",
+        "Is any blood pressure or cardiovascular disease claim intended?",
+        "Has the product been reviewed by a food regulatory expert for heart health claims?"
+      ]
+    },
+
+    "low_sugar": {
+      "keywords": [
+        "low sugar", "no sugar", "sugar free", "reduced sugar", "no added sugar",
+        "less sugar", "lower sugar", "unsweetened", "naturally sweetened",
+        "no sweetener", "without sugar", "diabetic friendly", "low gi"
+      ],
+      "claim_type": "nutrient_content_claim",
+      "default_risk_level": "low",
+      "high_risk_terms": [
+        "diabetic approved", "suitable for diabetics", "treats diabetes",
+        "controls blood sugar", "manages insulin", "glycaemic control"
+      ],
+      "pathways": [
+        {
+          "name": "No sugar claim route",
+          "description": "Product contains no sugars as defined by FSANZ.",
+          "requirements": [
+            "Sugars content ≤0.5g per 100g/100mL (FSANZ Standard 1.2.7)",
+            "No added sugars of any kind",
+            "Nutrition information panel must display sugars row"
+          ],
+          "suitable_food_types": ["drink", "bar", "yoghurt", "snack", "cereal", "sauce", "packaged food"]
+        },
+        {
+          "name": "Reduced sugar claim route",
+          "description": "Product contains at least 25% less sugar than reference product.",
+          "requirements": [
+            "At least 25% reduction compared to reference product",
+            "Reference product clearly identified",
+            "Absolute reduction of at least 5g per 100g or 2.5g per 100mL",
+            "Claim format: 'X% less sugar than [reference]'"
+          ],
+          "suitable_food_types": ["drink", "yoghurt", "bar", "cereal", "sauce"]
+        },
+        {
+          "name": "No added sugar claim route",
+          "description": "No sugars or ingredients containing sugars added during manufacture.",
+          "requirements": [
+            "No added sugars of any type (including fruit juice concentrates, honey, syrups)",
+            "Natural sugars may still be present (e.g. from fruit, dairy)",
+            "Claim: 'No added sugar' per FSANZ Standard 1.2.7"
+          ],
+          "suitable_food_types": ["fruit product", "yoghurt", "juice", "dairy", "nut butter"]
+        }
+      ],
+      "possible_ingredients": [
+        "Stevia (steviol glycosides)", "Erythritol", "Monk fruit extract",
+        "Allulose", "Inulin (as sweetener)", "Thaumatin"
+      ],
+      "safer_wording": [
+        "No added sugar",
+        "Sugar free",
+        "Contains no added sugars",
+        "Reduced sugar"
+      ],
+      "avoid_wording": [
+        "Diabetic approved",
+        "Suitable for diabetics",
+        "Controls blood sugar",
+        "Manages insulin",
+        "Glycaemic control"
+      ],
+      "information_needed": [
+        "Sugars content per 100g or 100mL",
+        "Nutrition information panel",
+        "List of all sweeteners used",
+        "Any added sugars including fruit juice concentrates, honey, syrups"
+      ],
+      "next_questions": [
+        "What is the total sugars content per 100g or 100mL?",
+        "Are any added sugars present — including honey, syrups, or fruit juice concentrates?",
+        "Does the product use non-nutritive sweeteners — if so, which ones?",
+        "Is any blood glucose or diabetes claim intended?"
+      ]
+    },
+
+    "high_protein": {
+      "keywords": [
+        "high protein", "protein rich", "protein packed", "good source of protein",
+        "protein", "whey", "casein", "pea protein", "soy protein", "amino acid",
+        "complete protein", "lean protein", "plant protein", "protein content"
+      ],
+      "claim_type": "nutrient_content_claim",
+      "default_risk_level": "low",
+      "high_risk_terms": [
+        "anabolic", "rapid muscle gain", "replaces meal for weight loss treatment",
+        "treats malnutrition", "medical nutrition", "clinical nutrition"
+      ],
+      "pathways": [
+        {
+          "name": "High protein claim route",
+          "description": "Product meets FSANZ threshold for 'high in protein' claim.",
+          "requirements": [
+            "≥10g protein per serve (solid food) or ≥5g per serve (beverage)",
+            "Minimum 20% energy from protein per serve",
+            "Declared on nutrition information panel",
+            "FSANZ Standard 1.2.7 Schedule 4 compliance"
+          ],
+          "suitable_food_types": [
+            "protein bar", "protein shake", "protein drink", "yoghurt",
+            "meat product", "dairy product", "legume product", "supplement"
+          ]
+        },
+        {
+          "name": "Source of protein claim route",
+          "description": "Product is a source of protein — lower threshold than 'high protein'.",
+          "requirements": [
+            "≥5g protein per serve (solid food) or ≥2.5g per serve (beverage)",
+            "Minimum 10% energy from protein per serve",
+            "Declared on nutrition information panel"
+          ],
+          "suitable_food_types": ["bar", "snack", "yoghurt", "cereal", "drink"]
+        }
+      ],
+      "possible_ingredients": [
+        "Whey protein concentrate", "Whey protein isolate",
+        "Pea protein isolate", "Soy protein isolate",
+        "Casein protein", "Egg white protein",
+        "Hemp protein", "Brown rice protein"
+      ],
+      "safer_wording": [
+        "High in protein",
+        "A good source of protein",
+        "Contains [Xg] protein per serve",
+        "Rich in protein"
+      ],
+      "avoid_wording": [
+        "Anabolic",
+        "Rapid muscle gain",
+        "Medical nutrition",
+        "Replaces meals for medical weight management"
+      ],
+      "information_needed": [
+        "Protein content per serve in grams",
+        "% energy from protein per serve",
+        "Protein source(s)",
+        "Nutrition information panel"
+      ],
+      "next_questions": [
+        "How many grams of protein are in the product per serve?",
+        "What percentage of energy per serve comes from protein?",
+        "What is the protein source?",
+        "Is the product a solid food, beverage, or meal replacement?"
+      ]
+    }
+  }
+}

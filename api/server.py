@@ -20,6 +20,7 @@ Endpoints:
     GET /api/signals                ?domain=&source=&severity=&sentiment=&ingredient=&category=&include_noise=false&include_low_quality_sources=false&limit=50&offset=0
     GET /api/signals/summary
     GET /api/ingredients
+    POST /api/food/claims/guide     Deterministic food claim concept guidance (v1, no AI)
 """
 
 from __future__ import annotations
@@ -32,6 +33,13 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+# Food claim guidance services (deterministic, no AI)
+from services.food_claims.classifier import classify_claim
+from services.food_claims.pathways   import get_claim_pathways
+from services.food_claims.retriever  import retrieve_supporting_signals
+from services.food_claims.cache      import make_input_hash, get_cached_guidance, save_guidance
 
 # ---------------------------------------------------------------------------
 # Paths — resolved relative to the repo root (one level above this file)
@@ -572,6 +580,135 @@ def ingredients():
         ]
     finally:
         conn.close()
+
+
+# ===========================================================================
+# FOOD CLAIM GUIDANCE  (v1 — deterministic, no AI)
+# ===========================================================================
+
+_CLAIM_DISCLAIMER = (
+    "Concept guidance only. Final claim support depends on formulation, "
+    "ingredient levels, serving size, nutrition panel, exact wording, "
+    "evidence and regulatory review."
+)
+
+_CLAIM_SUMMARY_TEMPLATES: dict[str, str] = {
+    "low":    (
+        "This claim theme appears lower-risk and aligns with common nutrient "
+        "content or general wellbeing claim categories. Review the pathways below "
+        "to confirm your product meets the relevant ingredient thresholds."
+    ),
+    "medium": (
+        "This claim theme is in common use but requires substantiation. "
+        "Review the recommended pathways and ensure the product formulation "
+        "supports the specific claim before use."
+    ),
+    "high":   (
+        "One or more high-risk or therapeutic terms have been detected in this claim. "
+        "Claims of this type may be classified as therapeutic or disease claims under "
+        "Australian food law, requiring a different regulatory pathway (e.g. TGA listed "
+        "medicine or prescription product). Immediate reformulation of the claim wording "
+        "is strongly recommended before any use."
+    ),
+    "unknown": (
+        "The claim could not be matched to a recognised theme. "
+        "Please provide more detail about the intended health benefit."
+    ),
+}
+
+
+class FoodClaimRequest(BaseModel):
+    claim:      str
+    food_type:  str
+    market:     str   = "Australia"
+    refresh:    bool  = False
+
+
+@app.post("/api/food/claims/guide")
+def food_claim_guide(body: FoodClaimRequest):
+    """
+    v1 Food Claim Concept Guidance — deterministic, no AI.
+
+    Takes a claim, food_type, and market (default Australia) and returns
+    structured concept guidance: risk level, claim pathways, safer wording,
+    competitor examples, related FSANZ rules, and related VMS evidence.
+
+    Responses are cached by input hash. Pass refresh=true to regenerate.
+    """
+    claim     = (body.claim     or "").strip()
+    food_type = (body.food_type or "").strip()
+    market    = (body.market    or "Australia").strip()
+
+    if not claim:
+        raise HTTPException(status_code=422, detail="'claim' is required and must not be empty.")
+    if not food_type:
+        raise HTTPException(status_code=422, detail="'food_type' is required and must not be empty.")
+
+    input_hash = make_input_hash(claim, food_type, market)
+
+    # ── Cache check ───────────────────────────────────────────────────────────
+    if not body.refresh:
+        cached = get_cached_guidance(input_hash)
+        if cached is not None:
+            cached["cached"] = True
+            return cached
+
+    # ── Classify ──────────────────────────────────────────────────────────────
+    classification = classify_claim(claim)
+    theme       = classification["theme"]
+    claim_type  = classification["claim_type"]
+    risk_level  = classification["risk_level"]
+    risk_reasons = classification["risk_reasons"]
+
+    # ── Pathways ──────────────────────────────────────────────────────────────
+    pathway_data = get_claim_pathways(theme, food_type)
+
+    # ── DB retrieval ──────────────────────────────────────────────────────────
+    db_data = retrieve_supporting_signals(claim, theme)
+
+    # ── Status ────────────────────────────────────────────────────────────────
+    if risk_level == "high":
+        status = "high_risk_claim_detected"
+    elif pathway_data["missing_information"]:
+        status = "needs_product_details"
+    else:
+        status = "ready_for_review"
+
+    # ── Summary ───────────────────────────────────────────────────────────────
+    summary = _CLAIM_SUMMARY_TEMPLATES.get(risk_level, _CLAIM_SUMMARY_TEMPLATES["unknown"])
+
+    # ── Assemble response ─────────────────────────────────────────────────────
+    response: dict = {
+        "assessment_level":    "concept_guidance",
+        "cached":              False,
+        "input": {
+            "claim":      claim,
+            "food_type":  food_type,
+            "market":     market,
+        },
+        "status":              status,
+        "theme":               theme,
+        "claim_type":          claim_type,
+        "risk_level":          risk_level,
+        "risk_reasons":        risk_reasons,
+        "summary":             summary,
+        "food_type_fit":       pathway_data["food_type_fit"],
+        "claim_pathways":      pathway_data["claim_pathways"],
+        "possible_ingredients": pathway_data["possible_ingredients"],
+        "missing_information": pathway_data["missing_information"],
+        "safer_wording":       pathway_data["safer_wording"],
+        "avoid_wording":       pathway_data["avoid_wording"],
+        "competitor_examples": db_data["competitor_examples"],
+        "related_rules":       db_data["related_rules"],
+        "related_evidence":    db_data["related_evidence"],
+        "next_questions":      pathway_data["next_questions"],
+        "disclaimer":          _CLAIM_DISCLAIMER,
+    }
+
+    # ── Cache ─────────────────────────────────────────────────────────────────
+    save_guidance(input_hash, claim, food_type, market, response)
+
+    return response
 
 
 # ===========================================================================
