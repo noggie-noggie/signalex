@@ -32,6 +32,11 @@ from typing import Optional
 
 _DB_PATH = Path(__file__).parent.parent.parent / "data" / "signals.db"
 
+# Bump this string whenever the response shape changes in a way that makes
+# old cached responses invalid. Including it in the hash naturally bypasses
+# all entries written under previous versions without touching the table.
+CACHE_VERSION = "food_claim_guidance_v1"
+
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS food_claim_guidance_cache (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,10 +81,12 @@ def _get_rw_conn() -> Optional[sqlite3.Connection]:
 
 def make_input_hash(claim: str, food_type: str, market: str) -> str:
     """
-    Produce a stable 24-char hex hash from the normalised input triple.
-    Used as the UNIQUE cache key.
+    Produce a stable 24-char hex hash from the normalised input triple plus
+    CACHE_VERSION. Bumping CACHE_VERSION invalidates all prior cached entries
+    without requiring any table migration.
     """
     key = "\x00".join([
+        CACHE_VERSION,
         _normalise(claim),
         _normalise(food_type),
         _normalise(market),

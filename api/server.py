@@ -592,23 +592,68 @@ _CLAIM_DISCLAIMER = (
     "evidence and regulatory review."
 )
 
+# Always included in missing_information so the frontend always has a
+# complete checklist, even for not_recommended claims.
+_UNIVERSAL_MISSING_INFO: list[str] = [
+    "Exact proposed wording for the claim",
+    "Full ingredient list",
+    "Amount per serve for key active ingredients",
+    "Serving size",
+    "Nutrition information panel",
+    "Target consumer (general population, active adults, children, etc.)",
+    "Claim placement (packaging, website, advertising)",
+    "Supporting evidence for the claim",
+    "Market / country of intended sale",
+]
+
+# Reframe suggestions returned for all therapeutic/disease claims.
+_REFRAME_SUGGESTIONS: list[str] = [
+    "Consider moving away from disease or treatment wording.",
+    "Reframe toward general wellbeing or normal function if appropriate and substantiated.",
+    "Use product-specific evidence and regulatory review before progressing.",
+]
+
+# Safer wording shown when a therapeutic claim has digestive/gut context.
+_GUT_SAFE_WORDING: list[str] = [
+    "Supports digestive wellbeing",
+    "Contains live cultures",
+    "Contains fibre to support digestive health",
+    "Made with fermented dairy cultures",
+]
+
+# Gut-context detector — used to decide whether to surface gut-specific safe wording.
+_GUT_TERMS: frozenset[str] = frozenset({
+    "gut", "digestive", "digestion", "ibs", "bowel", "bloating",
+    "microbiome", "intestin", "stomach", "probiotic", "prebiotic",
+    "fibre", "fiber", "ferment",
+})
+
+# Themes whose status should be needs_nutrition_check (nutrient content claims
+# that require a nutrition panel check before any claim can be made).
+_NUTRITION_CHECK_THEMES: frozenset[str] = frozenset({"low_sugar", "high_protein"})
+
 _CLAIM_SUMMARY_TEMPLATES: dict[str, str] = {
-    "low":    (
-        "This claim theme appears lower-risk and aligns with common nutrient "
-        "content or general wellbeing claim categories. Review the pathways below "
-        "to confirm your product meets the relevant ingredient thresholds."
+    # keyed by theme name (checked first) or risk_level (fallback)
+    "therapeutic_or_disease_claim": (
+        "This claim contains therapeutic or disease-related language that is not "
+        "permitted for food products under Australian food law. Claims that treat, "
+        "cure, prevent or refer to specific medical conditions require a therapeutic "
+        "goods (TGA) regulatory pathway, not a food claim pathway. Immediate "
+        "reformulation of the claim wording is required before any use."
+    ),
+    "low": (
+        "This claim theme appears lower-risk and aligns with common nutrient content "
+        "or general wellbeing claim categories. Review the pathways below to confirm "
+        "your product meets the relevant ingredient thresholds."
     ),
     "medium": (
-        "This claim theme is in common use but requires substantiation. "
-        "Review the recommended pathways and ensure the product formulation "
-        "supports the specific claim before use."
+        "This claim theme is in common use but requires substantiation. Review the "
+        "recommended pathways and ensure the product formulation supports the specific "
+        "claim before use."
     ),
-    "high":   (
-        "One or more high-risk or therapeutic terms have been detected in this claim. "
-        "Claims of this type may be classified as therapeutic or disease claims under "
-        "Australian food law, requiring a different regulatory pathway (e.g. TGA listed "
-        "medicine or prescription product). Immediate reformulation of the claim wording "
-        "is strongly recommended before any use."
+    "high": (
+        "One or more high-risk terms have been detected in this claim. Review the "
+        "risk reasons carefully and consider reformulating before use."
     ),
     "unknown": (
         "The claim could not be matched to a recognised theme. "
@@ -620,8 +665,8 @@ _CLAIM_SUMMARY_TEMPLATES: dict[str, str] = {
 class FoodClaimRequest(BaseModel):
     claim:      str
     food_type:  str
-    market:     str   = "Australia"
-    refresh:    bool  = False
+    market:     str  = "Australia"
+    refresh:    bool = False
 
 
 @app.post("/api/food/claims/guide")
@@ -633,7 +678,8 @@ def food_claim_guide(body: FoodClaimRequest):
     structured concept guidance: risk level, claim pathways, safer wording,
     competitor examples, related FSANZ rules, and related VMS evidence.
 
-    Responses are cached by input hash. Pass refresh=true to regenerate.
+    Responses are cached by input hash (includes CACHE_VERSION).
+    Pass refresh=true to bypass cache and regenerate.
     """
     claim     = (body.claim     or "").strip()
     food_type = (body.food_type or "").strip()
@@ -654,55 +700,114 @@ def food_claim_guide(body: FoodClaimRequest):
             return cached
 
     # ── Classify ──────────────────────────────────────────────────────────────
-    classification = classify_claim(claim)
-    theme       = classification["theme"]
-    claim_type  = classification["claim_type"]
-    risk_level  = classification["risk_level"]
-    risk_reasons = classification["risk_reasons"]
+    classification  = classify_claim(claim)
+    theme           = classification["theme"]
+    claim_type      = classification["claim_type"]
+    risk_level      = classification["risk_level"]
+    risk_reasons    = classification["risk_reasons"]
+    is_therapeutic  = classification["is_therapeutic"]
 
     # ── Pathways ──────────────────────────────────────────────────────────────
-    pathway_data = get_claim_pathways(theme, food_type)
+    # Therapeutic/disease claims get a fixed stub — no pathway is available.
+    if is_therapeutic:
+        pathway_data: dict = {
+            "food_type_fit":        "unsuitable",
+            "claim_pathways":       [],
+            "possible_ingredients": [],
+            "safer_wording":        [],
+            "avoid_wording":        [],
+            "missing_information":  [],
+            "next_questions":       [],
+        }
+    else:
+        pathway_data = get_claim_pathways(theme, food_type)
+
+    # ── Ensure missing_information is always fully populated ──────────────────
+    existing_info = set(pathway_data["missing_information"])
+    merged_info   = list(pathway_data["missing_information"])
+    for item in _UNIVERSAL_MISSING_INFO:
+        if item not in existing_info:
+            merged_info.append(item)
+    pathway_data["missing_information"] = merged_info
 
     # ── DB retrieval ──────────────────────────────────────────────────────────
-    db_data = retrieve_supporting_signals(claim, theme)
+    # Use the detected gut keyword or theme name as search term for therapeutic claims
+    retrieval_keyword = claim if not is_therapeutic else (
+        theme.replace("_", " ") if theme else claim
+    )
+    db_data = retrieve_supporting_signals(retrieval_keyword, theme)
 
     # ── Status ────────────────────────────────────────────────────────────────
-    if risk_level == "high":
-        status = "high_risk_claim_detected"
+    if is_therapeutic:
+        status = "not_recommended"
+    elif risk_level == "high":
+        status = "high_risk_wording"
+    elif theme in _NUTRITION_CHECK_THEMES:
+        status = "needs_nutrition_check"
+    elif theme is None:
+        status = "needs_evidence_review"
     elif pathway_data["missing_information"]:
         status = "needs_product_details"
     else:
-        status = "ready_for_review"
+        status = "low_risk_direction"
+
+    # ── Confidence ────────────────────────────────────────────────────────────
+    if is_therapeutic:
+        confidence = "high"   # high confidence it's a therapeutic claim
+    elif theme is not None and pathway_data["food_type_fit"] == "high":
+        confidence = "high"
+    elif theme is not None:
+        confidence = "medium"
+    else:
+        confidence = "low"
 
     # ── Summary ───────────────────────────────────────────────────────────────
-    summary = _CLAIM_SUMMARY_TEMPLATES.get(risk_level, _CLAIM_SUMMARY_TEMPLATES["unknown"])
+    # Prefer theme-specific template, fall back to risk_level template.
+    summary = (
+        _CLAIM_SUMMARY_TEMPLATES.get(theme)
+        or _CLAIM_SUMMARY_TEMPLATES.get(risk_level)
+        or _CLAIM_SUMMARY_TEMPLATES["unknown"]
+    )
+
+    # ── Reframe suggestions (therapeutic claims only) ─────────────────────────
+    reframe_suggestions: list[str] = []
+    safer_wording = list(pathway_data["safer_wording"])
+
+    if is_therapeutic:
+        reframe_suggestions = list(_REFRAME_SUGGESTIONS)
+        # Surface gut-specific safer wording when the claim has digestive context
+        claim_lower = claim.lower()
+        if any(term in claim_lower for term in _GUT_TERMS):
+            safer_wording = _GUT_SAFE_WORDING[:]
 
     # ── Assemble response ─────────────────────────────────────────────────────
     response: dict = {
-        "assessment_level":    "concept_guidance",
-        "cached":              False,
+        "assessment_level":     "concept_guidance",
+        "cached":               False,
         "input": {
             "claim":      claim,
             "food_type":  food_type,
             "market":     market,
         },
-        "status":              status,
-        "theme":               theme,
-        "claim_type":          claim_type,
-        "risk_level":          risk_level,
-        "risk_reasons":        risk_reasons,
-        "summary":             summary,
-        "food_type_fit":       pathway_data["food_type_fit"],
-        "claim_pathways":      pathway_data["claim_pathways"],
+        "status":               status,
+        "confidence":           confidence,
+        "theme":                theme,
+        "claim_type":           claim_type,
+        "risk_level":           risk_level,
+        "risk_reasons":         risk_reasons,
+        "summary":              summary,
+        "food_type_fit":        pathway_data["food_type_fit"],
+        "claim_pathways":       pathway_data["claim_pathways"],
         "possible_ingredients": pathway_data["possible_ingredients"],
-        "missing_information": pathway_data["missing_information"],
-        "safer_wording":       pathway_data["safer_wording"],
-        "avoid_wording":       pathway_data["avoid_wording"],
-        "competitor_examples": db_data["competitor_examples"],
-        "related_rules":       db_data["related_rules"],
-        "related_evidence":    db_data["related_evidence"],
-        "next_questions":      pathway_data["next_questions"],
-        "disclaimer":          _CLAIM_DISCLAIMER,
+        "missing_information":  pathway_data["missing_information"],
+        "safer_wording":        safer_wording,
+        "avoid_wording":        pathway_data["avoid_wording"],
+        "reframe_suggestions":  reframe_suggestions,
+        "competitor_examples":  db_data["competitor_examples"],
+        "related_rules":        db_data["related_rules"],
+        "related_evidence":     db_data["related_evidence"],
+        "next_questions":       pathway_data["next_questions"],
+        "disclaimer":           _CLAIM_DISCLAIMER,
     }
 
     # ── Cache ─────────────────────────────────────────────────────────────────

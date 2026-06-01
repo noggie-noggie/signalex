@@ -331,23 +331,57 @@ competitor product examples, related FSANZ rules, and related VMS evidence.
 | `assessment_level` | string | Always `"concept_guidance"` in v1 |
 | `cached` | boolean | `true` if response was served from cache |
 | `input` | object | Echo of the request inputs |
-| `status` | string | `"needs_product_details"`, `"high_risk_claim_detected"`, or `"ready_for_review"` |
-| `theme` | string \| null | Detected claim theme (e.g. `"gut_health"`, `"muscle_recovery"`) |
-| `claim_type` | string | `"health_claim"`, `"nutrient_content_claim"`, or `"unknown"` |
+| `status` | string | See status values table below |
+| `confidence` | string | `"high"`, `"medium"`, or `"low"` — classifier confidence in the assessment |
+| `theme` | string \| null | Detected claim theme. `"therapeutic_or_disease_claim"` if therapeutic terms detected. See themes below. |
+| `claim_type` | string | `"health_claim"`, `"nutrient_content_claim"`, `"therapeutic / disease-related claim"`, or `"unknown"` |
 | `risk_level` | string | `"low"`, `"medium"`, `"high"`, or `"unknown"` |
-| `risk_reasons` | array | High-risk terms detected in the claim, if any |
+| `risk_reasons` | array | High-risk or therapeutic terms detected in the claim |
 | `summary` | string | Plain-English summary of the risk assessment |
-| `food_type_fit` | string | `"low"`, `"medium"`, or `"high"` — how well the food type suits the claim theme |
-| `claim_pathways` | array | Regulatory pathways available for this theme and food type |
+| `food_type_fit` | string | `"low"`, `"medium"`, `"high"`, or `"unsuitable"` — how well the food type suits the claim theme |
+| `claim_pathways` | array | Regulatory pathways available for this theme and food type. Empty for therapeutic claims. |
 | `possible_ingredients` | array | Ingredients that could support the claim |
-| `missing_information` | array | Product details needed before a full assessment |
+| `missing_information` | array | Always populated. Product details needed before a full assessment. |
 | `safer_wording` | array | Suggested lower-risk alternative claim wordings |
 | `avoid_wording` | array | Wording that raises regulatory risk |
+| `reframe_suggestions` | array | For therapeutic/disease claims: suggestions for reformulating to an acceptable direction. Empty for non-therapeutic claims. |
 | `competitor_examples` | array | Open Food Facts product signals matching the claim/theme |
 | `related_rules` | array | FSANZ regulatory update signals matching the claim/theme |
 | `related_evidence` | array | VMS domain signals (scientific evidence) matching the claim/theme |
 | `next_questions` | array | Questions to answer before proceeding |
 | `disclaimer` | string | Fixed concept-guidance disclaimer |
+
+**Status values:**
+
+| `status` | Meaning |
+|----------|---------|
+| `not_recommended` | Therapeutic or disease claim detected. Not a valid food claim pathway. Reformulation required. |
+| `high_risk_wording` | High-risk terms detected but not a full therapeutic claim. Wording needs review before use. |
+| `needs_nutrition_check` | Nutrient content claim (low_sugar, high_protein) — requires nutrition panel verification. |
+| `needs_product_details` | Medium-risk function claim. Formulation, ingredient levels, and evidence needed. |
+| `needs_evidence_review` | Claim theme not recognised. More product detail or evidence context needed. |
+| `low_risk_direction` | Lower-risk claim direction. Pathway and threshold checks recommended before use. |
+
+**Confidence values:**
+
+| `confidence` | Meaning |
+|--------------|---------|
+| `high` | Therapeutic terms clearly detected, or exact theme match with high food_type_fit |
+| `medium` | Theme matched but food_type_fit is medium or low |
+| `low` | No theme matched — claim may be too vague or novel |
+
+**Therapeutic / disease claim behaviour:**
+
+When `theme = "therapeutic_or_disease_claim"`:
+- `status` is always `not_recommended`
+- `food_type_fit` is always `"unsuitable"`
+- `claim_pathways` is always `[]` (no food claim pathway exists)
+- `reframe_suggestions` is populated with reformulation guidance
+- `safer_wording` is populated with context-appropriate safer alternatives (gut-specific wording for IBS/digestive claims, etc.)
+- `missing_information` is still fully populated — product context is needed even for reformulation guidance
+- `confidence` is `"high"` — the classifier is certain this is a therapeutic claim
+
+High-risk terms that trigger this classification include: `treat`, `treats`, `treating`, `cure`, `cures`, `prevent`, `prevents`, `heal`, `heals`, `repair`, `repairs`, `reduce inflammation`, `reduces inflammation`, `anti-inflammatory`, `ibs`, `arthritis`, `anxiety`, `depression`, `disease`, `infection`, `antiviral`.
 
 **Examples:**
 
@@ -378,9 +412,9 @@ curl -X POST "http://localhost:8000/api/food/claims/guide" \
 - v1 is **fully deterministic** — no AI, no LLM, no Claude API calls.
 - Results are **concept guidance only**. They are not regulatory advice or approval.
 - Final claim acceptability depends on formulation, ingredient levels, serving size, nutrition panel, exact wording, evidence, and regulatory review.
-- Repeated identical requests return `cached: true` unless `refresh: true` is passed.
-- The guidance covers 10 initial themes: `gut_health`, `immunity`, `energy`, `muscle_recovery`, `hydration`, `bone_health`, `antioxidant`, `heart_health`, `low_sugar`, `high_protein`.
-- Claims not matching a known theme return `theme: null` and `risk_level: "medium"` as a conservative default.
+- Repeated identical requests return `cached: true` unless `refresh: true` is passed. Cache keys are versioned — a server-side version bump automatically invalidates prior cached responses without requiring manual cache clearing.
+- The guidance covers 10 initial themes: `gut_health`, `immunity`, `energy`, `muscle_recovery`, `hydration`, `bone_health`, `antioxidant`, `heart_health`, `low_sugar`, `high_protein`. Claims with therapeutic/disease terms return `theme: "therapeutic_or_disease_claim"` regardless of other keyword matches.
+- Claims not matching any theme or therapeutic term return `theme: null`, `risk_level: "medium"`, and `status: "needs_evidence_review"` as a conservative default.
 
 ---
 
