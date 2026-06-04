@@ -88,7 +88,7 @@ _ALIAS_MAP: dict[str, str] = {
     "cbd (cannabidiol)":        "CBD",
     "cbd cannabidiol":          "CBD",
     "cannabidiol cbd":          "CBD",
-    "cannabis":                 "CBD",
+    # "cannabis" intentionally excluded — THC/plant signals are not CBD supplement signals
     "hemp":                     "CBD",
     "cbg":                      "CBD",
 

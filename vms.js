@@ -47,7 +47,7 @@ const _CANONICAL_MAP = {
   "cbd (cannabidiol)":        "CBD",
   "cbd cannabidiol":          "CBD",
   "cannabidiol cbd":          "CBD",
-  "cannabis":                 "CBD",
+  // "cannabis" intentionally excluded — THC/plant signals are not CBD supplement signals
   "hemp":                     "CBD",
   "cbg":                      "CBD",
   // Turmeric / Curcumin (2 aliases → 15 combined signals)
