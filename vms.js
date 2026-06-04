@@ -1,5 +1,111 @@
 // === SIGNALEX VMS HELPERS ===
 
+// ── Canonical ingredient aliases ──────────────────────────────────────────────
+// Mirrors analytics/ingredient_aliases.py — keep both in sync when adding clusters.
+// Keys: raw ingredient_name lowercased (β→beta, α→alpha, whitespace collapsed).
+// Values: canonical display label.
+const _CANONICAL_MAP = {
+  // Probiotics (6 aliases → 47 combined signals)
+  "probiotics":               "Probiotics",
+  "probiotic":                "Probiotics",
+  "probiotic (biohm)":        "Probiotics",
+  "bifidobacterium":          "Probiotics",
+  "lactobacillus":            "Probiotics",
+  "lactobacillus acidophilus":"Probiotics",
+  "lactobacillus rhamnosus":  "Probiotics",
+  "lactobacillus reuteri":    "Probiotics",
+  "probiotics (lactobacillus plantarum, lactobacillus casei)": "Probiotics",
+  // Vitamin D (5 aliases → 30 combined signals)
+  "vitamin d":                "Vitamin D",
+  "vitamin d3":               "Vitamin D",
+  "vitamin d2":               "Vitamin D",
+  "cholecalciferol":          "Vitamin D",
+  "ergocalciferol":           "Vitamin D",
+  "vitamin d3 (cholecalciferol)": "Vitamin D",
+  "25-hydroxyvitamin d":      "Vitamin D",
+  "calcifediol":              "Vitamin D",
+  // Omega-3 (7 aliases → 29 combined signals)
+  "omega-3":                  "Omega-3",
+  "omega 3":                  "Omega-3",
+  "omega-3 fatty acids":      "Omega-3",
+  "omega-3 (dha)":            "Omega-3",
+  "fish oil":                 "Omega-3",
+  "fish oil (omega-3)":       "Omega-3",
+  "epa":                      "Omega-3",
+  "dha":                      "Omega-3",
+  "epa/dha":                  "Omega-3",
+  "dha/epa":                  "Omega-3",
+  "docosahexaenoic acid":     "Omega-3",
+  "docosahexaenoic acid (dha)": "Omega-3",
+  "eicosapentaenoic acid":    "Omega-3",
+  "eicosapentaenoic acid (epa)": "Omega-3",
+  "n-3 fatty acids":          "Omega-3",
+  // CBD (5 aliases → 15 combined signals)
+  "cbd":                      "CBD",
+  "cannabidiol":              "CBD",
+  "cannabidiol (cbd)":        "CBD",
+  "cbd (cannabidiol)":        "CBD",
+  "cbd cannabidiol":          "CBD",
+  "cannabidiol cbd":          "CBD",
+  "cannabis":                 "CBD",
+  "hemp":                     "CBD",
+  "cbg":                      "CBD",
+  // Turmeric / Curcumin (2 aliases → 15 combined signals)
+  "turmeric":                 "Turmeric / Curcumin",
+  "curcumin":                 "Turmeric / Curcumin",
+  "curcuminoids":             "Turmeric / Curcumin",
+  "curcuma longa":            "Turmeric / Curcumin",
+  "turmeric curcumin":        "Turmeric / Curcumin",
+  "curcumin (turmeric)":      "Turmeric / Curcumin",
+  // NMN (4 aliases → 5 combined signals)
+  "nmn":                      "NMN",
+  "nmn (nicotinamide mononucleotide)": "NMN",
+  "nicotinamide mononucleotide": "NMN",
+  "nicotinamide mononucleotide (nmn)": "NMN",
+  "beta-nicotinamide mononucleotide": "NMN",
+  "beta-nicotinamide mononucleotide (beta-nmn)": "NMN",
+  "b-nicotinamide mononucleotide": "NMN",
+  // NAD+ (3 aliases → 4 combined signals)
+  "nad+":                     "NAD+",
+  "nad":                      "NAD+",
+  "nad supplement":           "NAD+",
+  "nad+ (nicotinamide riboside/nicotinamide mononucleotide)": "NAD+",
+  "nad precursor":            "NAD+",
+  "nad+ precursor":           "NAD+",
+  // Creatine (2 aliases → 11 combined signals)
+  "creatine":                 "Creatine",
+  "creatine monohydrate":     "Creatine",
+  "creatine hcl":             "Creatine",
+  "creatine ethyl ester":     "Creatine",
+  // Iron (3 aliases → 15 combined signals)
+  "iron":                     "Iron",
+  "ferrous sulfate":          "Iron",
+  "ferrous sulfate (oral iron)": "Iron",
+  "ferrous fumarate":         "Iron",
+  "ferric":                   "Iron",
+  "heme iron":                "Iron",
+  "iron (ferrous sulfate)":   "Iron",
+  "ferrous bisglycinate":     "Iron",
+};
+
+/**
+ * Resolve a raw ingredient_name string to its canonical display label.
+ * Falls back to the original string (trimmed) when no alias is defined.
+ * Mirrors analytics/ingredient_aliases.canonical() — keep both in sync.
+ */
+function _canonical(raw) {
+  if (!raw) return raw;
+  // Normalise: lowercase, trim, β→beta, α→alpha, collapse whitespace
+  let key = raw.trim().toLowerCase()
+    .replace(/β/g, 'beta').replace(/α/g, 'alpha')
+    .replace(/\s+/g, ' ');
+  if (_CANONICAL_MAP[key]) return _CANONICAL_MAP[key];
+  // Fallback: strip trailing parenthetical and retry
+  const stripped = key.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  if (stripped && stripped !== key && _CANONICAL_MAP[stripped]) return _CANONICAL_MAP[stripped];
+  return raw.trim();
+}
+
 // ── Text and matching helpers ──────────────────────────────────────────────────
 // ─── MULTI-FIELD TEXT HELPER ─────────────────────────────────────────────────
 function _sigText(s) {
@@ -23,7 +129,11 @@ function _ingMatch(hay, q) {
 // Strict word-boundary matcher for entity tab — prevents "vitamin d" matching "vitamin b"
 function _entityIngMatch(signal, name) {
   const nameL = name.toLowerCase().trim();
-  // 1. Exact ingredient_name field match
+  // 0. Canonical alias match — "probiotic (BIOHM)" matches card "Probiotics"
+  const nameCanon = _canonical(nameL).toLowerCase();
+  const sigCanon  = _canonical((signal.ingredient_name || '').toLowerCase().trim()).toLowerCase();
+  if (nameCanon && sigCanon && nameCanon === sigCanon) return true;
+  // 1. Exact ingredient_name field match (legacy / non-aliased ingredients)
   if ((signal.ingredient_name || '').toLowerCase().trim() === nameL) return true;
   const hay = _sigText(signal);
   // 2. Exact substring match (catches "vitamin d3" when query is "vitamin d")
@@ -349,6 +459,8 @@ function renderEntities() {
     // Fall back to title extraction if field is missing or invalid
     if(!_isValidIngredient(ing)) ing = _extractIngFromTitle(s.title) || '';
     if(!_isValidIngredient(ing)) return;
+    // Resolve to canonical name so aliases merge into one card
+    ing = _canonical(ing);
     const key=ing.toLowerCase();
     if(!map[key])map[key]={name:ing,total:0,high:0,neg:0,pos:0};
     map[key].total++;

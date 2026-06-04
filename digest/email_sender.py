@@ -22,6 +22,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 import config
+from analytics.ingredient_aliases import canonical
 from classifier.claude import ClassifiedSignal
 
 logger = logging.getLogger(__name__)
@@ -121,9 +122,9 @@ class DigestSender:
         auth_counts = Counter(s.authority.upper() for s in signals)
         auth_str = ", ".join(f"{a} ({c})" for a, c in auth_counts.most_common())
 
-        # Top ingredients (skip blanks / "unknown", dedupe, cap at 5)
+        # Top ingredients — canonicalised so aliases merge before dedup (cap at 5)
         ingredients = [
-            s.ingredient_name for s in signals
+            canonical(s.ingredient_name) for s in signals
             if s.ingredient_name and s.ingredient_name.lower() != "unknown"
         ]
         top = list(dict.fromkeys(ingredients))[:5]   # preserve order, dedupe

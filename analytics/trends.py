@@ -23,6 +23,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import NamedTuple
 
+from analytics.ingredient_aliases import canonical
+
 from analytics.db import get_signals_since
 
 logger = logging.getLogger(__name__)
@@ -83,12 +85,12 @@ def run_trend_detection() -> TrendReport:
     counts_7d:  dict[str, int] = defaultdict(int)
 
     for sig in signals_30d:
-        ing = (sig.get("ingredient_name") or "unknown").lower().strip()
+        ing = canonical(sig.get("ingredient_name") or "unknown").lower().strip()
         if ing and ing != "unknown":
             counts_30d[ing] += 1
 
     for sig in signals_7d:
-        ing = (sig.get("ingredient_name") or "unknown").lower().strip()
+        ing = canonical(sig.get("ingredient_name") or "unknown").lower().strip()
         if ing and ing != "unknown":
             counts_7d[ing] += 1
 
@@ -166,7 +168,7 @@ def _detect_claim_shifts(signals: list[dict]) -> list[ClaimShiftAlert]:
         """Return (dominant_signal_type, count) for an ingredient in a window."""
         type_counts: dict[str, int] = defaultdict(int)
         for s in sigs:
-            ing = (s.get("ingredient_name") or "").lower().strip()
+            ing = canonical(s.get("ingredient_name") or "").lower().strip()
             if ing != ingredient:
                 continue
             stype = s.get("signal_type") or s.get("event_type") or "other"
@@ -179,7 +181,7 @@ def _detect_claim_shifts(signals: list[dict]) -> list[ClaimShiftAlert]:
     # Collect all ingredients with sufficient signal volume
     ing_counts: dict[str, int] = defaultdict(int)
     for s in signals:
-        ing = (s.get("ingredient_name") or "").lower().strip()
+        ing = canonical(s.get("ingredient_name") or "").lower().strip()
         if ing and ing != "unknown":
             ing_counts[ing] += 1
 
