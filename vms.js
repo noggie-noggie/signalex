@@ -556,7 +556,6 @@ function renderEntities() {
     return e;
   }).sort((a,b)=>b.total-a.total);
   if(q) items=items.filter(i=>i.name.toLowerCase().includes(q));
-  const maxT=items[0]?.total||1;
   const grid=$('#entity-grid'); if(!grid) return;
   if(!q && items.length < 3) {
     grid.innerHTML='<div class="empty"><div class="empty-icon">&#128200;</div><div class="empty-text">Insufficient ingredient data — building baseline</div></div>';
@@ -582,10 +581,23 @@ function renderEntities() {
         <button class="ing-ep-btn" onclick="event.stopPropagation();openEntityPanel('${nm}','ingredient')" title="Open ${e.name} detail" style="font-size:13px;margin-top:1px">&#9432;</button>
       </div>
       <div class="entity-stats"><span class="entity-stat">${e.total} signals</span>${e.high?`<span class="entity-stat text-red">${e.high} high</span>`:''}${trendHtml}</div>
-      <div class="entity-bar"><div class="entity-bar-fill" style="width:${Math.round(e.total/maxT*100)}%"></div></div>
     </div>`;
   }).join(''):'<div class="empty"><div class="empty-icon">&#9762;</div><div class="empty-text">No entities found</div></div>';
   const ec=$('#entity-count'); if(ec) ec.textContent=`${items.length} ingredient${items.length!==1?'s':''}`;
+
+  // Scope line — live counts, regulatory authorities, last updated date
+  const scopeEl=document.getElementById('entity-scope-line');
+  if(scopeEl){
+    const sigCount=SIGNALS.filter(s=>!s.is_noise).length;
+    // Primary regulatory agencies only — excludes sub-sources (ARTG, TGA Consult.) and
+    // evidence bodies (Cochrane). Only shows agencies with at least one signal.
+    const _REG=['fda','tga','efsa','mhra'];
+    const auths=[...(new Set(_REG.filter(a=>SIGNALS.some(s=>s.authority===a))))]
+      .map(a=>authLabel(a)).join(', ');
+    const lastDate=SIGNALEX_META.lastUpdated?fmt(SIGNALEX_META.lastUpdated):'—';
+    scopeEl.innerHTML=`${items.length} ingredient${items.length!==1?'s':''} &nbsp;&bull;&nbsp; ${sigCount} VMS signals &nbsp;&bull;&nbsp; ${auths} monitored &nbsp;&bull;&nbsp; Updated ${lastDate}`;
+  }
+
   renderRisingIngredients(items);
 }
 function showEntitySignals(name) {
