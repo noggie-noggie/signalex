@@ -10,7 +10,7 @@ const DI_CAPA_KWS = ['computerised systems validation','data integrity','deviati
 
 // ── Clean signals — ingredient-valid only ────────────────────────────────────
 // Use for all ingredient aggregations; never use raw SIGNALS for ingredient math.
-const _INVALID_ING_SET = new Set(['none','n/a','na','unknown','-','–','—','other','tbd','tba','various','multiple']);
+const _INVALID_ING_SET = new Set(['none','n/a','na','unknown','-','–','—','other','tbd','tba','various','multiple','general']);
 function getCleanSignals() {
   return SIGNALS.filter(s => {
     const ing = (s.ingredient_name || '').trim().toLowerCase();

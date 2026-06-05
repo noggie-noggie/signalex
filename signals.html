@@ -340,6 +340,7 @@
     <span class="results-count" id="entity-count"></span>
   </div>
   <div class="entity-grid" id="entity-grid"></div>
+  <div id="rising-ingredients" style="margin-top:16px;display:none"></div>
   <div id="entity-signals" style="display:none;margin-top:20px"></div>
 </div>
 
@@ -1277,31 +1278,53 @@ function copyEntityMemo(name, type, btn) {
 // ─── ENTITY PANEL ─────────────────────────────────────────────────────────────
 function _epIngContent(name) {
   const sigs=SIGNALS.filter(s=>_entityIngMatch(s,name));
-  const total=sigs.length,high=sigs.filter(s=>s.severity==='high').length;
-  const neg=sigs.filter(s=>s.sentiment==='negative').length,pos=sigs.filter(s=>s.sentiment==='positive').length;
-  const trend=_computeIngTrend(name);
-  const tCls=trend.trend==='rising'?'wc-vms-rising':trend.trend==='declining'?'wc-vms-falling':'';
-  const tLbl=trend.trend==='rising'?'Rising ↑':trend.trend==='declining'?'Declining ↓':'Stable';
-  const why=_ingWhyMatters(name,total,high,neg,trend.trend);
-  const action=_ingAction(name,trend.trend,high,neg);
-  const recent=sigs.sort((a,b)=>new Date(b.scraped_at)-new Date(a.scraped_at)).slice(0,4);
+  const total=sigs.length;
+  const high=sigs.filter(s=>s.severity==='high').length;
+  const neg=sigs.filter(s=>s.sentiment==='negative').length;
+  const pos=sigs.filter(s=>s.sentiment==='positive').length;
+
+  // ── 30-day trend delta ────────────────────────────────────────────────────
+  const t30=_computeIng30d(name);
+  // Only show trend badge when a valid comparison window exists (prev30 > 0).
+  // When prior window is empty, show nothing — no "New activity", no "Stable".
+  let trendBadge='';
+  if(t30.pct!==null&&t30.delta!==0){
+    const dir=t30.delta>0?'↑':'↓';
+    const col=t30.delta>0?'#4ade80':'#f87171';
+    const _tt30=`onmouseenter="showTrendTip(event,${t30.curr30},${t30.prev30},${t30.delta})" onmouseleave="hideTip()" onclick="showTrendTip(event,${t30.curr30},${t30.prev30},${t30.delta})"`;
+    trendBadge=`<span style="color:${col};font-weight:600;cursor:default" ${_tt30}>${dir} ${t30.pct}% vs prior 30 days <span style="font-size:10px;opacity:.65">&#9432;</span></span>`;
+  } else if(t30.prev30>0&&t30.delta===0){
+    const _tt30=`onmouseenter="showTrendTip(event,${t30.curr30},${t30.prev30},${t30.delta})" onmouseleave="hideTip()" onclick="showTrendTip(event,${t30.curr30},${t30.prev30},${t30.delta})"`;
+    trendBadge=`<span style="color:#64748b;cursor:default" ${_tt30}>Stable vs prior 30 days <span style="font-size:10px;opacity:.65">&#9432;</span></span>`;
+  }
+
+  // ── Top drivers ───────────────────────────────────────────────────────────
+  const drivers=_computeTopDrivers(name);
+
+  // ── Recent activity timeline (last 6) ────────────────────────────────────
+  const recent=sigs.slice().sort((a,b)=>new Date(b.scraped_at)-new Date(a.scraped_at)).slice(0,6);
+
   const nSafe=name.replace(/'/g,"\\'");
   return `<div class="ep-metrics">
-    <div class="ep-metric"><div class="ep-metric-val">${total}</div><div class="ep-metric-lbl">Signals</div></div>
+    <div class="ep-metric"><div class="ep-metric-val">${total}</div><div class="ep-metric-lbl">Total</div></div>
     <div class="ep-metric"><div class="ep-metric-val${high>0?' text-red':''}">${high}</div><div class="ep-metric-lbl">High Sev</div></div>
-    <div class="ep-metric"><div class="ep-metric-val">${pos}</div><div class="ep-metric-lbl">Positive</div></div>
+    <div class="ep-metric"><div class="ep-metric-val">${t30.curr30}</div><div class="ep-metric-lbl">Last 30d</div></div>
   </div>
-  <div class="ep-why">${why}</div>
-  <div class="ep-sec-hd">Trend</div>
+  ${trendBadge?`<div style="font-size:12px;margin-bottom:10px;padding:5px 8px;background:rgba(15,28,50,.6);border-radius:4px">${t30.curr30} signal${t30.curr30!==1?'s':''} last 30 days &nbsp;&middot;&nbsp; ${trendBadge}</div>`:''}
+  ${drivers.length?`<div class="ep-sec-hd">Top Drivers</div>
+  <div style="margin-bottom:12px">${drivers.map(d=>`<div style="font-size:11px;color:#94A3B8;padding:2px 0">&bull; ${d}</div>`).join('')}</div>`:''}
+  <div class="ep-sec-hd">Trend &mdash; 30-Day Windows</div>
   <div style="margin-bottom:12px">
-    <div class="ep-trend-row"><span class="ep-trend-lbl">7-day activity</span><span class="ep-trend-val ${tCls}">${tLbl} &middot; ${trend.curr} signals</span></div>
-    <div class="ep-trend-row"><span class="ep-trend-lbl">Prior 7 days</span><span class="ep-trend-val">${trend.prev} signals</span></div>
-    <div class="ep-trend-row"><span class="ep-trend-lbl">Confidence</span><span class="ep-trend-val">${trend.conf}</span></div>
+    <div class="ep-trend-row"><span class="ep-trend-lbl">Current 30 days</span><span class="ep-trend-val">${t30.curr30} signal${t30.curr30!==1?'s':''}</span></div>
+    <div class="ep-trend-row"><span class="ep-trend-lbl">Prior 30 days</span><span class="ep-trend-val">${t30.prev30} signal${t30.prev30!==1?'s':''}</span></div>
+    <div class="ep-trend-row"><span class="ep-trend-lbl">Change</span><span class="ep-trend-val${t30.delta>0?' wc-vms-rising':t30.delta<0?' wc-vms-falling':''}">${t30.delta>0?'+':''}${t30.delta}</span></div>
+    ${high>0?`<div class="ep-trend-row"><span class="ep-trend-lbl">High severity</span><span class="ep-trend-val text-red">${high}</span></div>`:''}
   </div>
-  <div class="ep-sec-hd">Recommended Action</div>
-  <div style="font-size:11px;color:rgba(13,148,136,.7);margin-bottom:14px;line-height:1.55">→ ${action}</div>
-  <div class="ep-sec-hd">Recent Signals</div>
-  <div style="margin-bottom:14px">${recent.length?recent.map(s=>`<div class="ep-sig-row" onclick="openDrawer(${s.id})">${trunc(s.title||'',88)} <span style="color:#1A2D42;font-size:9px">${fmt(s.scraped_at)}</span></div>`).join(''):'<div style="color:#1E3248;font-size:11px;padding:6px 0">No signals found</div>'}</div>
+  <div class="ep-sec-hd">Recent Activity</div>
+  <div style="margin-bottom:14px">${recent.length?recent.map(s=>`<div class="ep-sig-row" onclick="closeEntityPanel();openDrawer(${s.id})" title="Open signal detail" style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">
+    <span style="flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${trunc(s.title||'',72)}</span>
+    <span style="flex-shrink:0;color:#1A2D42;font-size:9px;white-space:nowrap">${authLabel(s.authority)} &middot; ${fmt(s.scraped_at)} <span style="color:#4a6a87;padding-left:3px">&rsaquo;</span></span>
+  </div>`).join(''):'<div style="color:#1E3248;font-size:11px;padding:6px 0">No signals found</div>'}</div>
   <button class="ep-copy-btn" onclick="copyEntityMemo('${nSafe}','ingredient',this)">&#128203; Copy Client Memo</button>`;
 }
 function _epAuthContent(auth) {
@@ -1320,7 +1343,7 @@ function _epAuthContent(auth) {
   </div>
   <div class="ep-why">${why}</div>
   <div class="ep-sec-hd">Recent Signals</div>
-  <div style="margin-bottom:14px">${recent.length?recent.map(s=>`<div class="ep-sig-row" onclick="openDrawer(${s.id})">${trunc(s.title||'',88)} <span style="color:#1A2D42;font-size:9px">${fmt(s.scraped_at)}</span></div>`).join(''):'<div style="color:#1E3248;font-size:11px;padding:6px 0">No signals found</div>'}</div>
+  <div style="margin-bottom:14px">${recent.length?recent.map(s=>`<div class="ep-sig-row" onclick="closeEntityPanel();openDrawer(${s.id})" title="Open signal detail">${trunc(s.title||'',80)} <span style="color:#1A2D42;font-size:9px">${fmt(s.scraped_at)}</span> <span style="color:#4a6a87;font-size:10px">&rsaquo;</span></div>`).join(''):'<div style="color:#1E3248;font-size:11px;padding:6px 0">No signals found</div>'}</div>
   <button class="ep-copy-btn" onclick="copyEntityMemo('${authSafe}','authority',this)">&#128203; Copy Client Memo</button>`;
 }
 function _epCatContent(cat) {
@@ -1338,7 +1361,7 @@ function _epCatContent(cat) {
   <div class="ep-why">${why}</div>
   ${ings.length?`<div class="ep-sec-hd">Linked Ingredients</div><div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px">${ings.map(i=>`<span class="tag" style="cursor:pointer" onclick="closeEntityPanel();openEntityPanel('${i.replace(/'/g,"\\'")}','ingredient')">${i}</span>`).join('')}</div>`:''}
   <div class="ep-sec-hd">Recent Signals</div>
-  <div style="margin-bottom:14px">${recent.length?recent.map(s=>`<div class="ep-sig-row" onclick="openDrawer(${s.id})">${trunc(s.title||'',88)} <span style="color:#1A2D42;font-size:9px">${fmt(s.scraped_at)}</span></div>`).join(''):'<div style="color:#1E3248;font-size:11px;padding:6px 0">No signals found</div>'}</div>
+  <div style="margin-bottom:14px">${recent.length?recent.map(s=>`<div class="ep-sig-row" onclick="closeEntityPanel();openDrawer(${s.id})" title="Open signal detail">${trunc(s.title||'',80)} <span style="color:#1A2D42;font-size:9px">${fmt(s.scraped_at)}</span> <span style="color:#4a6a87;font-size:10px">&rsaquo;</span></div>`).join(''):'<div style="color:#1E3248;font-size:11px;padding:6px 0">No signals found</div>'}</div>
   <button class="ep-copy-btn" onclick="copyEntityMemo('${catSafe}','category',this)">&#128203; Copy Client Memo</button>`;
 }
 function openEntityPanel(name, type) {

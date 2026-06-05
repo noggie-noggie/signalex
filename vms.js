@@ -197,7 +197,7 @@ function _extractIngFromTitle(title) {
 }
 
 // ── Ingredient validity guard — rejects nulls, placeholders, non-ingredient text ──
-const _INVALID_INGREDIENTS = new Set(['none','n/a','na','unknown','-','–','—','other','tbd','tba','various','multiple']);
+const _INVALID_INGREDIENTS = new Set(['none','n/a','na','unknown','-','–','—','other','tbd','tba','various','multiple','general']);
 function _isValidIngredient(val) {
   if (!val) return false;
   const v = val.trim();
@@ -222,6 +222,81 @@ function _computeIngTrend(name) {
   const trend=chg>curr*.3?'rising':chg<-curr*.3?'declining':curr>0?'stable':'flat';
   return {curr,prev,high,neg,pos,chg,conf,trend};
 }
+// ── Phase 2: 30-day trend delta ───────────────────────────────────────────────
+// Uses the latest signal date as reference so stale pipeline batches don't
+// produce false "flat" readings.
+function _computeIng30d(name) {
+  const refMs = SIGNALS.reduce((m,s) => Math.max(m, +new Date(s.scraped_at||s.created_at||0)), 0) || Date.now();
+  const d30 = refMs - 30*864e5;
+  const d60 = refMs - 60*864e5;
+  let curr30=0, prev30=0, high=0, neg=0, pos=0;
+  SIGNALS.forEach(s => {
+    if (!_entityIngMatch(s, name)) return;
+    const t = new Date(s.scraped_at||s.created_at||0).getTime();
+    if (t >= d30) {
+      curr30++;
+      if (s.severity==='high') high++;
+      if (s.sentiment==='negative') neg++;
+      if (s.sentiment==='positive') pos++;
+    } else if (t >= d60) {
+      prev30++;
+    }
+  });
+  const delta = curr30 - prev30;
+  const pct   = prev30 > 0 ? Math.round(Math.abs(delta) / prev30 * 100) : null;
+  const dir   = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+  return { curr30, prev30, delta, pct, dir, high, neg, pos };
+}
+
+// ── Phase 2: Top signal drivers for an entity ─────────────────────────────────
+// Returns up to 3 human-readable driver strings built from source_label and
+// event_type counts. No AI — pure aggregation.
+function _computeTopDrivers(name) {
+  const sigs = SIGNALS.filter(s => _entityIngMatch(s, name));
+  if (!sigs.length) return [];
+
+  // [singular, plural] — explicit forms avoid naive +s mistakes (study→studies etc.)
+  const SRC_LABELS = {
+    pubmed:            ['PubMed publication',   'PubMed publications'],
+    clinical_trials:   ['clinical trial',       'clinical trials'],
+    europe_pmc:        ['literature study',     'literature studies'],
+    cochrane:          ['Cochrane review',      'Cochrane reviews'],
+    biorxiv:           ['preprint',             'preprints'],
+    efsa:              ['EFSA opinion',         'EFSA opinions'],
+    tga:               ['TGA alert',            'TGA alerts'],
+    fda:               ['FDA signal',           'FDA signals'],
+    artg:              ['ARTG listing',         'ARTG listings'],
+    tga_consultations: ['TGA consultation',     'TGA consultations'],
+    adverse_events:    ['adverse event report', 'adverse event reports'],
+    semantic_scholar:  ['research paper',       'research papers'],
+  };
+
+  // Safety/recall signals surface first regardless of source
+  const urgent = sigs.filter(s => s.event_type==='safety_alert' || s.event_type==='recall' || s.event_type==='warning').length;
+
+  // Count by source_label
+  const srcCts = {};
+  sigs.forEach(s => {
+    const k = s.source_label || s.authority || 'other';
+    srcCts[k] = (srcCts[k]||0) + 1;
+  });
+
+  const drivers = [];
+
+  if (urgent > 0) {
+    drivers.push(`${urgent} safety, recall or warning signal${urgent>1?'s':''}`);
+  }
+
+  Object.entries(srcCts).sort((a,b) => b[1]-a[1]).forEach(([src, n]) => {
+    if (drivers.length >= 3) return;
+    const forms = SRC_LABELS[src];
+    const lbl = forms ? (n > 1 ? forms[1] : forms[0]) : src.replace(/_/g,' ');
+    drivers.push(`${n} ${lbl}`);
+  });
+
+  return drivers.slice(0, 3);
+}
+
 function _ingWhyMatters(name,total,high,neg,trend) {
   if(trend==='rising'&&high>0) return `${high} high-severity signal${high>1?'s':''} with rising activity — regulatory attention or emerging safety concern.`;
   if(trend==='rising') return `Activity up this week (${total} signals) — emerging market interest or pending scrutiny. Flag for client briefing.`;
@@ -453,6 +528,9 @@ function renderVmsWhatChanged() {
 
 function renderEntities() {
   const q=($('#entity-search')||{value:''}).value.toLowerCase();
+  // Reference date: latest signal timestamp so stale data still shows deltas
+  const refMs=SIGNALS.reduce((m,s)=>Math.max(m,+new Date(s.scraped_at||s.created_at||0)),0)||Date.now();
+  const d30=refMs-30*864e5, d60=refMs-60*864e5;
   const map={};
   SIGNALS.forEach(s=>{
     let ing=(s.ingredient_name||'').trim();
@@ -462,33 +540,53 @@ function renderEntities() {
     // Resolve to canonical name so aliases merge into one card
     ing = _canonical(ing);
     const key=ing.toLowerCase();
-    if(!map[key])map[key]={name:ing,total:0,high:0,neg:0,pos:0};
+    if(!map[key])map[key]={name:ing,total:0,high:0,neg:0,pos:0,curr30:0,prev30:0};
     map[key].total++;
     if(s.severity==='high')map[key].high++;
     if(s.sentiment==='negative')map[key].neg++;
     if(s.sentiment==='positive')map[key].pos++;
+    const t=new Date(s.scraped_at||s.created_at||0).getTime();
+    if(t>=d30) map[key].curr30++;
+    else if(t>=d60) map[key].prev30++;
   });
-  let items=Object.values(map).sort((a,b)=>b.total-a.total);
+  // Attach delta to each item for use in card render and rising list
+  let items=Object.values(map).map(e=>{
+    e.delta=e.curr30-e.prev30;
+    e.pct=e.prev30>0?Math.round(Math.abs(e.delta)/e.prev30*100):null;
+    return e;
+  }).sort((a,b)=>b.total-a.total);
   if(q) items=items.filter(i=>i.name.toLowerCase().includes(q));
   const maxT=items[0]?.total||1;
   const grid=$('#entity-grid'); if(!grid) return;
   if(!q && items.length < 3) {
     grid.innerHTML='<div class="empty"><div class="empty-icon">&#128200;</div><div class="empty-text">Insufficient ingredient data — building baseline</div></div>';
     const ec=$('#entity-count'); if(ec) ec.textContent='0 ingredients';
+    renderRisingIngredients([]);
     return;
   }
   grid.innerHTML=items.length?items.map(e=>{
     const nm=e.name.replace(/'/g,"\\'");
+    // Trend delta badge — tooltip wired to showTrendTip (desktop hover + mobile tap)
+    const _tte=`onmouseenter="showTrendTip(event,${e.curr30},${e.prev30},${e.delta})" onmouseleave="hideTip()" onclick="event.stopPropagation();showTrendTip(event,${e.curr30},${e.prev30},${e.delta})"`;
+    // Only show trend when a valid comparison window exists (prev30 > 0).
+    // No badge is shown when prior window is empty — avoids "New activity" / +∞%.
+    let trendHtml='';
+    if(e.pct!==null&&e.delta!==0){
+      const dir=e.delta>0?'↑':'↓';
+      const col=e.delta>0?'#4ade80':'#f87171';
+      trendHtml=`<span style="font-size:9px;color:${col};margin-left:4px;cursor:default" ${_tte}>${dir}${e.pct}% vs prior 30d <span style="font-size:8px;opacity:.65">&#9432;</span></span>`;
+    }
     return `<div class="entity-card" onclick="showEntitySignals('${nm}')">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px;margin-bottom:3px">
         <div class="entity-name" style="margin-bottom:0">${e.name}</div>
         <button class="ing-ep-btn" onclick="event.stopPropagation();openEntityPanel('${nm}','ingredient')" title="Open ${e.name} detail" style="font-size:13px;margin-top:1px">&#9432;</button>
       </div>
-      <div class="entity-stats"><span class="entity-stat">${e.total} signals</span>${e.high?`<span class="entity-stat text-red">${e.high} high</span>`:''}${e.pos?`<span class="entity-stat text-green">${e.pos} pos</span>`:''}${e.neg?`<span class="entity-stat text-red">${e.neg} neg</span>`:''}</div>
+      <div class="entity-stats"><span class="entity-stat">${e.total} signals</span>${e.high?`<span class="entity-stat text-red">${e.high} high</span>`:''}${trendHtml}</div>
       <div class="entity-bar"><div class="entity-bar-fill" style="width:${Math.round(e.total/maxT*100)}%"></div></div>
     </div>`;
   }).join(''):'<div class="empty"><div class="empty-icon">&#9762;</div><div class="empty-text">No entities found</div></div>';
   const ec=$('#entity-count'); if(ec) ec.textContent=`${items.length} ingredient${items.length!==1?'s':''}`;
+  renderRisingIngredients(items);
 }
 function showEntitySignals(name) {
   const el = document.getElementById('entity-signals'); if(!el) return;
@@ -518,6 +616,59 @@ function showEntitySignals(name) {
 function clearEntitySignals() {
   const el=document.getElementById('entity-signals');
   if(el){el.style.display='none';el.innerHTML='';}
+}
+
+// ── Trend transparency tooltip ────────────────────────────────────────────────
+// Reuses the shared #sg-tip / TIP / _positionTip / hideTip system.
+// Called from onmouseenter (desktop) and onclick (mobile touch).
+// e.stopPropagation() prevents the enclosing entity card click from firing.
+function showTrendTip(e, curr30, prev30, delta) {
+  const net    = delta > 0 ? '+' + delta : String(delta);
+  const netCol = delta > 0 ? 'var(--green)' : delta < 0 ? 'var(--red)' : 'var(--slate)';
+  const pctRow = prev30 > 0
+    ? `<div class="tt-r"><span class="tt-lbl">vs prior period</span><span class="tt-val">${Math.abs(Math.round(delta/prev30*100))}% ${delta>=0?'increase':'decrease'}</span></div>`
+    : `<div class="tt-r"><span class="tt-lbl">Prior 30 days</span><span class="tt-val" style="color:var(--slate-dim)">no prior data</span></div>`;
+  TIP.innerHTML = '<div class="tt-hd">30-day trend breakdown</div>'
+    + `<div class="tt-r"><span class="tt-lbl">Current 30 days</span><span class="tt-val">${curr30} signal${curr30!==1?'s':''}</span></div>`
+    + `<div class="tt-r"><span class="tt-lbl">Previous 30 days</span><span class="tt-val">${prev30} signal${prev30!==1?'s':''}</span></div>`
+    + `<div class="tt-r"><span class="tt-lbl">Net change</span><span class="tt-val" style="color:${netCol}">${net}</span></div>`
+    + pctRow;
+  _positionTip(e);
+  TIP.classList.add('tip-on');
+  e.stopPropagation();
+}
+
+// ── Feature 3: Most Active Ingredients panel ──────────────────────────────────
+// Takes the pre-computed items array from renderEntities (already has delta/pct).
+// Renders top 10 by 30-day signal count into #rising-ingredients.
+// NOTE: When prior-window data is sparse (e.g. first pipeline run), delta equals
+// curr30 and reflects activity volume, not confirmed growth. The panel heading
+// reflects this: "Most Active" rather than "Rising".
+function renderRisingIngredients(items) {
+  const el=document.getElementById('rising-ingredients');
+  if(!el) return;
+  const rising=items.filter(e=>e.delta>0)
+    .sort((a,b)=>b.delta-a.delta||b.curr30-a.curr30)
+    .slice(0,10);
+  if(!rising.length){el.style.display='none';return;}
+  el.style.display='';
+  const rows=rising.map((e,i)=>{
+    const nm=e.name.replace(/'/g,"\\'");
+    const pctStr=e.pct!==null?` <span style="font-size:9px;color:#64748b">(+${e.pct}%)</span>`:'';
+    return `<div style="display:flex;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1px solid rgba(30,70,110,.25);cursor:pointer" onclick="filterByIngredient('${nm}')" title="Filter to ${e.name}">
+      <span style="font-size:10px;color:#4a6a87;width:18px;flex-shrink:0;text-align:right">#${i+1}</span>
+      <span style="font-size:12px;color:#CBD5E1;flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${e.name}</span>
+      <span style="font-size:11px;color:#527292;flex-shrink:0">${e.curr30} signal${e.curr30!==1?'s':''}</span>
+      <span style="font-size:11px;font-weight:600;color:#4ade80;flex-shrink:0;min-width:28px;text-align:right">+${e.delta}${pctStr}</span>
+    </div>`;
+  }).join('');
+  el.innerHTML=`<div class="wc-vms-panel" style="padding:11px 14px">
+    <div class="wc-vms-hd" style="margin-bottom:8px">&#128200; Most Active Ingredients &mdash; Last 30 Days</div>
+    ${rows}
+    <div style="font-size:10px;color:rgba(13,148,136,.7);padding-top:7px;margin-top:4px;border-top:1px solid rgba(30,70,110,.35)">
+      <b style="color:rgba(13,148,136,.95)">Note:</b> Ranked by signal volume in the current 30-day window. The +n figure reflects new signals this period; once prior-window data accumulates it will show confirmed growth. Click any row to filter signals.
+    </div>
+  </div>`;
 }
 
 // ─── EVIDENCE ─────────────────────────────────────────────────────────────────
