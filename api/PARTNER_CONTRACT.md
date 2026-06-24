@@ -5,8 +5,8 @@ against the Signalex read-only API. It defines base URLs, endpoints, field
 semantics, filtering, and current limitations.
 
 **Version:** 0.2.0  
-**Last updated:** 2026-05-23  
-**Status:** Development — no auth, local only
+**Last updated:** 2026-06-24
+**Status:** Development — no auth
 
 ---
 
@@ -42,6 +42,7 @@ The API serves two independent data sources:
 > They are accessible via `/api/citations` and `/api/citations/{id}`.
 > They are **not** in `signals.db` and will return `total: 0` from `/api/signals?domain=pharma`.
 > A future migration will consolidate pharma into `signals.db`.
+> Therefore `/api/citations` is the current Pharma source of truth.
 
 ---
 
@@ -50,13 +51,28 @@ The API serves two independent data sources:
 ### Health and metadata
 
 #### `GET /api/health`
-Quick liveness check. Returns signal and citation record counts.
+Checks that SQLite exists and is readable, reports Food and VMS counts, and
+checks that the Pharma citation JSON loaded successfully. Missing or unreadable
+key files return HTTP 503.
 
 ```json
 {
   "status": "ok",
-  "signals": 1198,
-  "citations": 2853
+  "signals": {
+    "exists": true,
+    "readable": true,
+    "total": 1198,
+    "food": 81,
+    "vms": 1117
+  },
+  "citations": {
+    "exists": true,
+    "loaded": true,
+    "total": 2853,
+    "sourceOfTruthFor": "pharma"
+  },
+  "warnings": [],
+  "errors": []
 }
 ```
 
@@ -546,9 +562,11 @@ All endpoints are public with no API key or token requirement. Do not expose
 the API on a public network until an auth layer is added (API key header, JWT,
 or IP allowlist at the reverse-proxy level).
 
-### CORS open in development
-`allow_origins=["*"]` is set in `api/server.py` for local development convenience.
-This must be restricted to specific origins before production deployment.
+### CORS configuration
+GET, POST, and OPTIONS are allowed for configured origins. Local development
+origins on ports 3000 and 5173 are built in. Set `CORS_ORIGINS` to a
+comma-separated list of external frontend origins. The API does not default
+to `allow_origins=["*"]`.
 
 ### Pharma not yet in signals.db
 `/api/signals?domain=pharma` always returns `total: 0`. Pharma intelligence is

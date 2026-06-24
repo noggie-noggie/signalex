@@ -4,7 +4,8 @@ FastAPI layer exposing regulatory intelligence data from:
 - `reports/citation_database.json` — loaded into memory at startup
 - `data/signals.db` — SQLite, new read-only connection per request
 
-**No writes. No auth (yet). Local development only.**
+**No auth yet.** Read endpoints use read-only database connections. The food
+claim guidance endpoint writes only to its SQLite response cache.
 
 ---
 
@@ -18,7 +19,8 @@ python migrations/backfill_vms_domain.py
 ```
 
 This is safe to re-run — already-tagged rows are never modified.  
-Expected result: `domain=vms` 1117, `domain=food` 81, empty 0.
+The script only updates blank-domain rows matched by conservative VMS source
+or authority rules. Unmatched rows are reported and left untouched.
 
 ---
 
@@ -140,12 +142,24 @@ Response envelope:
 
 ## CORS
 
-CORS is currently open (`allow_origins=["*"]`) for local development convenience.
+CORS permits GET, POST, and OPTIONS. Local development origins on ports 3000
+and 5173 are always allowed. Add external frontend origins through the
+comma-separated `CORS_ORIGINS` environment variable:
 
-**Before deploying publicly**, restrict this in `api/server.py`:
-```python
-allow_origins=["https://your-domain.com"]
+```bash
+CORS_ORIGINS=https://frontend.example.com,https://www.frontend.example.com
 ```
+
+The API does not default to a wildcard origin.
+
+## Domain storage
+
+- Food and VMS records are stored in `data/signals.db`.
+- New classified signals default to `domain=vms`.
+- Pharma remains in `reports/citation_database.json` and is served by
+  `/api/citations`.
+- `/api/signals?domain=pharma` is not the Pharma source of truth and normally
+  returns zero records.
 
 ---
 

@@ -115,8 +115,15 @@ def get_conn() -> sqlite3.Connection:
 def save_signal(sig: "ClassifiedSignal") -> bool:
     """
     Insert a ClassifiedSignal into signals.db.
+    VMS is the default domain; an explicitly supplied domain is preserved.
     Returns True if inserted, False if source_id already existed.
     """
+    payload = sig.model_dump()
+    payload["domain"] = payload.get("domain") or getattr(sig, "domain", None) or "vms"
+    payload["competitor_signal"] = int(sig.competitor_signal)
+    payload["is_noise"] = int(sig.is_noise)
+    payload["created_at"] = datetime.now(timezone.utc).isoformat()
+
     conn = get_conn()
     try:
         conn.execute(
@@ -130,7 +137,7 @@ def save_signal(sig: "ClassifiedSignal") -> bool:
                 potential_impact, trend_relevance,
                 sentiment, sentiment_confidence, sentiment_reasoning,
                 ai_summary, clean_title, why_it_matters, recommended_action,
-                inspection_risk, is_noise, noise_reason, created_at
+                inspection_risk, is_noise, noise_reason, created_at, domain
             ) VALUES (
                 :source_id, :authority, :url, :title, :scraped_at,
                 :ingredient_name, :event_type, :severity, :summary,
@@ -140,15 +147,10 @@ def save_signal(sig: "ClassifiedSignal") -> bool:
                 :potential_impact, :trend_relevance,
                 :sentiment, :sentiment_confidence, :sentiment_reasoning,
                 :ai_summary, :clean_title, :why_it_matters, :recommended_action,
-                :inspection_risk, :is_noise, :noise_reason, :created_at
+                :inspection_risk, :is_noise, :noise_reason, :created_at, :domain
             )
             """,
-            {
-                **sig.model_dump(),
-                "competitor_signal": int(sig.competitor_signal),
-                "is_noise": int(sig.is_noise),
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            },
+            payload,
         )
         inserted = conn.execute("SELECT changes()").fetchone()[0] > 0
         conn.commit()

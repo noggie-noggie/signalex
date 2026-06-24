@@ -1,12 +1,12 @@
 """
 api/server.py — Read-only FastAPI layer for Signalex regulatory intelligence data.
 
-Data sources (read-only):
+Data sources:
   - reports/citation_database.json  → loaded once at startup, kept in memory
   - data/signals.db                 → new SQLite connection per request (read-only URI)
 
 Does NOT import config.py, scheduler, scrapers, classifier, or analytics modules.
-Does NOT write to any database or file.
+Read endpoints do not write. Food claim guidance may write to its response cache.
 
 Run:
     uvicorn api.server:app --reload --port 8000
@@ -26,13 +26,15 @@ Endpoints:
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from collections import defaultdict
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 from pydantic import BaseModel
 
 # Food claim guidance services (deterministic, no AI)
@@ -47,6 +49,7 @@ from services.food_claims.cache      import make_input_hash, get_cached_guidance
 _ROOT            = Path(__file__).parent.parent   # ~/vms-intel
 _SIGNALS_DB      = _ROOT / "data" / "signals.db"
 _CITATIONS_JSON  = _ROOT / "reports" / "citation_database.json"
+load_dotenv(_ROOT / ".env")
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -54,17 +57,32 @@ _CITATIONS_JSON  = _ROOT / "reports" / "citation_database.json"
 app = FastAPI(
     title="Signalex Read-Only API",
     description="Read-only regulatory intelligence endpoints. No auth yet.",
-    version="0.1.0",
+    version="0.2.0",
 )
 
-# CORS — currently open for local development.
-# TODO: Before production deployment, restrict allow_origins to specific domains, e.g.:
-#   allow_origins=["https://your-signalex-domain.com"]
+_LOCAL_CORS_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+]
+
+
+def _cors_origins() -> list[str]:
+    """Return local origins plus comma-separated CORS_ORIGINS values."""
+    configured = [
+        origin.strip().rstrip("/")
+        for origin in os.getenv("CORS_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
+    return list(dict.fromkeys([*_LOCAL_CORS_ORIGINS, *configured]))
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],       # <-- restrict in production
+    allow_origins=_cors_origins(),
     allow_credentials=False,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -125,20 +143,73 @@ def _ensure_columns() -> set[str]:
 # ---------------------------------------------------------------------------
 
 @app.get("/api/health")
-def health():
-    """Quick health check. Returns signal and citation counts."""
-    sig_count = 0
-    if _SIGNALS_DB.exists():
+def health(response: Response):
+    """Check that both API data stores exist, load, and can be queried."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    signal_count = 0
+    food_count = 0
+    vms_count = 0
+
+    signals_exists = _SIGNALS_DB.exists()
+    signals_readable = False
+    if not signals_exists:
+        errors.append(f"Missing signals database: {_SIGNALS_DB}")
+    else:
         try:
-            conn      = _get_conn()
-            sig_count = conn.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
-            conn.close()
-        except Exception:
-            pass
+            conn = _get_conn()
+            try:
+                signal_count = conn.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
+                food_count = conn.execute(
+                    "SELECT COUNT(*) FROM signals WHERE domain = 'food'"
+                ).fetchone()[0]
+                vms_count = conn.execute(
+                    "SELECT COUNT(*) FROM signals WHERE domain = 'vms'"
+                ).fetchone()[0]
+                blank_domains = conn.execute(
+                    "SELECT COUNT(*) FROM signals WHERE domain IS NULL OR domain = ''"
+                ).fetchone()[0]
+                signals_readable = True
+                if blank_domains:
+                    warnings.append(
+                        f"{blank_domains} signal row(s) have no domain; run the VMS backfill."
+                    )
+            finally:
+                conn.close()
+        except Exception as exc:
+            errors.append(f"Signals database is not readable: {exc}")
+
+    citations_exists = _CITATIONS_JSON.exists()
+    citations_loaded = citations_exists and "error" not in _citations_meta
+    if not citations_exists:
+        errors.append(f"Missing citation database: {_CITATIONS_JSON}")
+    elif not citations_loaded:
+        errors.append(
+            f"Citation database failed to load: {_citations_meta.get('error', 'unknown error')}"
+        )
+
+    if errors:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
     return {
-        "status":    "ok",
-        "signals":   sig_count,
-        "citations": len(_citations),
+        "status": "error" if errors else ("warning" if warnings else "ok"),
+        "signals": {
+            "path": str(_SIGNALS_DB),
+            "exists": signals_exists,
+            "readable": signals_readable,
+            "total": signal_count,
+            "food": food_count,
+            "vms": vms_count,
+        },
+        "citations": {
+            "path": str(_CITATIONS_JSON),
+            "exists": citations_exists,
+            "loaded": citations_loaded,
+            "total": len(_citations),
+            "sourceOfTruthFor": "pharma",
+        },
+        "warnings": warnings,
+        "errors": errors,
     }
 
 

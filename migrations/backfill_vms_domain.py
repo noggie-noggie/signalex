@@ -26,6 +26,7 @@ Rule 2 — early-pipeline TGA/FDA rows (source_label was not yet populated):
 
 Both statements are wrapped in a single transaction.
 Rows already tagged (domain='food', domain='vms', etc.) are never touched.
+Rows that match neither conservative rule are left untouched for manual review.
 
 Usage
 -----
@@ -34,9 +35,8 @@ Usage
 
 Exit codes
 ----------
-  0  — migration applied (or already fully applied on re-run)
-  1  — empty/null domain rows remain after migration (unexpected)
-  2  — dry-run: rows that would be updated are printed, no changes made
+  0  — migration applied, already applied, or dry-run completed
+  1  — database/schema/transaction error
 """
 
 from __future__ import annotations
@@ -122,18 +122,18 @@ def run(dry_run: bool = False) -> int:
         print(f"    Rule 2 (authority fallback)   {rule2_pending:>6} rows")
 
         if rule1_pending == 0 and rule2_pending == 0:
-            print("\n  Already fully applied — nothing to do.")
-            # Verify no strays remain
+            print("\n  No clearly identifiable VMS rows need updating.")
             empty = _count(conn, _EMPTY_DOMAIN)
             if empty:
-                print(f"\n  WARNING: {empty} row(s) with empty domain remain "
-                      f"and are not covered by either rule.", file=sys.stderr)
-                return 1
+                print(
+                    f"\n  NOTE: {empty} unmatched row(s) still have an empty "
+                    "domain and were intentionally left for manual review."
+                )
             return 0
 
         if dry_run:
             print("\n  DRY RUN — no changes written.")
-            return 2
+            return 0
 
         # ---- Apply in a transaction --------------------------------------
         conn.execute("BEGIN")
@@ -155,17 +155,15 @@ def run(dry_run: bool = False) -> int:
         print(f"    Rule 2  {r2.rowcount:>6}")
         print(f"    Total   {r1.rowcount + r2.rowcount:>6}")
 
-        # ---- Verify no empty domain rows remain --------------------------
+        # ---- Report unmatched rows without broadening the migration ------
         empty_after = _count(conn, _EMPTY_DOMAIN)
         if empty_after:
             print(
-                f"\n  ERROR: {empty_after} row(s) still have empty domain "
-                f"after migration — manual review required.",
-                file=sys.stderr,
+                f"\n  NOTE: {empty_after} unmatched row(s) still have an empty "
+                "domain and were intentionally left for manual review."
             )
-            return 1
-
-        print("\n  OK — zero empty/null domain rows remain.")
+        else:
+            print("\n  OK — zero empty/null domain rows remain.")
         return 0
 
     finally:
