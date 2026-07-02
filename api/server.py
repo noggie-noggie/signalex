@@ -28,7 +28,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Optional
 
@@ -508,11 +508,19 @@ def signals(
 
     conn = _get_conn()
     try:
-        total = conn.execute(count_sql, params).fetchone()[0]
-        rows  = conn.execute(select_sql, params + [limit, offset]).fetchall()
-        results = [dict(r) for r in rows]
         if domain == "food":
-            results = [enrich_food_signal(r) for r in results]
+            rows = conn.execute(
+                f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC",
+                params,
+            ).fetchall()
+            results = [enrich_food_signal(dict(r)) for r in rows]
+            if not include_noise:
+                results = _visible_food_rows(results)
+            total, results = _page_enriched(results, limit, offset)
+        else:
+            total = conn.execute(count_sql, params).fetchone()[0]
+            rows  = conn.execute(select_sql, params + [limit, offset]).fetchall()
+            results = [dict(r) for r in rows]
         return {
             "total":   total,
             "limit":   limit,
@@ -915,6 +923,14 @@ def _enrich_food_rows(rows) -> list[dict]:
     return [enrich_food_signal(dict(r)) for r in rows]
 
 
+def _visible_food_rows(rows: list[dict]) -> list[dict]:
+    return [
+        r for r in rows
+        if int(r.get("is_noise") or 0) != 1
+        and r.get("dashboard_section") != "excluded"
+    ]
+
+
 def _page_enriched(rows: list[dict], limit: int, offset: int) -> tuple[int, list[dict]]:
     total = len(rows)
     return total, rows[offset : offset + limit]
@@ -962,14 +978,15 @@ def food_dashboard():
             f"SELECT * FROM signals WHERE {domain_filter} "
             f"ORDER BY scraped_at DESC"
         ).fetchall())
+        all_rows = _visible_food_rows(all_rows)
 
         # Overview counts
         total = len(all_rows)
 
-        risks = conn.execute(
-            f"SELECT COUNT(*) FROM signals WHERE {domain_filter} "
-            f"AND severity IN ('high','critical','severe')"
-        ).fetchone()[0]
+        risks = len([
+            r for r in all_rows
+            if (r.get("severity") or "").lower() in {"high", "critical", "severe"}
+        ])
 
         recent_signals = all_rows[:20]
         recalls = [r for r in all_rows if r.get("dashboard_section") == "recalls_safety"][:50]
@@ -985,15 +1002,16 @@ def food_dashboard():
             or (has_claim and r.get("claim"))
         ][:50]
 
-        # Ingredient trends (top ingredients within food domain)
-        ing_rows = conn.execute(
-            f"SELECT ingredient_name, COUNT(*) AS cnt "
-            f"FROM signals "
-            f"WHERE {domain_filter} "
-            f"AND ingredient_name IS NOT NULL AND ingredient_name != '' "
-            f"GROUP BY ingredient_name ORDER BY cnt DESC LIMIT 30"
-        ).fetchall()
-        ingredient_trends = [{"ingredient": r[0], "count": r[1]} for r in ing_rows]
+        # Ingredient trends (top ingredients within visible food rows)
+        ingredient_counts = Counter(
+            r.get("ingredient_name")
+            for r in all_rows
+            if r.get("ingredient_name")
+        )
+        ingredient_trends = [
+            {"ingredient": ingredient, "count": count}
+            for ingredient, count in ingredient_counts.most_common(30)
+        ]
 
         return {
             "overview": {
@@ -1073,7 +1091,7 @@ def food_signals(
             f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC",
             params,
         ).fetchall()
-        results = _enrich_food_rows(rows)
+        results = _visible_food_rows(_enrich_food_rows(rows))
         if signal_type:
             results = [r for r in results if signal_type.lower() in r.get("signal_type", "").lower()]
         total, page = _page_enriched(results, limit, offset)
@@ -1135,16 +1153,17 @@ def food_products(
 
     conn = _food_conn()
     try:
-        total = conn.execute(f"SELECT COUNT(*) FROM signals {where_sql}", params).fetchone()[0]
         rows  = conn.execute(
-            f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC LIMIT ? OFFSET ?",
-            params + [limit, offset],
+            f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC",
+            params,
         ).fetchall()
+        results = _visible_food_rows(_enrich_food_rows(rows))
+        total, page = _page_enriched(results, limit, offset)
         return {
             "total":   total,
             "limit":   limit,
             "offset":  offset,
-            "results": _enrich_food_rows(rows),
+            "results": page,
         }
     finally:
         conn.close()
@@ -1198,7 +1217,7 @@ def food_recalls(
             params,
         ).fetchall()
         results = [
-            r for r in _enrich_food_rows(rows)
+            r for r in _visible_food_rows(_enrich_food_rows(rows))
             if r.get("dashboard_section") == "recalls_safety"
         ]
         total, page = _page_enriched(results, limit, offset)
@@ -1254,7 +1273,7 @@ def food_rules(
             params,
         ).fetchall()
         results = [
-            r for r in _enrich_food_rows(rows)
+            r for r in _visible_food_rows(_enrich_food_rows(rows))
             if r.get("dashboard_section") == "regulatory_updates"
         ]
         total, page = _page_enriched(results, limit, offset)
