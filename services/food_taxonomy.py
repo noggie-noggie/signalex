@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from services.food_supplement_filter import is_supplement_like_food
+from services.food_text_sanitizer import sanitize_food_text_fields
 
 
 SIGNAL_TYPES = {
@@ -429,7 +430,7 @@ def enrich_food_signal(row: dict[str, Any]) -> dict[str, Any]:
     # Keep event_type aligned for Food API consumers while retaining legacy rows
     # in the database unchanged.
     enriched["event_type"] = enriched["signal_type"]
-    return enriched
+    return sanitize_food_text_fields(enriched)
 
 
 def possible_misclassified_recall(row: dict[str, Any]) -> bool:
