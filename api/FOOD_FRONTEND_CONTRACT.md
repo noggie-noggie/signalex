@@ -54,12 +54,28 @@ Objects returned in signal arrays support this frontend-safe subset:
   "allergen": "",
   "claim": "",
   "product_category": "food recall",
+  "market": ["australia", "new_zealand"],
+  "category": ["meat_seafood_animal"],
+  "product_type": ["ingredient"],
+  "ingredient": ["peanut"],
+  "issue_area": ["undeclared_allergen", "food_safety"],
+  "claim_theme": [],
+  "source_type": "regulatory_recall",
+  "dashboard_section": "recalls_safety",
+  "impact": "high",
+  "momentum": "active",
   "recommended_action": "Review the source notice."
 }
 ```
 
-Supported fields are the fields above. String fields may be empty. Treat
-`signal_type` as the primary type; `event_type` is a compatibility alias.
+Supported fields are the fields above. String fields may be empty. Taxonomy
+tag fields (`market`, `category`, `product_type`, `ingredient`, `issue_area`,
+and `claim_theme`) are arrays and may be empty. Treat `signal_type` as the
+primary type; `event_type` is a compatibility alias.
+
+Use `dashboard_section` as the primary page/section switch:
+`recalls_safety`, `regulatory_updates`, `claims_labelling`,
+`ingredient_watch`, `category_signals`, or `market_opportunities`.
 
 Do not rely on undocumented fields, database column order, internal IDs other
 than `id`, AI/classification metadata, sentiment fields, cache fields,
@@ -274,14 +290,14 @@ Query parameters:
 | `severity` | string | Partial match |
 | `sentiment` | string | Partial match; often empty for Food |
 | `ingredient` | string | Partial match |
-| `category` | string | Maps to event type, e.g. `recall`, `rule_update` |
+| `category` | string | Legacy filter mapped to stored event type. Prefer filtering returned rows by `dashboard_section` or `signal_type` in the frontend. |
 | `limit` | integer | Default 50; minimum 1; maximum 500 |
 | `offset` | integer | Default 0; minimum 0 |
 
 Example:
 
 ```http
-GET http://localhost:8000/api/signals?domain=food&category=recall&limit=20
+GET http://localhost:8000/api/signals?domain=food&limit=20
 ```
 
 Response: paginated response containing Food signal objects.

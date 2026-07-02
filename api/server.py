@@ -42,6 +42,7 @@ from services.food_claims.classifier import classify_claim
 from services.food_claims.pathways   import get_claim_pathways
 from services.food_claims.retriever  import retrieve_supporting_signals
 from services.food_claims.cache      import make_input_hash, get_cached_guidance, save_guidance
+from services.food_taxonomy import enrich_food_signal
 
 # ---------------------------------------------------------------------------
 # Paths — resolved relative to the repo root (one level above this file)
@@ -509,11 +510,14 @@ def signals(
     try:
         total = conn.execute(count_sql, params).fetchone()[0]
         rows  = conn.execute(select_sql, params + [limit, offset]).fetchall()
+        results = [dict(r) for r in rows]
+        if domain == "food":
+            results = [enrich_food_signal(r) for r in results]
         return {
             "total":   total,
             "limit":   limit,
             "offset":  offset,
-            "results": [dict(r) for r in rows],
+            "results": results,
         }
     finally:
         conn.close()
@@ -553,6 +557,8 @@ def schema():
         "sentiment_confidence", "sentiment_reasoning", "created_at",
         "digest_sent", "ai_summary", "clean_title", "why_it_matters",
         "recommended_action", "inspection_risk", "is_noise", "noise_reason",
+        "market", "category", "product_type", "ingredient", "issue_area",
+        "claim_theme", "source_type", "dashboard_section", "impact", "momentum",
     ]
 
     citation_filters = [
@@ -905,6 +911,15 @@ def _food_columns() -> set[str]:
     return _ensure_columns()
 
 
+def _enrich_food_rows(rows) -> list[dict]:
+    return [enrich_food_signal(dict(r)) for r in rows]
+
+
+def _page_enriched(rows: list[dict], limit: int, offset: int) -> tuple[int, list[dict]]:
+    total = len(rows)
+    return total, rows[offset : offset + limit]
+
+
 # ---------------------------------------------------------------------------
 # GET /api/food/dashboard
 # ---------------------------------------------------------------------------
@@ -938,72 +953,37 @@ def food_dashboard():
     cols = _food_columns()
     has_domain  = "domain"       in cols
     has_claim   = "claim"        in cols
-    has_company = "company"      in cols
 
     conn = _food_conn()
     try:
         domain_filter = "domain = 'food'" if has_domain else "source_label LIKE 'food_%' OR source_label = 'open_food_facts'"
 
+        all_rows = _enrich_food_rows(conn.execute(
+            f"SELECT * FROM signals WHERE {domain_filter} "
+            f"ORDER BY scraped_at DESC"
+        ).fetchall())
+
         # Overview counts
-        total = conn.execute(
-            f"SELECT COUNT(*) FROM signals WHERE {domain_filter}"
-        ).fetchone()[0]
+        total = len(all_rows)
 
         risks = conn.execute(
             f"SELECT COUNT(*) FROM signals WHERE {domain_filter} "
             f"AND severity IN ('high','critical','severe')"
         ).fetchone()[0]
 
-        new_launches = conn.execute(
-            f"SELECT COUNT(*) FROM signals WHERE {domain_filter} "
-            f"AND (signal_type = 'new_product' OR source_label = 'open_food_facts')"
-        ).fetchone()[0]
-
-        rule_updates_count = conn.execute(
-            f"SELECT COUNT(*) FROM signals WHERE {domain_filter} "
-            f"AND (signal_type = 'rule_update' OR source_label = 'food_fsanz_updates')"
-        ).fetchone()[0]
-
-        # Recent signals (last 20)
-        recent_rows = conn.execute(
-            f"SELECT * FROM signals WHERE {domain_filter} "
-            f"ORDER BY scraped_at DESC LIMIT 20"
-        ).fetchall()
-        recent_signals = [dict(r) for r in recent_rows]
-
-        # Recalls
-        recall_rows = conn.execute(
-            f"SELECT * FROM signals WHERE {domain_filter} "
-            f"AND (signal_type = 'recall' OR source_label = 'food_fsanz_recalls') "
-            f"ORDER BY scraped_at DESC LIMIT 50"
-        ).fetchall()
-        recalls = [dict(r) for r in recall_rows]
-
-        # Rule updates
-        rule_rows = conn.execute(
-            f"SELECT * FROM signals WHERE {domain_filter} "
-            f"AND (signal_type = 'rule_update' OR source_label = 'food_fsanz_updates') "
-            f"ORDER BY scraped_at DESC LIMIT 50"
-        ).fetchall()
-        rule_updates = [dict(r) for r in rule_rows]
-
-        # Competitor products (Open Food Facts)
-        product_rows = conn.execute(
-            f"SELECT * FROM signals WHERE {domain_filter} "
-            f"AND source_label = 'open_food_facts' "
-            f"ORDER BY scraped_at DESC LIMIT 50"
-        ).fetchall()
-        competitor_products = [dict(r) for r in product_rows]
+        recent_signals = all_rows[:20]
+        recalls = [r for r in all_rows if r.get("dashboard_section") == "recalls_safety"][:50]
+        rule_updates = [r for r in all_rows if r.get("dashboard_section") == "regulatory_updates"][:50]
+        competitor_products = [r for r in all_rows if r.get("source_label") == "open_food_facts"][:50]
+        new_launches = len([r for r in all_rows if r.get("signal_type") == "product_launch"])
+        rule_updates_count = len(rule_updates)
 
         # Claim signals (have a non-empty claim field)
-        claim_rows: list = []
-        if has_claim:
-            claim_rows = conn.execute(
-                f"SELECT * FROM signals WHERE {domain_filter} "
-                f"AND claim IS NOT NULL AND claim != '' "
-                f"ORDER BY scraped_at DESC LIMIT 50"
-            ).fetchall()
-        claim_signals = [dict(r) for r in claim_rows]
+        claim_signals = [
+            r for r in all_rows
+            if r.get("dashboard_section") == "claims_labelling"
+            or (has_claim and r.get("claim"))
+        ][:50]
 
         # Ingredient trends (top ingredients within food domain)
         ing_rows = conn.execute(
@@ -1071,7 +1051,6 @@ def food_signals(
 
     filters = [
         ("severity",   "severity",        True),
-        ("signal_type","signal_type",      True),
         ("source",     "source_label",     True),
         ("ingredient", "ingredient_name",  True),
     ]
@@ -1090,18 +1069,19 @@ def food_signals(
 
     conn = _food_conn()
     try:
-        total = conn.execute(
-            f"SELECT COUNT(*) FROM signals {where_sql}", params
-        ).fetchone()[0]
         rows = conn.execute(
-            f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC LIMIT ? OFFSET ?",
-            params + [limit, offset],
+            f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC",
+            params,
         ).fetchall()
+        results = _enrich_food_rows(rows)
+        if signal_type:
+            results = [r for r in results if signal_type.lower() in r.get("signal_type", "").lower()]
+        total, page = _page_enriched(results, limit, offset)
         return {
             "total":   total,
             "limit":   limit,
             "offset":  offset,
-            "results": [dict(r) for r in rows],
+            "results": page,
         }
     finally:
         conn.close()
@@ -1164,7 +1144,7 @@ def food_products(
             "total":   total,
             "limit":   limit,
             "offset":  offset,
-            "results": [dict(r) for r in rows],
+            "results": _enrich_food_rows(rows),
         }
     finally:
         conn.close()
@@ -1196,10 +1176,7 @@ def food_recalls(
     has_company  = "company"  in cols
 
     domain_clause = "domain = 'food'" if has_domain else "source_label = 'food_fsanz_recalls'"
-    where_clauses = [
-        domain_clause,
-        "(signal_type = 'recall' OR source_label = 'food_fsanz_recalls')",
-    ]
+    where_clauses = [domain_clause]
     params: list = []
 
     if allergen and has_allergen:
@@ -1216,16 +1193,20 @@ def food_recalls(
 
     conn = _food_conn()
     try:
-        total = conn.execute(f"SELECT COUNT(*) FROM signals {where_sql}", params).fetchone()[0]
         rows  = conn.execute(
-            f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC LIMIT ? OFFSET ?",
-            params + [limit, offset],
+            f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC",
+            params,
         ).fetchall()
+        results = [
+            r for r in _enrich_food_rows(rows)
+            if r.get("dashboard_section") == "recalls_safety"
+        ]
+        total, page = _page_enriched(results, limit, offset)
         return {
             "total":   total,
             "limit":   limit,
             "offset":  offset,
-            "results": [dict(r) for r in rows],
+            "results": page,
         }
     finally:
         conn.close()
@@ -1254,10 +1235,7 @@ def food_rules(
     has_domain = "domain" in cols
 
     domain_clause = "domain = 'food'" if has_domain else "source_label = 'food_fsanz_updates'"
-    where_clauses = [
-        domain_clause,
-        "(signal_type = 'rule_update' OR source_label = 'food_fsanz_updates')",
-    ]
+    where_clauses = [domain_clause]
     params: list = []
 
     if severity:
@@ -1271,16 +1249,20 @@ def food_rules(
 
     conn = _food_conn()
     try:
-        total = conn.execute(f"SELECT COUNT(*) FROM signals {where_sql}", params).fetchone()[0]
         rows  = conn.execute(
-            f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC LIMIT ? OFFSET ?",
-            params + [limit, offset],
+            f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC",
+            params,
         ).fetchall()
+        results = [
+            r for r in _enrich_food_rows(rows)
+            if r.get("dashboard_section") == "regulatory_updates"
+        ]
+        total, page = _page_enriched(results, limit, offset)
         return {
             "total":   total,
             "limit":   limit,
             "offset":  offset,
-            "results": [dict(r) for r in rows],
+            "results": page,
         }
     finally:
         conn.close()

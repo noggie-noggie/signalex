@@ -6,6 +6,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from api.server import _cors_origins, app
+from services.food_taxonomy import classify_food_signal
 
 
 class ApiBackendTests(unittest.TestCase):
@@ -31,6 +32,38 @@ class ApiBackendTests(unittest.TestCase):
             ]:
                 with self.subTest(path=path):
                     self.assertEqual(client.get(path).status_code, 200)
+
+            food_response = client.get("/api/signals?domain=food&limit=1")
+            first = food_response.json()["results"][0]
+            for field in [
+                "market",
+                "category",
+                "product_type",
+                "ingredient",
+                "issue_area",
+                "claim_theme",
+                "signal_type",
+                "source_type",
+                "dashboard_section",
+                "impact",
+                "momentum",
+            ]:
+                self.assertIn(field, first)
+
+    def test_food_taxonomy_reclassifies_recall_like_updates(self):
+        row = {
+            "domain": "food",
+            "source_label": "food_fsanz_updates",
+            "authority": "fsanz",
+            "signal_type": "rule_update",
+            "event_type": "rule_update",
+            "title": "Media statement on recall of infant formula due to potential toxin contamination",
+            "summary": "Two companies have recalled infant formula products nationally.",
+        }
+        taxonomy = classify_food_signal(row)
+        self.assertEqual(taxonomy["signal_type"], "recall")
+        self.assertEqual(taxonomy["dashboard_section"], "recalls_safety")
+        self.assertIn("food_safety", taxonomy["issue_area"])
 
     @patch("api.server.save_guidance", lambda *args, **kwargs: None)
     @patch("api.server.get_cached_guidance", lambda _input_hash: None)
