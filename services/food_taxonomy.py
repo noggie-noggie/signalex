@@ -214,6 +214,35 @@ _INGREDIENT_HINTS = [
     "garlic",
 ]
 
+_MEANINGFUL_OPPORTUNITY_CLAIM_THEMES = {
+    "gut_health",
+    "immunity",
+    "energy",
+    "hydration",
+    "high_protein",
+    "low_sugar",
+    "source_of_fibre",
+    "natural",
+    "clean_label",
+    "plant_based",
+    "free_from",
+    "kids_nutrition",
+    "sustainability",
+}
+
+_MEANINGFUL_OPPORTUNITY_PRODUCT_TYPES = {
+    "protein_bar",
+    "yoghurt_drink",
+    "fermented_drink",
+    "kombucha",
+    "plant_based_milk",
+    "energy_drink",
+    "beverage",
+    "snack_food",
+}
+
+_GENERIC_PRODUCT_TYPES = {"other", "egg", "meat_product", "seafood", "ingredient"}
+
 
 def _norm(value: Any) -> str:
     return str(value or "").strip()
@@ -307,6 +336,64 @@ def _recall_issue_area(text: str) -> list[str]:
     return ["food_safety"]
 
 
+def _is_explicit_labelling_failure(text: str) -> bool:
+    return _contains_any(
+        text,
+        [
+            "undeclared allergen",
+            "undeclared",
+            "mislabelled",
+            "mislabeled",
+            "incorrect label",
+            "incorrect labelling",
+            "incorrect labeling",
+            "labelling failure",
+            "labeling failure",
+        ],
+    )
+
+
+def _non_recall_issue_area(text: str, source: str) -> list[str]:
+    tags = _tags_from_patterns(text, _ISSUE_PATTERNS)
+    if source == "open_food_facts" and not _is_explicit_labelling_failure(text):
+        tags = [
+            tag for tag in tags
+            if tag not in {"undeclared_allergen", "incorrect_labelling"}
+        ]
+    return tags
+
+
+def _has_meaningful_market_relevance(
+    claim_theme: list[str],
+    product_type: list[str],
+    category: list[str],
+    text: str,
+) -> bool:
+    if set(claim_theme) & _MEANINGFUL_OPPORTUNITY_CLAIM_THEMES:
+        return True
+    if set(product_type) & _MEANINGFUL_OPPORTUNITY_PRODUCT_TYPES:
+        return True
+    if "sports_protein_functional" in category and not set(product_type) <= _GENERIC_PRODUCT_TYPES:
+        return True
+    return _contains_any(
+        text,
+        [
+            "functional beverage",
+            "functional drink",
+            "gut health",
+            "probiotic",
+            "prebiotic",
+            "high protein",
+            "low sugar",
+            "source of fibre",
+            "source of fiber",
+            "clean label",
+            "plant based",
+            "plant-based",
+        ],
+    )
+
+
 def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
     """
     Return deterministic Food taxonomy fields for a signal row.
@@ -327,30 +414,15 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
         or existing_type == "recall"
         or ("recall" in text and _contains_any(text, _RECALL_TERMS))
     )
-    is_claim = bool(claim) or existing_type in {"claim_signal", "claim_risk"} or _contains_any(text, _CLAIM_TERMS)
+    is_claim = (
+        bool(claim)
+        or existing_type in {"claim_signal", "claim_risk"}
+        or (source != "open_food_facts" and _contains_any(text, _CLAIM_TERMS))
+    )
     is_regulatory = source == "food_fsanz_updates" or existing_type in {"rule_update", "regulatory_update", "consultation"}
     is_product = source == "open_food_facts" or existing_type in {"new_product", "product_launch"}
 
-    if is_recall:
-        signal_type = "recall"
-        dashboard_section = "recalls_safety"
-    elif is_supplement_leakage:
-        signal_type = "excluded"
-        dashboard_section = "excluded"
-    elif is_regulatory:
-        signal_type = "consultation" if "consultation" in text or "call for comment" in text else "regulatory_update"
-        dashboard_section = "regulatory_updates"
-    elif is_claim:
-        signal_type = "claim_risk"
-        dashboard_section = "claims_labelling"
-    elif is_product:
-        signal_type = "product_launch"
-        dashboard_section = "market_opportunities"
-    else:
-        signal_type = "category_trend"
-        dashboard_section = "category_signals"
-
-    issue_area = _recall_issue_area(content_text) if is_recall else _tags_from_patterns(content_text, _ISSUE_PATTERNS)
+    issue_area = _recall_issue_area(content_text) if is_recall else _non_recall_issue_area(content_text, source)
     if is_claim:
         issue_area.extend(["claims_wording", "substantiation"])
     if not issue_area and is_product and not is_supplement_leakage:
@@ -372,6 +444,35 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
     if not category:
         category = ["other"]
 
+    has_meaningful_market_relevance = _has_meaningful_market_relevance(
+        claim_theme,
+        product_type,
+        category,
+        content_text,
+    )
+
+    if is_recall:
+        signal_type = "recall"
+        dashboard_section = "recalls_safety"
+    elif is_supplement_leakage:
+        signal_type = "excluded"
+        dashboard_section = "excluded"
+    elif is_regulatory:
+        signal_type = "consultation" if "consultation" in text or "call for comment" in text else "regulatory_update"
+        dashboard_section = "regulatory_updates"
+    elif is_claim:
+        signal_type = "claim_risk"
+        dashboard_section = "claims_labelling"
+    elif is_product and has_meaningful_market_relevance:
+        signal_type = "product_launch"
+        dashboard_section = "market_opportunities"
+    elif is_product:
+        signal_type = "category_trend"
+        dashboard_section = "category_signals"
+    else:
+        signal_type = "category_trend"
+        dashboard_section = "category_signals"
+
     ingredients = []
     stored_ingredient = _norm(row.get("ingredient_name"))
     if stored_ingredient:
@@ -386,7 +487,7 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
     severity = _norm(row.get("severity")).lower()
     if is_recall or severity in {"high", "critical", "severe"}:
         impact = "high"
-    elif is_regulatory or is_claim or severity == "medium":
+    elif is_regulatory or is_claim or (is_product and has_meaningful_market_relevance) or severity == "medium":
         impact = "medium"
     else:
         impact = "low"
