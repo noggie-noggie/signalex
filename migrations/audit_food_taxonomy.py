@@ -44,10 +44,21 @@ def main() -> int:
         conn.close()
 
     rows = [enrich_food_signal(row) for row in raw_rows]
+    visible_rows = [
+        row for row in rows
+        if int(row.get("is_noise") or 0) != 1
+        and row.get("dashboard_section") != "excluded"
+    ]
     by_signal_type = Counter(row.get("signal_type") or "" for row in rows)
-    by_dashboard_section = Counter(row.get("dashboard_section") or "" for row in rows)
+    by_dashboard_section = Counter(row.get("dashboard_section") or "" for row in visible_rows)
     missing_signal_type = [row for row in rows if not row.get("signal_type")]
     missing_dashboard_section = [row for row in rows if not row.get("dashboard_section")]
+    weak_category = [row for row in rows if row.get("category") == ["other"]]
+    weak_product_type = [row for row in rows if not row.get("product_type")]
+    weak_examples = [
+        row for row in rows
+        if row.get("category") == ["other"] or not row.get("product_type")
+    ][:10]
     possible_misclassified = [
         (raw, enrich_food_signal(raw))
         for raw in raw_rows
@@ -57,17 +68,33 @@ def main() -> int:
     print("Food taxonomy audit")
     print("===================")
     print(f"total food signals: {len(rows)}")
+    print(f"visible customer-facing food signals: {len(visible_rows)}")
 
     print("\ncount by signal_type:")
     for key, count in sorted(by_signal_type.items()):
         print(f"  {key or '(missing)'}: {count}")
 
-    print("\ncount by dashboard_section:")
+    print("\nvisible count by dashboard_section:")
     for key, count in sorted(by_dashboard_section.items()):
         print(f"  {key or '(missing)'}: {count}")
 
     print(f"\nmissing signal_type: {len(missing_signal_type)}")
     print(f"missing dashboard_section: {len(missing_dashboard_section)}")
+    print(f'category ["other"]: {len(weak_category)}')
+    print(f"empty product_type: {len(weak_product_type)}")
+
+    print("\ntop weakly classified records:")
+    if not weak_examples:
+        print("  none")
+    else:
+        for row in weak_examples:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"category={row.get('category')} "
+                f"product_type={row.get('product_type')} "
+                f"title={row.get('title')}"
+            )
 
     print("\npossible legacy regulatory/update rows now classified as recalls:")
     if not possible_misclassified:
@@ -101,4 +128,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-    rows = [enrich_food_signal(row) for row in raw_rows]

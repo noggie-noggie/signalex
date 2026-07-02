@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import config
+from services.food_supplement_filter import is_supplement_like_food
 
 if TYPE_CHECKING:
     from classifier.claude import ClassifiedSignal
@@ -170,6 +171,14 @@ def save_food_signal(d: dict) -> bool:
       allergen, claim, product_category, recommended_action, authority
     """
     now = datetime.now(timezone.utc).isoformat()
+    source_label = d.get("source", "") or d.get("source_label", "")
+    if source_label == "open_food_facts" and is_supplement_like_food(d):
+        logger.info(
+            "Skipping Open Food Facts supplement-like product for Food domain: %s",
+            d.get("title") or d.get("product_name") or d.get("source_id"),
+        )
+        return False
+
     conn = get_conn()
     try:
         conn.execute(

@@ -11,6 +11,8 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from services.food_supplement_filter import is_supplement_like_food
+
 
 SIGNAL_TYPES = {
     "recall",
@@ -102,7 +104,8 @@ _ISSUE_PATTERNS = [
     ("undeclared_allergen", ["undeclared allergen", "undeclared", "allergen"]),
     ("microbial_contamination", ["microbial", "salmonella", "listeria", "e. coli", "mould", "hepatitis"]),
     ("foreign_matter", ["foreign matter", "foreign object", "glass", "metal", "plastic", "rubber"]),
-    ("chemical_contamination", ["chemical", "toxin", "cadmium", "monocrotophos"]),
+    ("toxin_contamination", ["toxin", "cereulide"]),
+    ("chemical_contamination", ["chemical", "cadmium", "monocrotophos", "prohibited substance"]),
     ("incorrect_labelling", ["incorrect label", "incorrect labelling", "mislabelled", "labelling", "label"]),
     ("composition_standard", ["standard", "composition", "food code", "maximum level", "permitted", "processing aid"]),
     ("claims_wording", ["claim", "health claim", "nutrition claim", "therapeutic", "supports", "boosts", "improves"]),
@@ -132,33 +135,62 @@ _CLAIM_THEME_PATTERNS = [
 
 _PRODUCT_TYPE_PATTERNS = [
     ("kombucha", ["kombucha"]),
+    ("fermented_drink", ["kombucha", "kefir"]),
     ("yoghurt_drink", ["yoghurt drink", "yogurt drink", "protein smoothie"]),
-    ("protein_bar", ["protein bar", "clif bar", "snack bar", "bubble bars"]),
+    ("protein_bar", ["protein bar", "clif bar", "protein crisp", "high protein bar"]),
     ("plant_based_milk", ["plant based milk", "almond milk", "soy milk", "oat milk", "high protein almond"]),
     ("energy_drink", ["energy drink", "pre workout", "berocca", "hydralyte"]),
+    ("infant_formula", ["infant formula", "formulated supplementary foods for young children"]),
     ("infant_snack", ["infant snack", "baby snack", "kids snack"]),
     ("sauce", ["sauce"]),
-    ("ready_meal", ["ready meal", "bowl", "prepared meal"]),
+    ("ready_meal", ["ready meal", "bowl", "prepared meal", "marinara mix", "topokki"]),
+    ("frozen_food", ["frozen", "sorbet", "frozen dessert", "ice cream"]),
     ("frozen_dessert", ["sorbet", "frozen dessert", "ice cream"]),
-    ("bakery_product", ["bread", "bakery", "bakehouse"]),
-    ("confectionery", ["chocolate", "caramel", "confectionery"]),
-    ("snack_food", ["snack", "chips", "dukkah", "seaweed"]),
+    ("bakery_product", ["bread", "bakery", "bakehouse", "cake", "wafer"]),
+    ("confectionery", ["chocolate", "caramel", "confectionery", "allen's", "allens", "inside outs", "inside-outs", "gummies", "pastilles", "lolly", "lollies", "candy"]),
+    ("snack_food", ["snack", "chips", "dukkah", "seaweed", "bar", "bubble bars", "wafer"]),
+    ("seafood", ["seafood", "oyster", "oysters", "fish", "mussel", "marinara"]),
+    ("meat_product", ["turkey", "bacon", "ham", "pork", "meat", "raw retail meats"]),
     ("dairy_product", ["milk", "cheese", "ricotta", "whey", "caseinate"]),
     ("beverage", ["beverage", "drink", "smoothie", "water", "coconut water"]),
-    ("ingredient", ["powder", "enzyme", "protein isolate", "processing aid", "ingredient"]),
+    ("ingredient", ["powder", "protein isolate", "ingredient", "garlic powder", "lupin protein isolate", "mushroom", "coconut", "formulated foods"]),
+    ("additive", ["additive", "processing aid", "enzyme", "amylase", "dextransucrase", "phospholipase"]),
 ]
 
 _CATEGORY_PATTERNS = [
-    ("beverages", ["beverage", "drink", "smoothie", "water", "hydralyte", "berocca", "pre workout"]),
+    ("beverages", ["beverage", "drink", "smoothie", "water", "hydralyte", "berocca", "pre workout", "kombucha", "kefir"]),
     ("dairy_chilled", ["milk", "cheese", "ricotta", "yoghurt", "yogurt"]),
-    ("bakery_snacks_confectionery", ["bread", "snack", "bar", "chocolate", "confectionery", "dukkah"]),
-    ("prepared_meals_pantry", ["ready meal", "bowl", "pantry", "seaweed", "topokki"]),
-    ("meat_seafood_animal", ["seafood", "turkey", "ham", "oyster", "fish oil", "egg"]),
+    ("bakery_snacks_confectionery", ["bread", "snack", "bar", "chocolate", "confectionery", "dukkah", "allen's", "allens", "inside outs", "inside-outs", "gummies", "pastilles", "wafer", "cake", "lolly", "lollies", "candy"]),
+    ("prepared_meals_pantry", ["ready meal", "bowl", "pantry", "seaweed", "topokki", "marinara mix", "garlic powder", "coconut", "mushroom"]),
+    ("meat_seafood_animal", ["seafood", "turkey", "ham", "oyster", "oysters", "fish oil", "fish", "egg", "pork", "bacon", "meat", "mussel"]),
     ("plant_based", ["plant based", "vegan", "vegetarian", "almond", "soy"]),
-    ("infant_kids_family", ["infant", "children", "kids", "young children"]),
+    ("infant_kids_family", ["infant", "children", "kids", "young children", "formulated foods"]),
     ("sports_protein_functional", ["protein", "sports", "pre workout", "whey", "musashi", "clif", "muscle"]),
     ("ingredients_additives", ["ingredient", "additive", "processing aid", "enzyme", "powder"]),
 ]
+
+_CATEGORY_FROM_PRODUCT_TYPE = {
+    "beverage": "beverages",
+    "energy_drink": "beverages",
+    "fermented_drink": "beverages",
+    "yoghurt_drink": "dairy_chilled",
+    "dairy_product": "dairy_chilled",
+    "confectionery": "bakery_snacks_confectionery",
+    "snack_food": "bakery_snacks_confectionery",
+    "protein_bar": "sports_protein_functional",
+    "bakery_product": "bakery_snacks_confectionery",
+    "ready_meal": "prepared_meals_pantry",
+    "sauce": "prepared_meals_pantry",
+    "frozen_food": "prepared_meals_pantry",
+    "frozen_dessert": "bakery_snacks_confectionery",
+    "seafood": "meat_seafood_animal",
+    "meat_product": "meat_seafood_animal",
+    "plant_based_milk": "plant_based",
+    "infant_formula": "infant_kids_family",
+    "infant_snack": "infant_kids_family",
+    "ingredient": "ingredients_additives",
+    "additive": "ingredients_additives",
+}
 
 _INGREDIENT_HINTS = [
     "peanut",
@@ -194,10 +226,28 @@ def _text(row: dict[str, Any]) -> str:
         "summary",
         "product_name",
         "product_category",
+        "brand",
+        "company",
         "ingredient_name",
         "allergen",
         "claim",
         "url",
+    ]
+    return " ".join(_norm(row.get(f)) for f in fields).lower()
+
+
+def _content_text(row: dict[str, Any]) -> str:
+    """Food content text, excluding source/url fields that cause false matches."""
+    fields = [
+        "title",
+        "summary",
+        "product_name",
+        "product_category",
+        "brand",
+        "company",
+        "ingredient_name",
+        "allergen",
+        "claim",
     ]
     return " ".join(_norm(row.get(f)) for f in fields).lower()
 
@@ -236,6 +286,26 @@ def _source_type(row: dict[str, Any]) -> str:
     return source or "unknown"
 
 
+def _recall_issue_area(text: str) -> list[str]:
+    """Precise issue tags for recalls, avoiding regulatory false positives."""
+    if _contains_any(text, ["foreign matter", "foreign object", "glass", "metal", "plastic", "rubber", "mussel shell"]):
+        return ["foreign_matter", "food_safety"]
+    if _contains_any(text, ["undeclared allergen", "undeclared", "allergen"]):
+        return ["undeclared_allergen", "incorrect_labelling", "food_safety"]
+    if _contains_any(text, ["toxin", "cereulide"]):
+        return ["toxin_contamination", "food_safety"]
+    if _contains_any(text, ["chemical", "cadmium", "monocrotophos", "prohibited substance"]):
+        return ["chemical_contamination", "food_safety"]
+    if _contains_any(text, ["microbial", "salmonella", "listeria", "e. coli", "mould", "hepatitis", "viral"]):
+        return ["microbial_contamination", "food_safety"]
+    if _contains_any(text, ["unintended fermentation", "fermentation"]):
+        tags = ["food_safety"]
+        if _contains_any(text, ["microbial", "mould", "yeast"]):
+            tags.insert(0, "microbial_contamination")
+        return tags
+    return ["food_safety"]
+
+
 def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
     """
     Return deterministic Food taxonomy fields for a signal row.
@@ -245,9 +315,11 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
     recalls_safety without rewriting historical data.
     """
     text = _text(row)
+    content_text = _content_text(row)
     source = _norm(row.get("source_label"))
     existing_type = _norm(row.get("signal_type") or row.get("event_type")).lower()
     claim = _norm(row.get("claim"))
+    is_supplement_leakage = source == "open_food_facts" and is_supplement_like_food(row)
 
     is_recall = (
         source == "food_fsanz_recalls"
@@ -261,6 +333,9 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
     if is_recall:
         signal_type = "recall"
         dashboard_section = "recalls_safety"
+    elif is_supplement_leakage:
+        signal_type = "excluded"
+        dashboard_section = "excluded"
     elif is_regulatory:
         signal_type = "consultation" if "consultation" in text or "call for comment" in text else "regulatory_update"
         dashboard_section = "regulatory_updates"
@@ -274,25 +349,27 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
         signal_type = "category_trend"
         dashboard_section = "category_signals"
 
-    issue_area = _tags_from_patterns(text, _ISSUE_PATTERNS)
-    if is_recall:
-        issue_area.append("food_safety")
+    issue_area = _recall_issue_area(content_text) if is_recall else _tags_from_patterns(content_text, _ISSUE_PATTERNS)
     if is_claim:
         issue_area.extend(["claims_wording", "substantiation"])
-    if not issue_area and is_product:
+    if not issue_area and is_product and not is_supplement_leakage:
         issue_area.append("category_growth")
 
-    claim_theme = _tags_from_patterns(text, _CLAIM_THEME_PATTERNS)
-    if _contains_any(text, _HIGH_RISK_DISEASE_TERMS):
+    claim_theme = _tags_from_patterns(content_text, _CLAIM_THEME_PATTERNS)
+    if _contains_any(content_text, _HIGH_RISK_DISEASE_TERMS):
         issue_area.extend(["claims_wording", "substantiation"])
 
-    category = _tags_from_patterns(text, _CATEGORY_PATTERNS)
-    if not category:
-        category = ["other"]
-
-    product_type = _tags_from_patterns(text, _PRODUCT_TYPE_PATTERNS)
+    product_type = _tags_from_patterns(content_text, _PRODUCT_TYPE_PATTERNS)
     if not product_type and is_product:
         product_type = ["ingredient" if "ingredient" in text else "other"]
+
+    category = _tags_from_patterns(content_text, _CATEGORY_PATTERNS)
+    for tag in product_type:
+        mapped_category = _CATEGORY_FROM_PRODUCT_TYPE.get(tag)
+        if mapped_category:
+            category.append(mapped_category)
+    if not category:
+        category = ["other"]
 
     ingredients = []
     stored_ingredient = _norm(row.get("ingredient_name"))

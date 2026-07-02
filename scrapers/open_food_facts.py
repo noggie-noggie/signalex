@@ -6,9 +6,9 @@ Source: Open Food Facts (https://world.openfoodfacts.org/)
   Rate limit: polite use; we fetch one page of 20 products per scraper run.
 
 Queries:
-  1. Recent Australian dietary supplements / health foods
-  2. Products with allergen alerts
-  3. Products with nutrition/health claims
+  1. Recent Australian protein/snack foods
+  2. Recent Australian beverages / functional drinks
+  3. Recent Australian plant-based foods
 
 Returns normalised food-signal dicts tagged as signal_type="new_product"
 or signal_type="claim_signal" depending on content.
@@ -25,6 +25,8 @@ from typing import Any
 
 import requests
 
+from services.food_supplement_filter import is_supplement_like_food
+
 logger = logging.getLogger(__name__)
 
 _API_BASE     = "https://world.openfoodfacts.org/api/v2/search"
@@ -40,13 +42,19 @@ _FIELDS = ",".join([
     "countries_tags", "quantity", "nutrition_grade_fr",
 ])
 
-# Categories we consider relevant (dietary supplements, health foods, sports nutrition)
+# Categories we consider relevant for the Food-only launch. Deliberately
+# excludes dietary supplements, vitamins, minerals, capsules/tablets, etc.
 _RELEVANT_CATEGORIES = {
-    "en:dietary-supplements", "en:health-foods", "en:vitamins",
-    "en:minerals", "en:sports-nutrition", "en:protein-supplements",
-    "en:herbal-supplements", "en:probiotics", "en:omega-3",
-    "en:fish-oil-supplements", "en:meal-replacements",
-    "en:weight-management-products", "en:energy-drinks",
+    "en:protein-bars", "en:snacks", "en:energy-drinks",
+    "en:beverages", "en:plant-based-foods-and-beverages",
+    "en:plant-based-milks", "en:kombuchas", "en:yogurts",
+    "en:fermented-drinks", "en:meal-replacements",
+}
+
+_EXCLUDED_CATEGORIES = {
+    "en:dietary-supplements", "en:vitamins", "en:minerals",
+    "en:protein-supplements", "en:herbal-supplements", "en:omega-3",
+    "en:fish-oil-supplements", "en:multivitamins",
 }
 
 # Labels that indicate a claim signal
@@ -119,6 +127,8 @@ def _extract_claims(product: dict) -> str:
 def _is_relevant(product: dict) -> bool:
     """True if product falls into a category we track."""
     cats = set(product.get("categories_tags", []))
+    if cats & _EXCLUDED_CATEGORIES:
+        return False
     return bool(cats & _RELEVANT_CATEGORIES)
 
 
@@ -193,11 +203,11 @@ class OpenFoodFactsScraper:
         session  = _get_session()
         records: list[dict] = []
 
-        # Query 1: Recent Australian dietary supplements
+        # Query 1: Recent Australian protein/snack foods
         records.extend(self._fetch_products(
             session,
             params={
-                "categories_tags_en": "dietary-supplements",
+                "categories_tags_en": "protein-bars",
                 "countries_tags_en":  "australia",
                 "sort_by":            "last_modified_t",
                 "page_size":          "20",
@@ -205,11 +215,23 @@ class OpenFoodFactsScraper:
             },
         ))
 
-        # Query 2: Recent Australian health foods / vitamins
+        # Query 2: Recent Australian beverages / functional drinks
         records.extend(self._fetch_products(
             session,
             params={
-                "categories_tags_en": "vitamins",
+                "categories_tags_en": "energy-drinks",
+                "countries_tags_en":  "australia",
+                "sort_by":            "last_modified_t",
+                "page_size":          "20",
+                "fields":             _FIELDS,
+            },
+        ))
+
+        # Query 3: Recent Australian plant-based foods
+        records.extend(self._fetch_products(
+            session,
+            params={
+                "categories_tags_en": "plant-based-foods-and-beverages",
                 "countries_tags_en":  "australia",
                 "sort_by":            "last_modified_t",
                 "page_size":          "20",
@@ -250,7 +272,21 @@ class OpenFoodFactsScraper:
         signals = []
         for p in products:
             try:
+                if is_supplement_like_food(p):
+                    logger.info(
+                        "Open Food Facts: excluding supplement-like product %r",
+                        p.get("product_name", "") or p.get("code", ""),
+                    )
+                    continue
+                if not _is_relevant(p):
+                    continue
                 sig = _product_to_signal(p)
+                if is_supplement_like_food(sig):
+                    logger.info(
+                        "Open Food Facts: excluding supplement-like signal %r",
+                        sig["title"],
+                    )
+                    continue
                 if sig["title"].strip() and sig["title"] != " — ":
                     signals.append(sig)
             except Exception:
