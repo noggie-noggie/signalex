@@ -11,6 +11,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from services.food_relevance_filter import classify_fsanz_update_relevance
 from services.food_supplement_filter import is_supplement_like_food
 from services.food_text_sanitizer import sanitize_food_text_fields
 
@@ -408,6 +409,11 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
     existing_type = _norm(row.get("signal_type") or row.get("event_type")).lower()
     claim = _norm(row.get("claim"))
     is_supplement_leakage = source == "open_food_facts" and is_supplement_like_food(row)
+    fsanz_relevance = (
+        classify_fsanz_update_relevance(row)
+        if source == "food_fsanz_updates"
+        else None
+    )
 
     is_recall = (
         source == "food_fsanz_recalls"
@@ -457,6 +463,9 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
     elif is_supplement_leakage:
         signal_type = "excluded"
         dashboard_section = "excluded"
+    elif fsanz_relevance is not None and not fsanz_relevance.visible:
+        signal_type = "excluded"
+        dashboard_section = "excluded"
     elif is_regulatory:
         signal_type = "consultation" if "consultation" in text or "call for comment" in text else "regulatory_update"
         dashboard_section = "regulatory_updates"
@@ -485,7 +494,9 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
             ingredients.append(hint)
 
     severity = _norm(row.get("severity")).lower()
-    if is_recall or severity in {"high", "critical", "severe"}:
+    if dashboard_section == "excluded":
+        impact = "low"
+    elif is_recall or severity in {"high", "critical", "severe"}:
         impact = "high"
     elif is_regulatory or is_claim or (is_product and has_meaningful_market_relevance) or severity == "medium":
         impact = "medium"
@@ -493,8 +504,10 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
         impact = "low"
 
     momentum = "active"
+    if dashboard_section == "excluded":
+        momentum = "stable"
     scraped_at = _norm(row.get("scraped_at"))
-    if scraped_at:
+    if scraped_at and dashboard_section != "excluded":
         try:
             dt = datetime.fromisoformat(scraped_at.replace("Z", "+00:00"))
             if dt.tzinfo is None:
@@ -507,7 +520,7 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
         except ValueError:
             pass
 
-    return {
+    result = {
         "market": ["australia", "new_zealand"] if _norm(row.get("authority")).lower() == "fsanz" else ["australia"],
         "category": _unique(category),
         "product_type": _unique(product_type),
@@ -520,6 +533,16 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
         "impact": impact,
         "momentum": momentum,
     }
+    if fsanz_relevance is not None:
+        result.update({
+            "fsanz_content_type": fsanz_relevance.content_type,
+            "food_relevance_score": fsanz_relevance.score,
+            "food_relevance_reason": fsanz_relevance.reason,
+            "food_relevance_confidence": fsanz_relevance.confidence,
+        })
+    if dashboard_section == "excluded":
+        result["is_noise"] = 1
+    return result
 
 
 def enrich_food_signal(row: dict[str, Any]) -> dict[str, Any]:

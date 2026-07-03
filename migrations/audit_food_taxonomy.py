@@ -64,6 +64,25 @@ def main() -> int:
         for raw in raw_rows
         if possible_misclassified_recall(raw)
     ]
+    fsanz_updates = [
+        row for row in rows
+        if row.get("source_label") == "food_fsanz_updates"
+    ]
+    visible_fsanz_updates = [
+        row for row in fsanz_updates
+        if int(row.get("is_noise") or 0) != 1
+        and row.get("dashboard_section") != "excluded"
+    ]
+    excluded_fsanz_updates = [
+        row for row in fsanz_updates
+        if int(row.get("is_noise") or 0) == 1
+        or row.get("dashboard_section") == "excluded"
+    ]
+    low_confidence_fsanz_updates = [
+        row for row in fsanz_updates
+        if row.get("food_relevance_confidence") == "low"
+        and row.get("dashboard_section") != "excluded"
+    ]
 
     print("Food taxonomy audit")
     print("===================")
@@ -122,6 +141,38 @@ def main() -> int:
 
     print(f"\nrecalls outside recalls_safety: {len(recall_leaks)}")
     print(f"risk/regulatory rows inside market_opportunities: {len(opportunity_leaks)}")
+
+    print("\nFSANZ update relevance:")
+    print(f"  visible FSANZ updates: {len(visible_fsanz_updates)}")
+    print(f"  excluded FSANZ updates: {len(excluded_fsanz_updates)}")
+
+    print("\nexcluded FSANZ updates:")
+    if not excluded_fsanz_updates:
+        print("  none")
+    else:
+        for row in excluded_fsanz_updates:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"type={row.get('fsanz_content_type')} "
+                f"score={row.get('food_relevance_score')} "
+                f"reason={row.get('food_relevance_reason')} "
+                f"title={row.get('title')}"
+            )
+
+    print("\nlow-confidence visible FSANZ updates for manual review:")
+    if not low_confidence_fsanz_updates:
+        print("  none")
+    else:
+        for row in low_confidence_fsanz_updates:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"type={row.get('fsanz_content_type')} "
+                f"score={row.get('food_relevance_score')} "
+                f"reason={row.get('food_relevance_reason')} "
+                f"title={row.get('title')}"
+            )
 
     return 1 if missing_signal_type or missing_dashboard_section or recall_leaks or opportunity_leaks else 0
 
