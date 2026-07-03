@@ -202,6 +202,7 @@ class ApiBackendTests(unittest.TestCase):
             "evidence_requirements",
             "recommended_action",
             "matched_themes",
+            "context",
             "disclaimer",
             "ai_used",
             "ai_available",

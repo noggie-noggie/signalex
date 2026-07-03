@@ -389,6 +389,11 @@ or final substantiation advice.
   "claim_text": "ibs support",
   "food_type": "Yoghurt",
   "jurisdiction": "AU/NZ",
+  "claim_location": "front_of_pack",
+  "serving_size": {
+    "value": "15",
+    "unit": "g"
+  },
   "use_ai": false,
   "force_ai": false
 }
@@ -399,8 +404,28 @@ or final substantiation advice.
 | `claim_text` | string | Yes | Raw free-text claim from the user |
 | `food_type` | string | No | Product format, e.g. `"Yoghurt"` |
 | `jurisdiction` | string | No | Default `"AU/NZ"` |
+| `claim_location` | string | No | `front_of_pack`, `back_of_pack`, or `marketing_advertising`. Display labels such as `"Front of pack"` are accepted. |
+| `serving_size` | object | No | Optional `{ "value": "15", "unit": "g" }`. Allowed units: `g`, `kg`, `mg`, `mL`, `L`. Invalid serving size is ignored safely. |
 | `use_ai` | boolean | No | Default `false`. Requests optional AI assistance when enabled server-side. |
 | `force_ai` | boolean | No | Default `false`. Allows AI enhancement even for known deterministic cases. Use sparingly. |
+
+Known `food_type` display values are normalised in the response context:
+`Yoghurt`, `Protein bar`, `Beverage`, `Snack`, `Cereal`,
+`Infant / toddler food`, `Supplement-like food`, `Plant-based`,
+`Sauce / condiment`, and `Other`. Other free-text values are still accepted for
+backwards compatibility.
+
+Context affects the card copy:
+
+- Provided `serving_size` prevents the response from asking for serving size.
+- Provided `food_type` prevents the response from asking for product format,
+  unless the type is `other` or unknown.
+- Provided `claim_location` prevents the response from asking where the claim
+  will appear.
+- Front-of-pack, back-of-pack, and marketing/advertising claims add different
+  wording caution notes to `recommended_action`.
+- `supplement_like_food` adds a food-vs-therapeutic/supplement classification
+  caution.
 
 **Response fields:**
 
@@ -420,6 +445,7 @@ or final substantiation advice.
 | `evidence_requirements` | array | Evidence/substantiation inputs needed |
 | `recommended_action` | string | Next action for the user |
 | `matched_themes` | array | Deterministically matched themes, e.g. `["high_protein"]` |
+| `context` | object | Normalised context echo: `food_type`, `claim_location`, and `serving_size`. |
 | `disclaimer` | string | Fixed disclaimer |
 | `ai_used` | boolean | Indicates whether OpenAI was actually used. Can be `false` even when `use_ai=true` if AI is disabled, unavailable, missing a key, skipped by deterministic rules, or rate-limited. |
 | `ai_available` | boolean | Whether AI assistance is currently available for this request path. |

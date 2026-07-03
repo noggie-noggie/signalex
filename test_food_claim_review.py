@@ -27,6 +27,7 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertIn("Contains live cultures", body["safer_wording"])
         self.assertIn("Contains fibre to support digestive health", body["safer_wording"])
         self.assertFalse(body["ai_used"])
+        self.assertIn("context", body)
 
     def test_high_in_protein_uses_high_protein_pathway(self):
         body = review_food_claim("High in protein", food_type="protein bar")
@@ -38,6 +39,7 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertGreater(len(body["wording_to_avoid"]), 0)
         self.assertGreater(len(body["safer_wording"]), 0)
         self.assertFalse(body["ai_used"])
+        self.assertEqual(body["context"]["food_type"], "protein_bar")
 
     def test_unknown_harmless_wording_returns_review_required(self):
         body = review_food_claim("Fresh bright taste", food_type="drink")
@@ -165,6 +167,73 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertFalse(second["ai_used"])
         self.assertEqual(second["ai_quota_remaining"], 0)
         self.assertEqual(call.call_count, 1)
+
+    def test_claim_location_front_of_pack_normalises(self):
+        body = review_food_claim(
+            "High in protein",
+            food_type="Protein bar",
+            claim_location="front_of_pack",
+        )
+        self.assertEqual(body["context"]["claim_location"], "front_of_pack")
+        self.assertIn("Front-of-pack wording", body["recommended_action"])
+
+    def test_claim_location_display_label_normalises(self):
+        body = review_food_claim(
+            "High in protein",
+            food_type="Protein bar",
+            claim_location="Front of pack",
+        )
+        self.assertEqual(body["context"]["claim_location"], "front_of_pack")
+
+    def test_valid_serving_size_is_echoed_and_filters_missing_information(self):
+        body = review_food_claim(
+            "Fresh bright taste",
+            food_type="Beverage",
+            serving_size={"value": "15", "unit": "g"},
+        )
+        self.assertEqual(body["context"]["serving_size"], {"value": "15", "unit": "g"})
+        self.assertTrue(all("serving size" not in item.lower() for item in body["missing_information"]))
+
+    def test_invalid_serving_size_does_not_crash(self):
+        body = review_food_claim(
+            "Fresh bright taste",
+            food_type="Beverage",
+            serving_size={"value": "15", "unit": "oz"},
+        )
+        self.assertIsNone(body["context"]["serving_size"])
+        self.assertEqual(body["risk_level"], "review_required")
+
+    def test_supplement_like_food_adds_classification_caution(self):
+        body = review_food_claim(
+            "Supports wellbeing",
+            food_type="Supplement-like food",
+        )
+        self.assertEqual(body["context"]["food_type"], "supplement_like_food")
+        self.assertIn("supplement-like", body["recommended_action"])
+        self.assertIn("therapeutic/supplement-style", body["regulatory_context"])
+
+    def test_context_passed_to_ai_helper(self):
+        ai_payload = {
+            "assessment": "AI context aware review.",
+            "safer_wording": ["Supports wellbeing"],
+            "missing_information": ["Nutrition panel"],
+            "recommended_action": "Review before use.",
+            "matched_themes": ["general_wellbeing"],
+        }
+        with patch.dict(os.environ, {"FOOD_CLAIM_REVIEW_AI_ENABLED": "true", "OPENAI_API_KEY": "test"}):
+            with patch("services.openai_claim_review._call_openai", return_value=ai_payload) as call:
+                body = review_food_claim(
+                    "supports balance",
+                    food_type="Yoghurt",
+                    claim_location="Marketing / Advertising",
+                    serving_size={"value": "150", "unit": "g"},
+                    use_ai=True,
+                )
+        self.assertTrue(body["ai_used"])
+        _, _claim, food_type, _jurisdiction, context = call.call_args.args
+        self.assertEqual(food_type, "yoghurt")
+        self.assertEqual(context["claim_location"], "marketing_advertising")
+        self.assertEqual(context["serving_size"], {"value": "150", "unit": "g"})
 
 
 if __name__ == "__main__":

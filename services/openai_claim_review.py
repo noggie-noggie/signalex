@@ -196,6 +196,7 @@ def maybe_enhance_claim_review(
     claim_text: str,
     food_type: str,
     jurisdiction: str,
+    context: dict[str, Any] | None = None,
     use_ai: bool,
     force_ai: bool,
     client_ip: str | None = None,
@@ -261,7 +262,7 @@ def maybe_enhance_claim_review(
         return _with_status(response, **status)
 
     try:
-        ai_payload = _call_openai(response, claim_text, food_type, jurisdiction)
+        ai_payload = _call_openai(response, claim_text, food_type, jurisdiction, context or {})
     except ImportError:
         _log_ai_event(
             claim_text=claim_text,
@@ -309,6 +310,7 @@ def _call_openai(
     claim_text: str,
     food_type: str,
     jurisdiction: str,
+    context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     try:
         from openai import OpenAI
@@ -321,6 +323,7 @@ def _call_openai(
         "claim_text": claim_text,
         "food_type": food_type,
         "jurisdiction": jurisdiction,
+        "context": context or {},
         "deterministic_response": deterministic_response,
         "instructions": (
             "Return strict JSON only. Improve explanation quality for a food "

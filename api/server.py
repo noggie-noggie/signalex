@@ -762,6 +762,8 @@ class FoodClaimReviewRequest(BaseModel):
     claim_text:   str
     food_type:    str = ""
     jurisdiction: str = "AU/NZ"
+    claim_location: Optional[str] = None
+    serving_size: Optional[dict] = None
     use_ai:       bool = False
     force_ai:     bool = False
 
@@ -803,6 +805,8 @@ def food_claim_review(body: FoodClaimReviewRequest, request: Request):
         claim_text=claim_text,
         food_type=(body.food_type or "").strip(),
         jurisdiction=(body.jurisdiction or "AU/NZ").strip(),
+        claim_location=body.claim_location,
+        serving_size=body.serving_size,
         use_ai=body.use_ai,
         force_ai=body.force_ai,
         client_ip=request.client.host if request.client else None,
