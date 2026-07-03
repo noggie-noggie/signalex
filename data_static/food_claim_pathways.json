@@ -23,8 +23,8 @@
       ],
       "pathways": [
         {
-          "name": "Probiotic route",
-          "description": "Contains specific live bacterial strains at substantiated CFU levels.",
+          "name": "Live cultures pathway",
+          "description": "May support general digestive wellbeing if live cultures are present through shelf life and the wording stays general.",
           "requirements": [
             "Identified strain(s) with Lactobacillus or Bifidobacterium genus/species/strain",
             "Minimum viable CFU count at end-of-shelf-life (not just at manufacture)",
@@ -34,8 +34,8 @@
           "suitable_food_types": ["yoghurt", "yoghurt drink", "kefir", "fermented drink", "capsule", "supplement"]
         },
         {
-          "name": "Prebiotic fibre route",
-          "description": "Contains dietary fibre that selectively feeds beneficial gut bacteria.",
+          "name": "Fibre pathway",
+          "description": "May support general digestive wellbeing if the product contains a meaningful amount of fibre and the claim is backed by the nutrition panel.",
           "requirements": [
             "Quantified fibre content per serve",
             "Identified fibre type (inulin, FOS, GOS, PHGG, resistant starch, pectin)",
@@ -45,8 +45,8 @@
           "suitable_food_types": ["yoghurt", "bar", "cereal", "drink", "supplement", "bread", "snack"]
         },
         {
-          "name": "Fermented culture route",
-          "description": "Contains live fermented dairy or food cultures contributing to digestive wellbeing.",
+          "name": "Fermented food pathway",
+          "description": "May support general digestive wellbeing for yoghurt, kefir, cultured dairy, or similar foods if live cultures and product context support the wording.",
           "requirements": [
             "Confirmed live cultures present at point of consumption",
             "Culture identity declared",
@@ -114,8 +114,19 @@
       ],
       "pathways": [
         {
+          "name": "Immunity support route",
+          "description": "May be possible where the product contains a relevant vitamin, mineral, or ingredient basis and the claim stays general.",
+          "requirements": [
+            "Relevant nutrient or ingredient present at meaningful level",
+            "Amount per serve declared or substantiated",
+            "Wording limited to normal immune function or general immune health",
+            "No disease prevention or treatment implication"
+          ],
+          "suitable_food_types": ["drink", "juice", "smoothie", "bar", "snack", "yoghurt", "fortified food"]
+        },
+        {
           "name": "Vitamin C route",
-          "description": "Vitamin C contributes to the normal function of the immune system.",
+          "description": "May support normal immune function where vitamin C is present at a meaningful, declared level.",
           "requirements": [
             "Minimum 15% RDI vitamin C per serve for 'source of' claim",
             "Minimum 30% RDI per serve for 'good source of' claim",
@@ -126,7 +137,7 @@
         },
         {
           "name": "Zinc route",
-          "description": "Zinc contributes to the normal function of the immune system.",
+          "description": "May support normal immune function where zinc is present at a meaningful, declared level.",
           "requirements": [
             "Minimum 25% RDI zinc per serve",
             "Form of zinc with acceptable bioavailability",
@@ -136,7 +147,7 @@
         },
         {
           "name": "Vitamin D route",
-          "description": "Vitamin D contributes to the normal function of the immune system.",
+          "description": "May support normal immune function where vitamin D is present at a meaningful, declared level.",
           "requirements": [
             "Minimum 25% RDI vitamin D per serve",
             "Stability data for vitamin D in product matrix",
@@ -145,8 +156,8 @@
           "suitable_food_types": ["supplement", "fortified milk", "fortified drink", "yoghurt"]
         },
         {
-          "name": "Probiotic route",
-          "description": "Specific probiotic strains with evidence for immune modulation.",
+          "name": "Live cultures route",
+          "description": "May be relevant for fermented foods or yoghurt drinks only where the product has strain or ingredient evidence for the intended wording.",
           "requirements": [
             "Strain-specific evidence for immune function",
             "CFU count at end of shelf life",
@@ -161,14 +172,23 @@
         "Echinacea extract", "Probiotics (strain-specific)"
       ],
       "safer_wording": [
+        "Supports normal immune function",
         "Supports immune health",
+        "Contains nutrients that support normal immune function",
+        "Supports general wellbeing",
         "Contains vitamin C to support normal immune function",
         "A source of zinc, which supports normal immune function",
         "Contains vitamin D to support immune health"
       ],
       "avoid_wording": [
+        "Improves immunity",
+        "Boosts immunity",
+        "Strengthens immunity",
         "Prevents colds",
+        "Prevents flu",
         "Fights infection",
+        "Immune defence against illness",
+        "Clinically improves immune response",
         "Antiviral",
         "Cures illness",
         "Kills viruses",
