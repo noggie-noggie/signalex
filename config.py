@@ -7,7 +7,12 @@ Non-secret tunables live as plain constants below.
 
 import os
 from pathlib import Path
-from dotenv import load_dotenv
+
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:
+    def load_dotenv(*_args, **_kwargs) -> bool:
+        return False
 
 load_dotenv()
 
@@ -26,9 +31,43 @@ DB_PATH = DATA_DIR / "signals.json"
 TEMPLATES_DIR = BASE_DIR / "digest" / "templates"
 
 # ---------------------------------------------------------------------------
-# Claude API
+# AI enrichment
 # ---------------------------------------------------------------------------
-ANTHROPIC_API_KEY: str = os.environ["ANTHROPIC_API_KEY"]
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+FOOD_AI_ENRICHMENT_ENABLED: bool = _env_bool("FOOD_AI_ENRICHMENT_ENABLED", False)
+AI_PROVIDER: str = os.getenv("AI_PROVIDER", "none").strip().lower() or "none"
+ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+
+
+def validate_food_ai_config() -> None:
+    """Validate food AI enrichment settings only when enrichment is enabled."""
+    if not FOOD_AI_ENRICHMENT_ENABLED:
+        return
+
+    if AI_PROVIDER == "anthropic" and not ANTHROPIC_API_KEY:
+        raise RuntimeError(
+            "FOOD_AI_ENRICHMENT_ENABLED=true with AI_PROVIDER=anthropic requires "
+            "ANTHROPIC_API_KEY to be set."
+        )
+    if AI_PROVIDER == "openai" and not OPENAI_API_KEY:
+        raise RuntimeError(
+            "FOOD_AI_ENRICHMENT_ENABLED=true with AI_PROVIDER=openai requires "
+            "OPENAI_API_KEY to be set."
+        )
+    if AI_PROVIDER not in {"anthropic", "openai"}:
+        raise RuntimeError(
+            "FOOD_AI_ENRICHMENT_ENABLED=true requires AI_PROVIDER to be either "
+            "'anthropic' or 'openai'."
+        )
 
 # Model used for signal classification.  Upgrade to claude-opus-4-6 for higher
 # accuracy on complex ingredient/regulatory text if cost allows.

@@ -24,6 +24,7 @@ import concurrent.futures
 import logging
 from datetime import datetime, timezone
 
+import config
 from scrapers.food_fsanz_recalls import FoodFSANZRecallsScraper
 from scrapers.food_fsanz_updates import FoodFSANZUpdatesScraper
 from scrapers.open_food_facts import OpenFoodFactsScraper
@@ -48,6 +49,7 @@ def run_food_pipeline() -> dict:
     """
     started_at = datetime.now(timezone.utc)
     logger.info("Food pipeline started at %s", started_at.isoformat())
+    config.validate_food_ai_config()
 
     scraper_jobs = [
         ("fsanz_recalls",  FoodFSANZRecallsScraper),

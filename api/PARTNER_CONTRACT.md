@@ -605,7 +605,7 @@ when `lastUpdated` changes, then refresh cached data.
 python main.py --pipeline
 
 # Food domain only
-python -m scheduler.food_pipeline
+FOOD_AI_ENRICHMENT_ENABLED=false PYTHONPATH=/srv/signalex ./.venv/bin/python scheduler/food_pipeline.py
 
 # First-time DB setup (idempotent)
 python migrations/backfill_vms_domain.py

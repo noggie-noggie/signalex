@@ -146,7 +146,10 @@ python migrations/backfill_vms_domain.py --dry-run
 
 | Variable | Required | Description |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Yes | Claude API key |
+| `FOOD_AI_ENRICHMENT_ENABLED` | No | Default: `false`. When false, the Food pipeline does not require an AI provider key. |
+| `AI_PROVIDER` | No | `none`, `anthropic`, or `openai`. Required only when Food AI enrichment is enabled. |
+| `ANTHROPIC_API_KEY` | No | Claude API key. Required only when `FOOD_AI_ENRICHMENT_ENABLED=true` and `AI_PROVIDER=anthropic`. |
+| `OPENAI_API_KEY` | No | OpenAI API key. Required only when `FOOD_AI_ENRICHMENT_ENABLED=true` and `AI_PROVIDER=openai`. |
 | `SMTP_HOST` | No | Default: `smtp.gmail.com` |
 | `SMTP_PORT` | No | Default: `587` |
 | `SMTP_USER` | Yes | SMTP login username |
