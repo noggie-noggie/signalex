@@ -54,6 +54,98 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
         self.assertIn("high_protein", result["claim_theme"])
         self.assertEqual(result["impact"], "medium")
 
+    def test_red_bull_energy_drink_is_category_signal(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "signal_type": "new_product",
+            "title": "Red Bull — Energy Drink",
+            "summary": "Carbonated energy drink with caffeine.",
+            "product_name": "Energy Drink",
+            "product_category": "beverages and beverages preparations",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "category_signals")
+        self.assertNotEqual(result["dashboard_section"], "market_opportunities")
+        self.assertEqual(result["impact"], "low")
+        self.assertIn("category_growth", result["issue_area"])
+
+    def test_monster_energy_drink_is_category_signal(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "signal_type": "new_product",
+            "title": "Monster — Energy Drink",
+            "summary": "Energy drink.",
+            "product_name": "Monster Energy",
+            "product_category": "beverages",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "category_signals")
+        self.assertEqual(result["signal_type"], "category_trend")
+
+    def test_v_energy_drink_is_category_signal(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "signal_type": "new_product",
+            "title": "V — Energy Drink",
+            "summary": "Carbonated energy drink.",
+            "product_name": "V Energy Drink",
+            "product_category": "beverages",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "category_signals")
+        self.assertEqual(result["impact"], "low")
+
+    def test_clif_high_protein_bar_can_remain_market_opportunity(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "signal_type": "new_product",
+            "title": "Clif — High Protein Bar",
+            "summary": "High protein snack bar.",
+            "product_name": "High Protein Bar",
+            "product_category": "snacks",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "market_opportunities")
+        self.assertIn("high_protein", result["claim_theme"])
+
+    def test_generic_product_launch_without_claim_theme_is_category_signal(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "signal_type": "new_product",
+            "title": "Example Brand — Plain Crackers",
+            "summary": "Plain crackers.",
+            "product_name": "Plain Crackers",
+            "product_category": "snacks",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "category_signals")
+        self.assertEqual(result["signal_type"], "category_trend")
+
+    def test_sports_brand_wafer_without_claim_theme_is_category_signal(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "signal_type": "new_product",
+            "title": "Musashi — protons wafer",
+            "summary": "Wafer snack.",
+            "product_name": "protons wafer",
+            "product_category": "dietary supplements",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "category_signals")
+        self.assertEqual(result["impact"], "low")
+
     def test_claim_signal_protein_bar_remains_claims_labelling_not_allergen_failure(self):
         row = {
             "domain": "food",

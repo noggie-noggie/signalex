@@ -83,6 +83,37 @@ def main() -> int:
         if row.get("food_relevance_confidence") == "low"
         and row.get("dashboard_section") != "excluded"
     ]
+    visible_off_rows = [
+        row for row in visible_rows
+        if row.get("source_label") == "open_food_facts"
+    ]
+    off_by_dashboard_section = Counter(row.get("dashboard_section") or "" for row in visible_off_rows)
+    off_market_opportunities = [
+        row for row in visible_off_rows
+        if row.get("dashboard_section") == "market_opportunities"
+    ]
+    off_category_signals = [
+        row for row in visible_off_rows
+        if row.get("dashboard_section") == "category_signals"
+    ]
+    generic_opportunity_terms = [
+        "energy drink",
+        "red bull",
+        "monster",
+        "v energy",
+        "fresh farm cage eggs",
+        "cage eggs",
+    ]
+    generic_product_opportunities = [
+        row for row in off_market_opportunities
+        if any(
+            term in " ".join(
+                str(row.get(field) or "").lower()
+                for field in ("title", "summary", "product_name", "product_category")
+            )
+            for term in generic_opportunity_terms
+        )
+    ]
 
     print("Food taxonomy audit")
     print("===================")
@@ -141,6 +172,54 @@ def main() -> int:
 
     print(f"\nrecalls outside recalls_safety: {len(recall_leaks)}")
     print(f"risk/regulatory rows inside market_opportunities: {len(opportunity_leaks)}")
+
+    print("\nOpen Food Facts visible records by dashboard_section:")
+    if not off_by_dashboard_section:
+        print("  none")
+    else:
+        for key, count in sorted(off_by_dashboard_section.items()):
+            print(f"  {key or '(missing)'}: {count}")
+
+    print("\nOpen Food Facts market_opportunities titles:")
+    if not off_market_opportunities:
+        print("  none")
+    else:
+        for row in off_market_opportunities:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"impact={row.get('impact')} "
+                f"claim_theme={row.get('claim_theme')} "
+                f"product_type={row.get('product_type')} "
+                f"title={row.get('title')}"
+            )
+
+    print("\nOpen Food Facts category_signals titles:")
+    if not off_category_signals:
+        print("  none")
+    else:
+        for row in off_category_signals:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"impact={row.get('impact')} "
+                f"claim_theme={row.get('claim_theme')} "
+                f"product_type={row.get('product_type')} "
+                f"title={row.get('title')}"
+            )
+
+    print("\ngeneric Open Food Facts records inside market_opportunities for manual review:")
+    if not generic_product_opportunities:
+        print("  none")
+    else:
+        for row in generic_product_opportunities:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"claim_theme={row.get('claim_theme')} "
+                f"product_type={row.get('product_type')} "
+                f"title={row.get('title')}"
+            )
 
     print("\nFSANZ update relevance:")
     print(f"  visible FSANZ updates: {len(visible_fsanz_updates)}")

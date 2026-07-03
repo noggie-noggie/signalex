@@ -139,7 +139,7 @@ _PRODUCT_TYPE_PATTERNS = [
     ("kombucha", ["kombucha"]),
     ("fermented_drink", ["kombucha", "kefir"]),
     ("yoghurt_drink", ["yoghurt drink", "yogurt drink", "protein smoothie"]),
-    ("protein_bar", ["protein bar", "clif bar", "protein crisp", "high protein bar"]),
+    ("protein_bar", ["protein bar", "protein crisp", "high protein bar"]),
     ("plant_based_milk", ["plant based milk", "almond milk", "soy milk", "oat milk", "high protein almond"]),
     ("energy_drink", ["energy drink", "pre workout", "berocca", "hydralyte"]),
     ("infant_formula", ["infant formula", "formulated supplementary foods for young children"]),
@@ -218,8 +218,6 @@ _INGREDIENT_HINTS = [
 _MEANINGFUL_OPPORTUNITY_CLAIM_THEMES = {
     "gut_health",
     "immunity",
-    "energy",
-    "hydration",
     "high_protein",
     "low_sugar",
     "source_of_fibre",
@@ -237,12 +235,18 @@ _MEANINGFUL_OPPORTUNITY_PRODUCT_TYPES = {
     "fermented_drink",
     "kombucha",
     "plant_based_milk",
-    "energy_drink",
-    "beverage",
-    "snack_food",
 }
 
 _GENERIC_PRODUCT_TYPES = {"other", "egg", "meat_product", "seafood", "ingredient"}
+
+_GENERIC_PRODUCT_OPPORTUNITY_REVIEW_TERMS = [
+    "energy drink",
+    "red bull",
+    "monster",
+    "v energy",
+    "fresh farm cage eggs",
+    "cage eggs",
+]
 
 
 def _norm(value: Any) -> str:
@@ -370,11 +374,33 @@ def _has_meaningful_market_relevance(
     category: list[str],
     text: str,
 ) -> bool:
+    if _contains_any(text, _GENERIC_PRODUCT_OPPORTUNITY_REVIEW_TERMS):
+        return bool(
+            set(claim_theme) & _MEANINGFUL_OPPORTUNITY_CLAIM_THEMES
+            or _contains_any(
+                text,
+                [
+                    "functional beverage",
+                    "functional drink",
+                    "probiotic",
+                    "prebiotic",
+                    "gut health",
+                    "high protein",
+                    "source of fibre",
+                    "source of fiber",
+                    "low sugar",
+                    "no sugar",
+                    "plant based",
+                    "plant-based",
+                    "clean label",
+                    "natural",
+                    "novel ingredient",
+                ],
+            )
+        )
     if set(claim_theme) & _MEANINGFUL_OPPORTUNITY_CLAIM_THEMES:
         return True
     if set(product_type) & _MEANINGFUL_OPPORTUNITY_PRODUCT_TYPES:
-        return True
-    if "sports_protein_functional" in category and not set(product_type) <= _GENERIC_PRODUCT_TYPES:
         return True
     return _contains_any(
         text,
