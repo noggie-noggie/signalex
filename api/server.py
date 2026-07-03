@@ -22,6 +22,7 @@ Endpoints:
     GET /api/ingredients
     POST /api/food/claims/guide     Deterministic food claim concept guidance (v1, no AI)
     GET /api/food/claim-pathways    Deterministic food claim pathway cards
+    POST /api/food/claim-review     Deterministic free-text food claim review
 """
 
 from __future__ import annotations
@@ -44,6 +45,7 @@ from services.food_claims.pathways   import get_claim_pathways
 from services.food_claims.retriever  import retrieve_supporting_signals
 from services.food_claims.cache      import make_input_hash, get_cached_guidance, save_guidance
 from services.food_claim_pathways import get_claim_pathway, list_claim_pathways, normalize_claim_key
+from services.food_claim_review import review_food_claim
 from services.food_taxonomy import enrich_food_signal
 
 # ---------------------------------------------------------------------------
@@ -756,6 +758,12 @@ class FoodClaimRequest(BaseModel):
     refresh:    bool = False
 
 
+class FoodClaimReviewRequest(BaseModel):
+    claim_text:   str
+    food_type:    str = ""
+    jurisdiction: str = "AU/NZ"
+
+
 @app.get("/api/food/claim-pathways")
 def food_claim_pathways(claim: Optional[str] = None):
     """
@@ -781,6 +789,19 @@ def food_claim_pathways(claim: Optional[str] = None):
             },
         )
     return pathway
+
+
+@app.post("/api/food/claim-review")
+def food_claim_review(body: FoodClaimReviewRequest):
+    """Deterministic free-text food claim assessment. Phase 1: no AI."""
+    claim_text = (body.claim_text or "").strip()
+    if not claim_text:
+        raise HTTPException(status_code=422, detail="'claim_text' is required and must not be empty.")
+    return review_food_claim(
+        claim_text=claim_text,
+        food_type=(body.food_type or "").strip(),
+        jurisdiction=(body.jurisdiction or "AU/NZ").strip(),
+    )
 
 
 @app.post("/api/food/claims/guide")

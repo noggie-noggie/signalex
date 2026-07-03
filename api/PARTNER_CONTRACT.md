@@ -370,6 +370,82 @@ No `claim` query returns:
 With a known `claim` query, the response is the single pathway object directly.
 Unknown claims return HTTP `404` with a controlled `not_found` detail.
 
+#### `POST /api/food/claim-review`
+
+Deterministic free-text food claim assessment for the frontend claim card.
+**Phase 1 — no AI.** The frontend should send the user's raw claim text; it does
+not need to know internal claim IDs such as `high_protein`.
+
+**Request body (JSON):**
+
+```json
+{
+  "claim_text": "ibs support",
+  "food_type": "Yoghurt",
+  "jurisdiction": "AU/NZ"
+}
+```
+
+**Response fields:**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `claim_text` | string | Original free-text claim |
+| `display_claim` | string | Display label for the detected claim or original wording |
+| `risk_level` | string | `high`, `medium`, or `review_required` |
+| `claim_type` | string | e.g. `therapeutic_or_disease_related_claim`, `nutrition_content_claim`, `unclassified_food_claim` |
+| `headline` | string | Short assessment headline |
+| `assessment` | string | Plain-English deterministic assessment |
+| `regulatory_context` | string | AU/NZ-oriented context |
+| `recommended_pathways` | array | Pathway cards when a food pathway is appropriate |
+| `wording_to_avoid` | array | Risky wording or terms to avoid |
+| `missing_information` | array | Product details needed before final review |
+| `safer_wording` | array | Safer wording options where appropriate |
+| `evidence_requirements` | array | Evidence/substantiation inputs needed |
+| `recommended_action` | string | Next action for the user |
+| `matched_themes` | array | Deterministically matched themes, e.g. `["high_protein"]` |
+| `disclaimer` | string | Fixed disclaimer |
+| `ai_used` | boolean | Always `false` in Phase 1 |
+
+**High-risk therapeutic example:**
+
+```bash
+curl -X POST "http://localhost:8000/api/food/claim-review" \
+  -H "Content-Type: application/json" \
+  -d '{"claim_text":"ibs support","food_type":"Yoghurt","jurisdiction":"AU/NZ"}'
+```
+
+```json
+{
+  "claim_text": "ibs support",
+  "display_claim": "ibs support",
+  "risk_level": "high",
+  "claim_type": "therapeutic_or_disease_related_claim",
+  "headline": "High-risk therapeutic or disease-related wording",
+  "assessment": "The claim 'ibs support' contains disease, symptom, clinical, or therapeutic-style wording...",
+  "recommended_pathways": [],
+  "wording_to_avoid": ["IBS", "Treats IBS", "Cures IBS"],
+  "safer_wording": [
+    "Supports digestive wellbeing",
+    "Contains live cultures",
+    "Contains fibre to support digestive health"
+  ],
+  "matched_themes": [],
+  "ai_used": false
+}
+```
+
+**Known pathway example:**
+
+```bash
+curl -X POST "http://localhost:8000/api/food/claim-review" \
+  -H "Content-Type: application/json" \
+  -d '{"claim_text":"High in protein","food_type":"protein bar","jurisdiction":"AU/NZ"}'
+```
+
+Returns the same frontend card fields, with `matched_themes=["high_protein"]`
+and populated `recommended_pathways`, `wording_to_avoid`, and `safer_wording`.
+
 #### `POST /api/food/claims/guide`
 
 Deterministic food claim concept guidance. **v1 — no AI, no regulatory approval.**

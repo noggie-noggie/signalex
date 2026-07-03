@@ -138,6 +138,87 @@ class ApiBackendTests(unittest.TestCase):
             self.assertEqual(detail["status"], "not_found")
             self.assertEqual(detail["claim"], "moon_dust")
 
+    def test_food_claim_review_ibs_support_is_high_risk(self):
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/food/claim-review",
+                json={
+                    "claim_text": "ibs support",
+                    "food_type": "Yoghurt",
+                    "jurisdiction": "AU/NZ",
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+            body = response.json()
+            self.assertEqual(body["risk_level"], "high")
+            self.assertEqual(body["claim_type"], "therapeutic_or_disease_related_claim")
+            self.assertFalse(body["ai_used"])
+
+    def test_food_claim_review_high_protein_uses_pathway(self):
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/food/claim-review",
+                json={
+                    "claim_text": "High in protein",
+                    "food_type": "protein bar",
+                    "jurisdiction": "AU/NZ",
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+            body = response.json()
+            self.assertEqual(body["display_claim"], "High in protein")
+            self.assertIn("high_protein", body["matched_themes"])
+            self.assertGreater(len(body["recommended_pathways"]), 0)
+
+    def test_food_claim_review_unknown_harmless_claim(self):
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/food/claim-review",
+                json={
+                    "claim_text": "Fresh bright taste",
+                    "food_type": "drink",
+                    "jurisdiction": "AU/NZ",
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+            body = response.json()
+            self.assertEqual(body["risk_level"], "review_required")
+            self.assertEqual(body["claim_type"], "unclassified_food_claim")
+            self.assertFalse(body["ai_used"])
+
+    def test_food_claim_review_response_includes_frontend_fields(self):
+        expected_fields = [
+            "claim_text",
+            "display_claim",
+            "risk_level",
+            "claim_type",
+            "headline",
+            "assessment",
+            "regulatory_context",
+            "recommended_pathways",
+            "wording_to_avoid",
+            "missing_information",
+            "safer_wording",
+            "evidence_requirements",
+            "recommended_action",
+            "matched_themes",
+            "disclaimer",
+            "ai_used",
+        ]
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/food/claim-review",
+                json={
+                    "claim_text": "High in protein",
+                    "food_type": "protein bar",
+                    "jurisdiction": "AU/NZ",
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+            body = response.json()
+            for field in expected_fields:
+                self.assertIn(field, body)
+
     def test_health_reports_all_data_sources(self):
         with TestClient(app) as client:
             response = client.get("/api/health")
