@@ -23,6 +23,10 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertEqual(body["claim_type"], "therapeutic_or_disease_related_claim")
         self.assertIn("IBS", body["assessment"])
         self.assertIn("IBS and similar condition-specific wording", body["regulatory_context"])
+        self.assertIn("Treats IBS", body["wording_to_avoid"])
+        self.assertIn("Cures IBS", body["wording_to_avoid"])
+        self.assertIn("Relieves IBS symptoms", body["wording_to_avoid"])
+        self.assertIn("Reduces IBS symptoms", body["wording_to_avoid"])
         self.assertEqual(body["recommended_pathways"], [])
         self.assertIn("Supports digestive wellbeing", body["safer_wording"])
         self.assertIn("Contains live cultures", body["safer_wording"])
@@ -347,6 +351,11 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertEqual(body["recommended_pathways"], [])
         self.assertIn("Repair or healing language should be removed", body["regulatory_context"])
         self.assertNotIn("IBS", body["regulatory_context"])
+        self.assertIn("Repairs muscle damage", body["wording_to_avoid"])
+        self.assertIn("Speeds injury recovery", body["wording_to_avoid"])
+        self.assertNotIn("Treats IBS", body["wording_to_avoid"])
+        self.assertNotIn("Cures IBS", body["wording_to_avoid"])
+        self.assertNotIn("Relieves IBS symptoms", body["wording_to_avoid"])
 
     def test_supports_collagen_formation_claim_family(self):
         body = review_food_claim("supports collagen formation", food_type="Beverage")
@@ -365,6 +374,12 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertEqual(body["recommended_pathways"], [])
         self.assertIn("Repair or healing language should be removed", body["regulatory_context"])
         self.assertNotIn("IBS", body["regulatory_context"])
+        self.assertIn("Repairs collagen", body["wording_to_avoid"])
+        self.assertIn("Heals joints", body["wording_to_avoid"])
+        self.assertIn("Rebuilds cartilage", body["wording_to_avoid"])
+        self.assertNotIn("Treats IBS", body["wording_to_avoid"])
+        self.assertNotIn("Cures IBS", body["wording_to_avoid"])
+        self.assertNotIn("Relieves IBS symptoms", body["wording_to_avoid"])
 
     def test_supports_hydration_with_electrolytes(self):
         body = review_food_claim("supports hydration with electrolytes", food_type="Beverage")

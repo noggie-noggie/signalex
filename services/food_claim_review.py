@@ -130,14 +130,31 @@ _THERAPEUTIC_SAFER_WORDING = [
     "Supports general wellbeing",
 ]
 
-_THERAPEUTIC_AVOID_VARIANTS = [
+_IBS_AVOID_WORDING = [
+    "IBS",
     "Treats IBS",
     "Cures IBS",
     "Relieves IBS symptoms",
-    "Treats disease",
-    "Prevents disease",
+    "Reduces IBS symptoms",
+]
+
+_REPAIR_HEALING_AVOID_WORDING = [
+    "Repairs collagen",
+    "Heals joints",
+    "Heals skin",
     "Repairs muscle damage",
     "Speeds injury recovery",
+    "Repairs body tissue",
+    "Rebuilds cartilage",
+    "Reverses ageing",
+    "Repairs wrinkles",
+    "Pain relief",
+    "Anti-inflammatory",
+]
+
+_GENERIC_THERAPEUTIC_AVOID_WORDING = [
+    "Treats disease",
+    "Prevents disease",
     "Clinically treats symptoms",
     "Therapeutic support",
 ]
@@ -584,6 +601,28 @@ def _high_risk_regulatory_context(jurisdiction: str, therapeutic_terms: list[str
     )
 
 
+def _high_risk_wording_to_avoid(therapeutic_terms: list[str]) -> list[str]:
+    terms = {term.lower() for term in therapeutic_terms}
+    repair_markers = {
+        "heals or repairs body tissue",
+        "body tissue repair",
+        "cartilage repair",
+        "joint repair",
+        "collagen repair",
+        "repair muscle damage",
+        "injury",
+        "pain relief",
+        "anti-inflammatory",
+    }
+    avoid: list[str] = list(therapeutic_terms)
+    if "ibs" in terms:
+        avoid.extend(_IBS_AVOID_WORDING)
+    if terms & repair_markers:
+        avoid.extend(_REPAIR_HEALING_AVOID_WORDING)
+    avoid.extend(_GENERIC_THERAPEUTIC_AVOID_WORDING)
+    return list(dict.fromkeys(avoid))
+
+
 def _detect_themes(normalised: str) -> list[ThemeMatch]:
     matches: list[ThemeMatch] = []
     for key, display, pattern in _THEME_PATTERNS:
@@ -1024,7 +1063,7 @@ def review_food_claim(
     theme_matches = _detect_themes(normalised)
 
     if therapeutic_terms:
-        avoid = list(dict.fromkeys([*therapeutic_terms, *_THERAPEUTIC_AVOID_VARIANTS]))
+        avoid = _high_risk_wording_to_avoid(therapeutic_terms)
         response = {
             "claim_text": raw_claim,
             "display_claim": display_claim,
