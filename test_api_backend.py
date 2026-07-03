@@ -27,6 +27,7 @@ class ApiBackendTests(unittest.TestCase):
                 "/api/food/recalls?limit=1",
                 "/api/food/rules?limit=1",
                 "/api/food/products?limit=1",
+                "/api/food/claim-pathways",
                 "/api/signals?domain=food&limit=1",
                 "/api/citations?limit=1",
             ]:
@@ -93,6 +94,49 @@ class ApiBackendTests(unittest.TestCase):
                 response.json()["assessment_level"],
                 "concept_guidance",
             )
+
+    def test_food_claim_pathways_returns_list(self):
+        with TestClient(app) as client:
+            response = client.get("/api/food/claim-pathways")
+            self.assertEqual(response.status_code, 200)
+            body = response.json()
+            self.assertGreater(body["total"], 0)
+            self.assertIsInstance(body["results"], list)
+            self.assertIn("claim", body["results"][0])
+
+    def test_food_claim_pathways_high_protein(self):
+        with TestClient(app) as client:
+            response = client.get("/api/food/claim-pathways?claim=high_protein")
+            self.assertEqual(response.status_code, 200)
+            body = response.json()
+            self.assertEqual(body["claim"], "high_protein")
+            self.assertEqual(body["display_claim"], "High in protein")
+            self.assertEqual(body["risk_level"], "medium")
+            for field in [
+                "recommended_pathways",
+                "wording_to_avoid",
+                "missing_information",
+                "safer_wording",
+            ]:
+                self.assertIn(field, body)
+                self.assertGreater(len(body[field]), 0)
+
+    def test_food_claim_pathways_matches_display_claim(self):
+        with TestClient(app) as client:
+            response = client.get(
+                "/api/food/claim-pathways",
+                params={"claim": "High in protein"},
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["claim"], "high_protein")
+
+    def test_food_claim_pathways_unknown_claim_returns_controlled_not_found(self):
+        with TestClient(app) as client:
+            response = client.get("/api/food/claim-pathways?claim=moon_dust")
+            self.assertEqual(response.status_code, 404)
+            detail = response.json()["detail"]
+            self.assertEqual(detail["status"], "not_found")
+            self.assertEqual(detail["claim"], "moon_dust")
 
     def test_health_reports_all_data_sources(self):
         with TestClient(app) as client:

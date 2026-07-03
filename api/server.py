@@ -21,6 +21,7 @@ Endpoints:
     GET /api/signals/summary
     GET /api/ingredients
     POST /api/food/claims/guide     Deterministic food claim concept guidance (v1, no AI)
+    GET /api/food/claim-pathways    Deterministic food claim pathway cards
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ from services.food_claims.classifier import classify_claim
 from services.food_claims.pathways   import get_claim_pathways
 from services.food_claims.retriever  import retrieve_supporting_signals
 from services.food_claims.cache      import make_input_hash, get_cached_guidance, save_guidance
+from services.food_claim_pathways import get_claim_pathway, list_claim_pathways, normalize_claim_key
 from services.food_taxonomy import enrich_food_signal
 
 # ---------------------------------------------------------------------------
@@ -752,6 +754,33 @@ class FoodClaimRequest(BaseModel):
     food_type:  str
     market:     str  = "Australia"
     refresh:    bool = False
+
+
+@app.get("/api/food/claim-pathways")
+def food_claim_pathways(claim: Optional[str] = None):
+    """
+    Deterministic food claim pathway cards for frontend display.
+
+    - No query: returns all pathways.
+    - claim=...: returns one normalised pathway, accepting spaces, hyphens,
+      underscores, and display wording such as "High in protein".
+    """
+    if not claim:
+        pathways = list_claim_pathways()
+        return {"total": len(pathways), "results": pathways}
+
+    pathway = get_claim_pathway(claim)
+    if pathway is None:
+        normalised = normalize_claim_key(claim)
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "status": "not_found",
+                "claim": normalised,
+                "message": f"No food claim pathway found for '{claim}'.",
+            },
+        )
+    return pathway
 
 
 @app.post("/api/food/claims/guide")

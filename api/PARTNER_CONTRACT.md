@@ -314,6 +314,62 @@ curl "http://localhost:8000/api/food/products?claim=organic"
 curl "http://localhost:8000/api/food/products?allergen=milk"
 ```
 
+#### `GET /api/food/claim-pathways`
+
+Deterministic food claim pathway cards for frontend display. **v1 — no AI.**
+
+Use this endpoint to render static claim-support cards such as recommended
+pathways, wording to avoid, missing information, and safer wording. This keeps
+claim-card content out of the frontend.
+
+| Parameter | Notes |
+|-----------|-------|
+| `claim` | Optional. Normalised across case, spaces, hyphens, and underscores. Examples: `high_protein`, `high protein`, `High in protein`. |
+
+```bash
+curl "http://localhost:8000/api/food/claim-pathways"
+curl "http://localhost:8000/api/food/claim-pathways?claim=high_protein"
+curl "http://localhost:8000/api/food/claim-pathways?claim=High%20in%20protein"
+```
+
+No `claim` query returns:
+
+```json
+{
+  "total": 10,
+  "results": [
+    {
+      "claim": "high_protein",
+      "display_claim": "High in protein",
+      "risk_level": "medium",
+      "claim_type": "nutrition_content_claim",
+      "regulatory_context": "Protein claims generally require nutrition-content substantiation...",
+      "recommended_pathways": [
+        {
+          "name": "Protein route",
+          "description": "Protein contributes to the maintenance and growth of muscle mass.",
+          "requirements": [
+            "Minimum protein per serve for meaningful claim",
+            "Complete amino acid profile or declared essential amino acids",
+            "High-quality protein source",
+            "Declared on nutrition information panel"
+          ]
+        }
+      ],
+      "wording_to_avoid": ["Repairs muscle damage", "Treats injury"],
+      "missing_information": ["Protein content and source per serve"],
+      "safer_wording": ["High in protein", "Supports active lifestyles"],
+      "evidence_requirements": ["Protein content per serve"],
+      "recommended_action": "Confirm protein quantity, source, amino acid quality...",
+      "disclaimer": "Not a legal or final substantiation assessment."
+    }
+  ]
+}
+```
+
+With a known `claim` query, the response is the single pathway object directly.
+Unknown claims return HTTP `404` with a controlled `not_found` detail.
+
 #### `POST /api/food/claims/guide`
 
 Deterministic food claim concept guidance. **v1 — no AI, no regulatory approval.**
