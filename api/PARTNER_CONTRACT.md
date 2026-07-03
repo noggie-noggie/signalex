@@ -376,15 +376,31 @@ Deterministic free-text food claim assessment for the frontend claim card.
 **Phase 1 — no AI.** The frontend should send the user's raw claim text; it does
 not need to know internal claim IDs such as `high_protein`.
 
+Current behavior: deterministic review is the default. Optional OpenAI
+assistance can be requested with `use_ai=true`, but deterministic rules always
+run first and remain the source of truth for obvious high-risk claims and known
+pathways unless `force_ai=true` is supplied. This endpoint is not legal advice
+or final substantiation advice.
+
 **Request body (JSON):**
 
 ```json
 {
   "claim_text": "ibs support",
   "food_type": "Yoghurt",
-  "jurisdiction": "AU/NZ"
+  "jurisdiction": "AU/NZ",
+  "use_ai": false,
+  "force_ai": false
 }
 ```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `claim_text` | string | Yes | Raw free-text claim from the user |
+| `food_type` | string | No | Product format, e.g. `"Yoghurt"` |
+| `jurisdiction` | string | No | Default `"AU/NZ"` |
+| `use_ai` | boolean | No | Default `false`. Requests optional AI assistance when enabled server-side. |
+| `force_ai` | boolean | No | Default `false`. Allows AI enhancement even for known deterministic cases. Use sparingly. |
 
 **Response fields:**
 
@@ -405,14 +421,24 @@ not need to know internal claim IDs such as `high_protein`.
 | `recommended_action` | string | Next action for the user |
 | `matched_themes` | array | Deterministically matched themes, e.g. `["high_protein"]` |
 | `disclaimer` | string | Fixed disclaimer |
-| `ai_used` | boolean | Always `false` in Phase 1 |
+| `ai_used` | boolean | Indicates whether OpenAI was actually used. Can be `false` even when `use_ai=true` if AI is disabled, unavailable, missing a key, skipped by deterministic rules, or rate-limited. |
+
+**AI behaviour:**
+
+- Server config defaults to deterministic-only: `FOOD_CLAIM_REVIEW_AI_ENABLED=false`.
+- If `use_ai=false`, no OpenAI client is initialised.
+- If `use_ai=true` but AI is disabled or `OPENAI_API_KEY` is missing, the response falls back to deterministic output with `ai_used=false`.
+- OpenAI is not called by default for obvious therapeutic/disease claims such as IBS, diabetes, cure/treat wording, pain, or injury.
+- OpenAI is not called by default for clear known pathways such as `High in protein`.
+- OpenAI may enhance vague/unclassified claims when enabled and requested.
+- OpenAI must not be treated as legal certainty and must not invent source citations.
 
 **High-risk therapeutic example:**
 
 ```bash
 curl -X POST "http://localhost:8000/api/food/claim-review" \
   -H "Content-Type: application/json" \
-  -d '{"claim_text":"ibs support","food_type":"Yoghurt","jurisdiction":"AU/NZ"}'
+  -d '{"claim_text":"ibs support","food_type":"Yoghurt","jurisdiction":"AU/NZ","use_ai":true}'
 ```
 
 ```json
@@ -445,6 +471,7 @@ curl -X POST "http://localhost:8000/api/food/claim-review" \
 
 Returns the same frontend card fields, with `matched_themes=["high_protein"]`
 and populated `recommended_pathways`, `wording_to_avoid`, and `safer_wording`.
+By default this known pathway does not call AI, so `ai_used=false`.
 
 #### `POST /api/food/claims/guide`
 

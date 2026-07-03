@@ -762,6 +762,8 @@ class FoodClaimReviewRequest(BaseModel):
     claim_text:   str
     food_type:    str = ""
     jurisdiction: str = "AU/NZ"
+    use_ai:       bool = False
+    force_ai:     bool = False
 
 
 @app.get("/api/food/claim-pathways")
@@ -801,6 +803,8 @@ def food_claim_review(body: FoodClaimReviewRequest):
         claim_text=claim_text,
         food_type=(body.food_type or "").strip(),
         jurisdiction=(body.jurisdiction or "AU/NZ").strip(),
+        use_ai=body.use_ai,
+        force_ai=body.force_ai,
     )
 
 

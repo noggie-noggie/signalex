@@ -1,11 +1,17 @@
 """Regression tests for deterministic free-text food claim review."""
 
+import os
+from unittest.mock import patch
 import unittest
 
 from services.food_claim_review import response_field_names, review_food_claim
+from services.openai_claim_review import _reset_ai_state_for_tests
 
 
 class FoodClaimReviewTests(unittest.TestCase):
+    def setUp(self):
+        _reset_ai_state_for_tests()
+
     def assert_frontend_fields(self, body):
         for field in response_field_names():
             self.assertIn(field, body)
@@ -41,6 +47,77 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertEqual(body["recommended_pathways"], [])
         self.assertGreater(len(body["missing_information"]), 0)
         self.assertFalse(body["ai_used"])
+
+    def test_ai_disabled_returns_deterministic_response(self):
+        with patch.dict(os.environ, {"FOOD_CLAIM_REVIEW_AI_ENABLED": "false", "OPENAI_API_KEY": "test"}):
+            with patch("services.openai_claim_review._call_openai") as call:
+                body = review_food_claim("Fresh bright taste", food_type="drink", use_ai=True)
+        self.assertEqual(body["risk_level"], "review_required")
+        self.assertFalse(body["ai_used"])
+        call.assert_not_called()
+
+    def test_ai_enabled_missing_key_does_not_crash(self):
+        with patch.dict(os.environ, {"FOOD_CLAIM_REVIEW_AI_ENABLED": "true", "OPENAI_API_KEY": ""}, clear=False):
+            with patch("services.openai_claim_review._call_openai") as call:
+                body = review_food_claim("Fresh bright taste", food_type="drink", use_ai=True)
+        self.assertEqual(body["risk_level"], "review_required")
+        self.assertFalse(body["ai_used"])
+        call.assert_not_called()
+
+    def test_high_protein_does_not_call_ai_by_default(self):
+        with patch.dict(os.environ, {"FOOD_CLAIM_REVIEW_AI_ENABLED": "true", "OPENAI_API_KEY": "test"}):
+            with patch("services.openai_claim_review._call_openai") as call:
+                body = review_food_claim("High in protein", food_type="protein bar", use_ai=True)
+        self.assertEqual(body["display_claim"], "High in protein")
+        self.assertFalse(body["ai_used"])
+        call.assert_not_called()
+
+    def test_ibs_support_does_not_call_ai_by_default(self):
+        with patch.dict(os.environ, {"FOOD_CLAIM_REVIEW_AI_ENABLED": "true", "OPENAI_API_KEY": "test"}):
+            with patch("services.openai_claim_review._call_openai") as call:
+                body = review_food_claim("ibs support", food_type="Yoghurt", use_ai=True)
+        self.assertEqual(body["risk_level"], "high")
+        self.assertFalse(body["ai_used"])
+        call.assert_not_called()
+
+    def test_unknown_vague_claim_attempts_ai_when_enabled_and_key_present(self):
+        ai_payload = {
+            "assessment": "AI-assisted wording review remains non-final and requires substantiation.",
+            "safer_wording": ["Supports everyday wellbeing"],
+            "missing_information": ["Full formulation"],
+            "recommended_action": "Review formulation and evidence before use.",
+            "matched_themes": ["general_wellbeing"],
+        }
+        with patch.dict(os.environ, {"FOOD_CLAIM_REVIEW_AI_ENABLED": "true", "OPENAI_API_KEY": "test"}):
+            with patch("services.openai_claim_review._call_openai", return_value=ai_payload) as call:
+                body = review_food_claim("supports balance", food_type="drink", use_ai=True)
+        self.assertTrue(body["ai_used"])
+        self.assertEqual(body["assessment"], ai_payload["assessment"])
+        self.assertEqual(body["matched_themes"], ["general_wellbeing"])
+        call.assert_called_once()
+
+    def test_openai_package_missing_falls_back(self):
+        with patch.dict(os.environ, {"FOOD_CLAIM_REVIEW_AI_ENABLED": "true", "OPENAI_API_KEY": "test"}):
+            with patch("services.openai_claim_review._call_openai", side_effect=ImportError("missing")):
+                body = review_food_claim("supports balance", food_type="drink", use_ai=True)
+        self.assertEqual(body["risk_level"], "review_required")
+        self.assertFalse(body["ai_used"])
+
+    def test_ai_cache_prevents_second_call(self):
+        ai_payload = {
+            "assessment": "Cached AI review.",
+            "safer_wording": ["General wellbeing"],
+            "missing_information": ["Nutrition panel"],
+            "recommended_action": "Review before use.",
+            "matched_themes": ["general_wellbeing"],
+        }
+        with patch.dict(os.environ, {"FOOD_CLAIM_REVIEW_AI_ENABLED": "true", "OPENAI_API_KEY": "test"}):
+            with patch("services.openai_claim_review._call_openai", return_value=ai_payload) as call:
+                first = review_food_claim("supports balance", food_type="drink", use_ai=True)
+                second = review_food_claim("supports balance", food_type="drink", use_ai=True)
+        self.assertTrue(first["ai_used"])
+        self.assertTrue(second["ai_used"])
+        self.assertEqual(call.call_count, 1)
 
 
 if __name__ == "__main__":

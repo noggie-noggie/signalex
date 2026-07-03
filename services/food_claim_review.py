@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from services.food_claim_pathways import DISCLAIMER, get_claim_pathway
+from services.openai_claim_review import maybe_enhance_claim_review
 
 
 _FRONTEND_FIELDS = [
@@ -161,6 +162,8 @@ def review_food_claim(
     claim_text: str,
     food_type: str = "",
     jurisdiction: str = "AU/NZ",
+    use_ai: bool = False,
+    force_ai: bool = False,
 ) -> dict[str, Any]:
     """Return deterministic free-text food claim assessment."""
     raw_claim = (claim_text or "").strip()
@@ -171,7 +174,7 @@ def review_food_claim(
 
     if therapeutic_terms:
         avoid = list(dict.fromkeys([*therapeutic_terms, *_THERAPEUTIC_AVOID_VARIANTS]))
-        return {
+        response = {
             "claim_text": raw_claim,
             "display_claim": display_claim,
             "risk_level": "high",
@@ -208,9 +211,25 @@ def review_food_claim(
             "disclaimer": DISCLAIMER,
             "ai_used": False,
         }
+        return maybe_enhance_claim_review(
+            response,
+            claim_text=raw_claim,
+            food_type=food_type,
+            jurisdiction=jurisdiction,
+            use_ai=use_ai,
+            force_ai=force_ai,
+        )
 
     if not theme_matches:
-        return _empty_response(raw_claim, display_claim)
+        response = _empty_response(raw_claim, display_claim)
+        return maybe_enhance_claim_review(
+            response,
+            claim_text=raw_claim,
+            food_type=food_type,
+            jurisdiction=jurisdiction,
+            use_ai=use_ai,
+            force_ai=force_ai,
+        )
 
     primary = theme_matches[0]
     pathway_key = _THEME_TO_PATHWAY.get(primary.key)
@@ -218,13 +237,20 @@ def review_food_claim(
     if not pathway:
         response = _empty_response(raw_claim, display_claim)
         response["matched_themes"] = [match.key for match in theme_matches]
-        return response
+        return maybe_enhance_claim_review(
+            response,
+            claim_text=raw_claim,
+            food_type=food_type,
+            jurisdiction=jurisdiction,
+            use_ai=use_ai,
+            force_ai=force_ai,
+        )
 
     risk_level = pathway["risk_level"]
     if primary.key == "high_protein":
         risk_level = "medium"
 
-    return {
+    response = {
         "claim_text": raw_claim,
         "display_claim": pathway["display_claim"],
         "risk_level": risk_level,
@@ -246,6 +272,14 @@ def review_food_claim(
         "disclaimer": DISCLAIMER,
         "ai_used": False,
     }
+    return maybe_enhance_claim_review(
+        response,
+        claim_text=raw_claim,
+        food_type=food_type,
+        jurisdiction=jurisdiction,
+        use_ai=use_ai,
+        force_ai=force_ai,
+    )
 
 
 def response_field_names() -> list[str]:
