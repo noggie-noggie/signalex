@@ -439,6 +439,7 @@ Context affects the card copy:
 | `assessment` | string | Plain-English deterministic assessment |
 | `regulatory_context` | string | AU/NZ-oriented context |
 | `recommended_pathways` | array | Pathway cards when a food pathway is appropriate |
+| `possible_supporting_routes` | array | Optional conditional routes that may support the claim only if formulation, amount per serve, label context, and substantiation fit. |
 | `wording_to_avoid` | array | Risky wording or terms to avoid |
 | `missing_information` | array | Product details needed before final review |
 | `safer_wording` | array | Safer wording options where appropriate |
@@ -472,6 +473,7 @@ Context affects the card copy:
 - Text separated by periods, semicolons, relevant commas, or joined benefit phrases such as `supports gut health and immunity` may return `multi_claim=true`.
 - Existing top-level fields remain for backwards compatibility.
 - Use `claim_breakdown` when the frontend needs to show separate review cards for each claim phrase.
+- For multi-claim responses, `recommended_pathways` stays focused on the strongest route(s). Secondary ingredient/nutrient routes may appear in `possible_supporting_routes` with the note that they are conditional.
 - OpenAI must not be treated as legal certainty and must not invent source citations.
 - Phase 1 quota controls are in-memory:
   - `FOOD_CLAIM_REVIEW_AI_MAX_DAILY`, default `25` global AI calls/day

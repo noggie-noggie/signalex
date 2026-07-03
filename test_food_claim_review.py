@@ -36,6 +36,7 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertEqual(body["display_claim"], "High in protein")
         self.assertIn("high_protein", body["matched_themes"])
         self.assertGreater(len(body["recommended_pathways"]), 0)
+        self.assertEqual(body["possible_supporting_routes"], [])
         self.assertGreater(len(body["wording_to_avoid"]), 0)
         self.assertGreater(len(body["safer_wording"]), 0)
         self.assertFalse(body["ai_used"])
@@ -49,6 +50,7 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertEqual(body["risk_level"], "review_required")
         self.assertEqual(body["claim_type"], "unclassified_food_claim")
         self.assertEqual(body["recommended_pathways"], [])
+        self.assertEqual(body["possible_supporting_routes"], [])
         self.assertGreater(len(body["missing_information"]), 0)
         self.assertFalse(body["ai_used"])
         self.assertEqual(body["assessment_mode"], "deterministic")
@@ -283,6 +285,16 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertIn("Improves immunity", body["wording_to_avoid"])
         self.assertIn("Supports normal immune function", body["safer_wording"])
         self.assertTrue(any(pathway["name"] == "Immunity support route" for pathway in body["recommended_pathways"]))
+        main_route_names = [pathway["name"] for pathway in body["recommended_pathways"]]
+        self.assertNotIn("Vitamin C route", main_route_names)
+        self.assertNotIn("Zinc route", main_route_names)
+        self.assertNotIn("Vitamin D route", main_route_names)
+        supporting_route_names = [pathway["name"] for pathway in body["possible_supporting_routes"]]
+        self.assertIn("Vitamin C route", supporting_route_names)
+        self.assertIn("Zinc route", supporting_route_names)
+        self.assertIn("Vitamin D route", supporting_route_names)
+        self.assertIn("Live cultures route", supporting_route_names)
+        self.assertIn("These routes are conditional", body["overall_note"])
 
     def test_multi_claim_and_join_includes_helps_immunity(self):
         body = review_food_claim("supports gut health, high in protein and helps immunity", food_type="Yoghurt")
@@ -308,6 +320,15 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertEqual(body["risk_level"], "high")
         self.assertEqual(body["claim_type"], "therapeutic_or_disease_related_claim")
         self.assertIn("prevents colds", [term.lower() for term in body["wording_to_avoid"]])
+        self.assertEqual(body["recommended_pathways"], [])
+
+    def test_multi_claim_does_not_overload_recommended_pathways(self):
+        body = review_food_claim("gut health, high in protein, improves immunity", food_type="Yoghurt")
+        main_route_names = [pathway["name"] for pathway in body["recommended_pathways"]]
+        self.assertEqual(main_route_names, ["Protein route", "Immunity support route"])
+        supporting_route_names = [pathway["name"] for pathway in body["possible_supporting_routes"]]
+        self.assertIn("Vitamin C route", supporting_route_names)
+        self.assertIn("Live cultures pathway", supporting_route_names)
 
 
 if __name__ == "__main__":

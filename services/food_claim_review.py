@@ -23,6 +23,7 @@ _FRONTEND_FIELDS = [
     "assessment",
     "regulatory_context",
     "recommended_pathways",
+    "possible_supporting_routes",
     "wording_to_avoid",
     "missing_information",
     "safer_wording",
@@ -140,6 +141,19 @@ _IMMUNITY_RECOMMENDED_ACTION = (
     "the product has a relevant vitamin, mineral, or ingredient basis and "
     "substantiation. Avoid 'improves', 'boosts', or disease-prevention wording."
 )
+
+_CONDITIONAL_ROUTE_NOTE = (
+    "These routes are conditional. They depend on the actual formulation, "
+    "amount per serve, label context, and substantiation."
+)
+
+_GUT_HEALTH_ROUTE_NAMES_BY_FOOD_TYPE = {
+    "yoghurt": {"Live cultures pathway", "Fermented food pathway"},
+    "beverage": {"Live cultures pathway", "Fibre pathway", "Fermented food pathway"},
+    "snack": {"Fibre pathway"},
+    "cereal": {"Fibre pathway"},
+    "plant_based": {"Fibre pathway", "Fermented food pathway"},
+}
 
 _FOOD_TYPE_MAP = {
     "yoghurt": "yoghurt",
@@ -546,11 +560,83 @@ def _append_pathway_if_missing(existing: list[dict[str, Any]], pathway: dict[str
     return out
 
 
-def _enrich_response_for_detected_themes(response: dict[str, Any]) -> dict[str, Any]:
+def _dedupe_routes(routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for route in routes:
+        if not isinstance(route, dict):
+            continue
+        name = str(route.get("name", "")).strip()
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        out.append(route)
+    return out
+
+
+def _routes_from_pathway(pathway: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not pathway:
+        return []
+    return [route for route in pathway.get("recommended_pathways", []) if isinstance(route, dict)]
+
+
+def _split_main_and_supporting_routes(
+    pathway: dict[str, Any] | None,
+    main_names: set[str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    main: list[dict[str, Any]] = []
+    supporting: list[dict[str, Any]] = []
+    for route in _routes_from_pathway(pathway):
+        if route.get("name") in main_names:
+            main.append(route)
+        else:
+            supporting.append(route)
+    return _dedupe_routes(main), _dedupe_routes(supporting)
+
+
+def _filter_gut_routes_for_context(
+    routes: list[dict[str, Any]],
+    *,
+    food_type: str = "",
+    claim_text: str = "",
+) -> list[dict[str, Any]]:
+    if not routes:
+        return []
+    normalised_claim = _normalise_text(claim_text)
+    allowed_names = set(_GUT_HEALTH_ROUTE_NAMES_BY_FOOD_TYPE.get(food_type, set()))
+    if re.search(r"\b(live\s+cultures?|probiotic|yogh?urt|kefir|fermented|cultured)\b", normalised_claim):
+        allowed_names.update({"Live cultures pathway", "Fermented food pathway"})
+    if re.search(r"\b(fibre|fiber|prebiotic|inulin|wholegrain)\b", normalised_claim):
+        allowed_names.add("Fibre pathway")
+    if not allowed_names:
+        return []
+    return [route for route in routes if route.get("name") in allowed_names]
+
+
+def _append_supporting_routes_note(response: dict[str, Any]) -> dict[str, Any]:
     adjusted = dict(response)
+    routes = list(adjusted.get("possible_supporting_routes") or [])
+    adjusted["possible_supporting_routes"] = _dedupe_routes(routes)
+    if adjusted["possible_supporting_routes"]:
+        note = adjusted.get("overall_note") or ""
+        if _CONDITIONAL_ROUTE_NOTE not in note:
+            adjusted["overall_note"] = f"{note} {_CONDITIONAL_ROUTE_NOTE}".strip()
+    return adjusted
+
+
+def _enrich_response_for_detected_themes(
+    response: dict[str, Any],
+    *,
+    context: dict[str, Any] | None = None,
+    claim_text: str = "",
+) -> dict[str, Any]:
+    adjusted = dict(response)
+    context = context or {}
     themes = set(adjusted.get("matched_themes") or [])
     for item in adjusted.get("claim_breakdown") or []:
         themes.update(item.get("matched_themes") or [])
+
+    supporting_routes = list(adjusted.get("possible_supporting_routes") or [])
 
     if "immunity" in themes:
         immunity = get_claim_pathway("immunity")
@@ -562,13 +648,28 @@ def _enrich_response_for_detected_themes(response: dict[str, Any]) -> dict[str, 
             list(adjusted.get("safer_wording") or []),
             _IMMUNITY_SAFER_WORDING,
         )
-        adjusted["recommended_pathways"] = _append_pathway_if_missing(
-            list(adjusted.get("recommended_pathways") or []),
+        main_routes, conditional_routes = _split_main_and_supporting_routes(
             immunity,
+            {"Immunity support route"},
         )
+        adjusted["recommended_pathways"] = _dedupe_routes(
+            [*list(adjusted.get("recommended_pathways") or []), *main_routes]
+        )
+        supporting_routes.extend(conditional_routes)
         if adjusted.get("claim_type") == "unclassified_food_claim":
             adjusted["claim_type"] = "general_health_or_function_claim"
-    return adjusted
+
+    if "gut_health" in themes:
+        gut_health = get_claim_pathway("gut_health")
+        gut_routes = _filter_gut_routes_for_context(
+            _routes_from_pathway(gut_health),
+            food_type=str(context.get("food_type") or ""),
+            claim_text=claim_text,
+        )
+        supporting_routes.extend(gut_routes)
+
+    adjusted["possible_supporting_routes"] = supporting_routes
+    return _append_supporting_routes_note(adjusted)
 
 
 def _empty_response(claim_text: str, display_claim: str) -> dict[str, Any]:
@@ -589,6 +690,7 @@ def _empty_response(claim_text: str, display_claim: str) -> dict[str, Any]:
             "food standards."
         ),
         "recommended_pathways": [],
+        "possible_supporting_routes": [],
         "wording_to_avoid": [],
         "missing_information": list(_UNCLASSIFIED_MISSING_INFO),
         "safer_wording": [],
@@ -645,6 +747,7 @@ def review_food_claim(
                 "food claim copy."
             ),
             "recommended_pathways": [],
+            "possible_supporting_routes": [],
             "wording_to_avoid": avoid,
             "missing_information": [
                 "Exact proposed wording on the claim",
@@ -667,7 +770,7 @@ def review_food_claim(
             "ai_used": False,
         }
         response = _apply_claim_breakdown(response, raw_claim)
-        response = _enrich_response_for_detected_themes(response)
+        response = _enrich_response_for_detected_themes(response, context=context, claim_text=raw_claim)
         response = _adjust_response_for_context(response, context)
         return maybe_enhance_claim_review(
             response,
@@ -683,7 +786,7 @@ def review_food_claim(
     if not theme_matches:
         response = _empty_response(raw_claim, display_claim)
         response = _apply_claim_breakdown(response, raw_claim)
-        response = _enrich_response_for_detected_themes(response)
+        response = _enrich_response_for_detected_themes(response, context=context, claim_text=raw_claim)
         response = _adjust_response_for_context(response, context)
         return maybe_enhance_claim_review(
             response,
@@ -703,7 +806,7 @@ def review_food_claim(
         response = _empty_response(raw_claim, display_claim)
         response["matched_themes"] = [match.key for match in theme_matches]
         response = _apply_claim_breakdown(response, raw_claim)
-        response = _enrich_response_for_detected_themes(response)
+        response = _enrich_response_for_detected_themes(response, context=context, claim_text=raw_claim)
         response = _adjust_response_for_context(response, context)
         return maybe_enhance_claim_review(
             response,
@@ -733,6 +836,7 @@ def review_food_claim(
         ),
         "regulatory_context": pathway["regulatory_context"],
         "recommended_pathways": pathway["recommended_pathways"],
+        "possible_supporting_routes": [],
         "wording_to_avoid": pathway["wording_to_avoid"],
         "missing_information": pathway["missing_information"],
         "safer_wording": pathway["safer_wording"],
@@ -746,7 +850,7 @@ def review_food_claim(
         "ai_used": False,
     }
     response = _apply_claim_breakdown(response, raw_claim)
-    response = _enrich_response_for_detected_themes(response)
+    response = _enrich_response_for_detected_themes(response, context=context, claim_text=raw_claim)
     response = _adjust_response_for_context(response, context)
     return maybe_enhance_claim_review(
         response,
