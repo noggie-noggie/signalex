@@ -61,7 +61,7 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
             "authority": "open_food_facts",
             "signal_type": "new_product",
             "title": "Red Bull — Energy Drink",
-            "summary": "Carbonated energy drink with caffeine.",
+            "summary": "Carbonated energy drink with caffeine and natural flavours.",
             "product_name": "Energy Drink",
             "product_category": "beverages and beverages preparations",
         }
@@ -70,6 +70,24 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
         self.assertNotEqual(result["dashboard_section"], "market_opportunities")
         self.assertEqual(result["impact"], "low")
         self.assertIn("category_growth", result["issue_area"])
+        self.assertIn("energy", result["claim_theme"])
+        self.assertIn("natural", result["claim_theme"])
+
+    def test_energy_drink_with_only_energy_claim_is_category_signal(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "signal_type": "new_product",
+            "title": "Example Brand - Energy Drink",
+            "summary": "Energy drink with caffeine.",
+            "product_name": "Energy Drink",
+            "product_category": "beverages",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "category_signals")
+        self.assertEqual(result["impact"], "low")
+        self.assertEqual(result["signal_type"], "category_trend")
 
     def test_monster_energy_drink_is_category_signal(self):
         row = {

@@ -374,6 +374,39 @@ def _has_meaningful_market_relevance(
     category: list[str],
     text: str,
 ) -> bool:
+    if "energy_drink" in product_type:
+        themes = set(claim_theme)
+        if themes & {"plant_based", "gut_health"}:
+            return True
+        if _contains_any(
+            text,
+            [
+                "functional beverage",
+                "functional drink",
+                "probiotic",
+                "prebiotic",
+                "gut health",
+                "novel ingredient",
+                "clean label",
+            ],
+        ):
+            return True
+        if "low_sugar" in themes and _contains_any(
+            text,
+            [
+                "functional",
+                "novel",
+                "probiotic",
+                "prebiotic",
+                "gut health",
+                "plant based",
+                "plant-based",
+                "clean label",
+            ],
+        ):
+            return True
+        return False
+
     if _contains_any(text, _GENERIC_PRODUCT_OPPORTUNITY_REVIEW_TERMS):
         return bool(
             set(claim_theme) & _MEANINGFUL_OPPORTUNITY_CLAIM_THEMES
