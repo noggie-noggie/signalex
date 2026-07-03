@@ -56,6 +56,16 @@ def main() -> int:
     decisions = [(row, supplement_filter_decision(row)) for row in off_rows]
     suspected = [row for row, decision in decisions if decision.excluded]
     allowed = [row for row, decision in decisions if not decision.excluded]
+    allowed_but_noise = [
+        (row, decision)
+        for row, decision in decisions
+        if not decision.excluded and int(row.get("is_noise") or 0) == 1
+    ]
+    excluded_but_visible = [
+        (row, decision)
+        for row, decision in decisions
+        if decision.excluded and int(row.get("is_noise") or 0) != 1
+    ]
 
     print("Food supplement leakage audit")
     print("=============================")
@@ -64,6 +74,8 @@ def main() -> int:
     print(f"Open Food Facts food records: {len(off_rows)}")
     print(f"excluded Open Food Facts products: {len(suspected)}")
     print(f"allowed Open Food Facts products: {len(allowed)}")
+    print(f"allowed_by_classifier_but_is_noise=1: {len(allowed_but_noise)}")
+    print(f"excluded_by_classifier_but_is_noise=0: {len(excluded_but_visible)}")
 
     print("\ncount by source_label:")
     for source, count in sorted(Counter(row.get("source_label") or "" for row in rows).items()):
@@ -104,6 +116,31 @@ def main() -> int:
                 f"product_category={row.get('product_category')} "
                 f"is_noise={row.get('is_noise')} "
                 f"reason={decision.reason}"
+            )
+
+    print("\nnoise/classifier mismatches:")
+    if not allowed_but_noise and not excluded_but_visible:
+        print("  none")
+    else:
+        for row, decision in allowed_but_noise:
+            print(
+                "  "
+                f"type=allowed_but_noise "
+                f"id={row.get('id')} "
+                f"title={row.get('title')} "
+                f"is_noise={row.get('is_noise')} "
+                f"noise_reason={row.get('noise_reason')} "
+                f"classifier_reason={decision.reason}"
+            )
+        for row, decision in excluded_but_visible:
+            print(
+                "  "
+                f"type=excluded_but_visible "
+                f"id={row.get('id')} "
+                f"title={row.get('title')} "
+                f"is_noise={row.get('is_noise')} "
+                f"noise_reason={row.get('noise_reason')} "
+                f"classifier_reason={decision.reason}"
             )
 
     return 0
