@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from services.food_supplement_filter import is_supplement_like_food
+from services.food_supplement_filter import supplement_filter_decision
 from services.food_taxonomy import enrich_food_signal
 
 
@@ -53,17 +53,17 @@ def main() -> int:
         and row.get("dashboard_section") != "excluded"
     ]
     off_rows = [row for row in rows if row.get("source_label") == "open_food_facts"]
-    suspected = [
-        row for row in off_rows
-        if is_supplement_like_food(row)
-    ]
+    decisions = [(row, supplement_filter_decision(row)) for row in off_rows]
+    suspected = [row for row, decision in decisions if decision.excluded]
+    allowed = [row for row, decision in decisions if not decision.excluded]
 
     print("Food supplement leakage audit")
     print("=============================")
     print(f"total food signals: {len(rows)}")
     print(f"visible customer-facing food signals: {len(visible)}")
     print(f"Open Food Facts food records: {len(off_rows)}")
-    print(f"suspected supplement records inside food: {len(suspected)}")
+    print(f"excluded Open Food Facts products: {len(suspected)}")
+    print(f"allowed Open Food Facts products: {len(allowed)}")
 
     print("\ncount by source_label:")
     for source, count in sorted(Counter(row.get("source_label") or "" for row in rows).items()):
@@ -73,18 +73,37 @@ def main() -> int:
     for section, count in sorted(Counter(row.get("dashboard_section") or "" for row in visible).items()):
         print(f"  {section or '(missing)'}: {count}")
 
-    print("\nsuspected supplement records:")
+    print("\nexcluded Open Food Facts products:")
     if not suspected:
         print("  none")
     else:
-        for row in suspected:
+        for row, decision in decisions:
+            if not decision.excluded:
+                continue
             print(
                 "  "
                 f"id={row.get('id')} "
                 f"title={row.get('title')} "
                 f"product_category={row.get('product_category')} "
                 f"source_label={row.get('source_label')} "
-                f"is_noise={row.get('is_noise')}"
+                f"is_noise={row.get('is_noise')} "
+                f"reason={decision.reason}"
+            )
+
+    print("\nallowed Open Food Facts products:")
+    if not allowed:
+        print("  none")
+    else:
+        for row, decision in decisions:
+            if decision.excluded:
+                continue
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"title={row.get('title')} "
+                f"product_category={row.get('product_category')} "
+                f"is_noise={row.get('is_noise')} "
+                f"reason={decision.reason}"
             )
 
     return 0
