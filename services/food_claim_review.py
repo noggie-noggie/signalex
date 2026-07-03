@@ -54,6 +54,9 @@ _THERAPEUTIC_PATTERNS: list[tuple[str, str]] = [
     ("cure", r"\bcure[s]?\b|\bcuring\b"),
     ("treat", r"\btreat[s]?\b|\btreating\b"),
     ("prevent disease", r"\bprevent[s]?\s+(disease|illness|infection)\b"),
+    ("prevents colds", r"\bprevent[s]?\s+colds?\b"),
+    ("prevents flu", r"\bprevent[s]?\s+flu\b"),
+    ("fights infection", r"\bfight[s]?\s+infection[s]?\b"),
     ("repair muscle damage", r"\brepair[s]?\s+muscle\s+damage\b"),
     ("relieve symptoms", r"\brelieve[s]?\s+symptoms?\b"),
     ("clinical", r"\bclinical\b|\bclinically\b"),
@@ -65,7 +68,7 @@ _THEME_PATTERNS: list[tuple[str, str, str]] = [
     ("source_of_fibre", "Source of fibre", r"\b(fibre|fiber|high\s+fibre|high\s+fiber|source\s+of\s+fibre|source\s+of\s+fiber)\b"),
     ("low_sugar", "Low sugar", r"\b(low\s+sugar|reduced\s+sugar|no\s+sugar|sugar\s+free|no\s+added\s+sugar)\b"),
     ("gut_health", "Gut health", r"\b(gut\s+health|digestive\s+wellbeing|digestive\s+health|digestion|probiotic|prebiotic|live\s+cultures?)\b"),
-    ("immunity", "Immunity", r"\b(immunity|immune\s+support|immune\s+health|immune\s+system)\b"),
+    ("immunity", "Immunity", r"\b(improv(?:e|es|ing)\s+immunity|helps?\s+immunity|supports?\s+immunity|immune\s+support|immune\s+health|supports?\s+immune\s+function|boosts?\s+immunity|strengthens?\s+immunity|improv(?:e|es|ing)\s+immune\s+system|immune\s+defen[cs]e|immunity|immune\s+system)\b"),
     ("energy", "Energy", r"\b(energy|active\s+lifestyle|active\s+lifestyles|vitality)\b"),
 ]
 
@@ -74,6 +77,7 @@ _THEME_TO_PATHWAY = {
     "source_of_fibre": "gut_health",
     "low_sugar": "low_sugar",
     "gut_health": "gut_health",
+    "immunity": "immunity",
     "energy": "energy",
 }
 
@@ -112,6 +116,30 @@ _THERAPEUTIC_AVOID_VARIANTS = [
     "Clinically treats symptoms",
     "Therapeutic support",
 ]
+
+_IMMUNITY_WORDING_TO_AVOID = [
+    "Improves immunity",
+    "Boosts immunity",
+    "Strengthens immunity",
+    "Prevents colds",
+    "Prevents flu",
+    "Fights infection",
+    "Immune defence against illness",
+    "Clinically improves immune response",
+]
+
+_IMMUNITY_SAFER_WORDING = [
+    "Supports normal immune function",
+    "Supports immune health",
+    "Contains nutrients that support normal immune function",
+    "Supports general wellbeing",
+]
+
+_IMMUNITY_RECOMMENDED_ACTION = (
+    "Use softer wording such as 'supports normal immune function' only where "
+    "the product has a relevant vitamin, mineral, or ingredient basis and "
+    "substantiation. Avoid 'improves', 'boosts', or disease-prevention wording."
+)
 
 _FOOD_TYPE_MAP = {
     "yoghurt": "yoghurt",
@@ -317,7 +345,7 @@ def _split_claim_phrases(claim_text: str) -> list[str]:
         r"immunity|immune\s+support|immune\s+health|gut\s+health|digestive\s+health|"
         r"digestive\s+wellbeing|active\s+lifestyle|energy"
     )
-    support_verb = r"supports?|helps\s+support|promotes|maintains"
+    support_verb = r"supports?|helps?|helps\s+support|promotes|maintains|improves?|boosts?|strengthens?"
     for part in primary_parts:
         comma_parts = [
             item.strip(" \t\r\n,")
@@ -339,8 +367,34 @@ def _split_claim_phrases(claim_text: str) -> list[str]:
                 verb = match.group("verb")
                 expanded.append(f"{verb} {match.group('first').strip()}")
                 expanded.append(f"{verb} {match.group('second').strip()}")
-            else:
-                expanded.append(candidate)
+                continue
+
+            joined_benefit = re.match(
+                rf"^(?P<first>.+?)\s+and\s+(?P<verb>{support_verb})\s+(?P<second>{benefit_tail})$",
+                candidate,
+                flags=re.IGNORECASE,
+            )
+            if joined_benefit:
+                first = joined_benefit.group("first").strip()
+                second = f"{joined_benefit.group('verb')} {joined_benefit.group('second').strip()}"
+                if _detect_themes(_normalise_text(first)) and _detect_themes(_normalise_text(second)):
+                    expanded.append(first)
+                    expanded.append(second)
+                    continue
+
+            benefit_and_benefit = re.match(
+                rf"^(?P<first>.+?)\s+and\s+(?P<second>{benefit_tail})$",
+                candidate,
+                flags=re.IGNORECASE,
+            )
+            if benefit_and_benefit:
+                first = benefit_and_benefit.group("first").strip()
+                second = benefit_and_benefit.group("second").strip()
+                if _detect_themes(_normalise_text(first)) and _detect_themes(_normalise_text(second)):
+                    expanded.append(first)
+                    expanded.append(second)
+                    continue
+            expanded.append(candidate)
 
     deduped: list[str] = []
     seen: set[str] = set()
@@ -387,13 +441,10 @@ def _breakdown_for_phrase(phrase: str) -> dict[str, Any]:
     if "immunity" in themes:
         return {
             "claim": phrase,
-            "risk_level": "review_required",
+            "risk_level": "medium" if re.search(r"\b(improv(?:e|es|ing)|boosts?|strengthens?)\b", normalised) else "review_required",
             "claim_type": "general_health_or_function_claim",
             "matched_themes": themes,
-            "recommended_action": (
-                "Review vitamin/mineral/ingredient basis and substantiation before "
-                "using immunity wording."
-            ),
+            "recommended_action": _IMMUNITY_RECOMMENDED_ACTION,
         }
 
     if "gut_health" in themes:
@@ -466,6 +517,57 @@ def _apply_claim_breakdown(response: dict[str, Any], claim_text: str) -> dict[st
         adjusted["risk_level"] = highest_risk
     if multi_claim and highest_risk == "high":
         adjusted["risk_level"] = "high"
+    return adjusted
+
+
+def _merge_unique(existing: list[Any], additions: list[Any]) -> list[Any]:
+    merged: list[Any] = []
+    seen: set[str] = set()
+    for item in [*existing, *additions]:
+        key = str(item).strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            merged.append(item)
+    return merged
+
+
+def _append_pathway_if_missing(existing: list[dict[str, Any]], pathway: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not pathway:
+        return existing
+    out = list(existing)
+    seen = {str(item.get("name", "")).strip().lower() for item in out if isinstance(item, dict)}
+    for item in pathway.get("recommended_pathways", []):
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip().lower()
+        if name and name not in seen:
+            seen.add(name)
+            out.append(item)
+    return out
+
+
+def _enrich_response_for_detected_themes(response: dict[str, Any]) -> dict[str, Any]:
+    adjusted = dict(response)
+    themes = set(adjusted.get("matched_themes") or [])
+    for item in adjusted.get("claim_breakdown") or []:
+        themes.update(item.get("matched_themes") or [])
+
+    if "immunity" in themes:
+        immunity = get_claim_pathway("immunity")
+        adjusted["wording_to_avoid"] = _merge_unique(
+            list(adjusted.get("wording_to_avoid") or []),
+            _IMMUNITY_WORDING_TO_AVOID,
+        )
+        adjusted["safer_wording"] = _merge_unique(
+            list(adjusted.get("safer_wording") or []),
+            _IMMUNITY_SAFER_WORDING,
+        )
+        adjusted["recommended_pathways"] = _append_pathway_if_missing(
+            list(adjusted.get("recommended_pathways") or []),
+            immunity,
+        )
+        if adjusted.get("claim_type") == "unclassified_food_claim":
+            adjusted["claim_type"] = "general_health_or_function_claim"
     return adjusted
 
 
@@ -565,6 +667,7 @@ def review_food_claim(
             "ai_used": False,
         }
         response = _apply_claim_breakdown(response, raw_claim)
+        response = _enrich_response_for_detected_themes(response)
         response = _adjust_response_for_context(response, context)
         return maybe_enhance_claim_review(
             response,
@@ -580,6 +683,7 @@ def review_food_claim(
     if not theme_matches:
         response = _empty_response(raw_claim, display_claim)
         response = _apply_claim_breakdown(response, raw_claim)
+        response = _enrich_response_for_detected_themes(response)
         response = _adjust_response_for_context(response, context)
         return maybe_enhance_claim_review(
             response,
@@ -599,6 +703,7 @@ def review_food_claim(
         response = _empty_response(raw_claim, display_claim)
         response["matched_themes"] = [match.key for match in theme_matches]
         response = _apply_claim_breakdown(response, raw_claim)
+        response = _enrich_response_for_detected_themes(response)
         response = _adjust_response_for_context(response, context)
         return maybe_enhance_claim_review(
             response,
@@ -641,6 +746,7 @@ def review_food_claim(
         "ai_used": False,
     }
     response = _apply_claim_breakdown(response, raw_claim)
+    response = _enrich_response_for_detected_themes(response)
     response = _adjust_response_for_context(response, context)
     return maybe_enhance_claim_review(
         response,

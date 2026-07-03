@@ -268,6 +268,47 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertIn("general_health_or_function_claim", claim_types)
         self.assertFalse(body["ai_used"])
 
+    def test_multi_claim_comma_list_includes_improves_immunity(self):
+        body = review_food_claim("gut health, high in protein, improves immunity", food_type="Yoghurt")
+        self.assert_frontend_fields(body)
+        self.assertTrue(body["multi_claim"])
+        claims = [item["claim"] for item in body["claim_breakdown"]]
+        self.assertIn("gut health", claims)
+        self.assertIn("high in protein", claims)
+        self.assertIn("improves immunity", claims)
+        immunity = {item["claim"]: item for item in body["claim_breakdown"]}["improves immunity"]
+        self.assertEqual(immunity["claim_type"], "general_health_or_function_claim")
+        self.assertIn("immunity", immunity["matched_themes"])
+        self.assertIn("supports normal immune function", immunity["recommended_action"])
+        self.assertIn("Improves immunity", body["wording_to_avoid"])
+        self.assertIn("Supports normal immune function", body["safer_wording"])
+        self.assertTrue(any(pathway["name"] == "Immunity support route" for pathway in body["recommended_pathways"]))
+
+    def test_multi_claim_and_join_includes_helps_immunity(self):
+        body = review_food_claim("supports gut health, high in protein and helps immunity", food_type="Yoghurt")
+        self.assert_frontend_fields(body)
+        self.assertTrue(body["multi_claim"])
+        claims = [item["claim"] for item in body["claim_breakdown"]]
+        self.assertIn("supports gut health", claims)
+        self.assertIn("high in protein", claims)
+        self.assertIn("helps immunity", claims)
+        immunity = {item["claim"]: item for item in body["claim_breakdown"]}["helps immunity"]
+        self.assertIn("immunity", immunity["matched_themes"])
+
+    def test_boosts_immunity_adds_avoid_wording(self):
+        body = review_food_claim("boosts immunity", food_type="Beverage")
+        self.assert_frontend_fields(body)
+        self.assertIn("immunity", body["matched_themes"])
+        self.assertIn("Boosts immunity", body["wording_to_avoid"])
+        self.assertIn("Supports normal immune function", body["safer_wording"])
+
+    def test_prevents_colds_is_high_risk_therapeutic(self):
+        body = review_food_claim("prevents colds", food_type="Beverage")
+        self.assert_frontend_fields(body)
+        self.assertEqual(body["risk_level"], "high")
+        self.assertEqual(body["claim_type"], "therapeutic_or_disease_related_claim")
+        self.assertIn("prevents colds", [term.lower() for term in body["wording_to_avoid"]])
+
 
 if __name__ == "__main__":
     unittest.main()
