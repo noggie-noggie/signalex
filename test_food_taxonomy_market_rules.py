@@ -252,11 +252,14 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
             "source_label": "open_food_facts",
             "authority": "open_food_facts",
             "title": "TAYTO SNACKS — CHEESE & ONION FLAVOUR POTATO CRISPS",
+            "summary": "Natural plant based snack. Ingredients include milk protein.",
             "product_name": "CHEESE & ONION FLAVOUR POTATO CRISPS",
             "product_category": "plant based foods and beverages",
         }
         result = enrich_food_signal(row)
-        self.assertNotEqual(result["dashboard_section"], "market_opportunities")
+        self.assertEqual(result["dashboard_section"], "category_signals")
+        self.assertEqual(result["impact"], "low")
+        self.assertNotIn("high_protein", result["claim_theme"])
 
     def test_nandos_rub_is_not_market_opportunity(self):
         row = {

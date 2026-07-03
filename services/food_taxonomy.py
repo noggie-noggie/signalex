@@ -279,12 +279,54 @@ _GENERIC_VISIBLE_REVIEW_TERMS = [
     "mi goreng",
     "fried noodles",
     "potato crisps",
+    "crisps",
+    "chips",
+    "potato chips",
+    "corn chips",
+    "savoury snack",
+    "savory snack",
     "cheese & onion",
     "cheese and onion",
     "wraps lite",
     "peri-peri rub",
     "peri peri rub",
     "garlic peri",
+]
+
+_GENERIC_SAVOURY_SNACK_TERMS = [
+    "potato crisps",
+    "potato chips",
+    "corn chips",
+    "crisps",
+    "chips",
+    "cheese & onion",
+    "cheese and onion",
+    "savoury snack",
+    "savory snack",
+]
+
+_FUNCTIONAL_SNACK_EVIDENCE_TERMS = [
+    "protein bar",
+    "protein snack",
+    "protein crisps",
+    "protein chips",
+    "high protein",
+    "source of protein",
+    "low sugar",
+    "no sugar",
+    "source of fibre",
+    "source of fiber",
+    "high fibre",
+    "high fiber",
+    "gut health",
+    "probiotic",
+    "prebiotic",
+    "functional snack",
+    "meat alternative",
+    "dairy alternative",
+    "plant based burger",
+    "plant-based burger",
+    "notburger",
 ]
 
 
@@ -339,6 +381,26 @@ def _contains_alcohol_term(text: str) -> bool:
         if re.search(rf"(?<![a-z]){re.escape(term)}(?![a-z])", text):
             return True
     return False
+
+
+def _is_generic_savoury_snack(text: str) -> bool:
+    return _contains_any(text, _GENERIC_SAVOURY_SNACK_TERMS)
+
+
+def _has_functional_snack_evidence(text: str, claim_theme: list[str], product_type: list[str]) -> bool:
+    themes = set(claim_theme)
+    if "protein_bar" in product_type:
+        return True
+    if themes & {"gut_health", "source_of_fibre"}:
+        return True
+    if "high_protein" in themes and _contains_any(
+        text,
+        ["high protein", "source of protein", "protein bar", "protein snack", "protein crisps", "protein chips"],
+    ):
+        return True
+    if "low_sugar" in themes and _contains_any(text, ["functional", "protein", "fibre", "fiber"]):
+        return True
+    return _contains_any(text, _FUNCTIONAL_SNACK_EVIDENCE_TERMS)
 
 
 def _tags_from_patterns(text: str, patterns: list[tuple[str, list[str]]]) -> list[str]:
@@ -471,6 +533,9 @@ def _has_meaningful_market_relevance(
             return True
         return False
 
+    if _is_generic_savoury_snack(text):
+        return _has_functional_snack_evidence(text, claim_theme, product_type)
+
     if _contains_any(text, _GENERIC_PRODUCT_OPPORTUNITY_REVIEW_TERMS):
         return bool(
             set(claim_theme) & _MEANINGFUL_OPPORTUNITY_CLAIM_THEMES
@@ -571,6 +636,12 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
         issue_area.append("category_growth")
 
     claim_theme = _tags_from_patterns(content_text, _CLAIM_THEME_PATTERNS)
+    if (
+        "high_protein" in claim_theme
+        and _is_generic_savoury_snack(content_text)
+        and not _has_functional_snack_evidence(content_text, claim_theme, product_type=[])
+    ):
+        claim_theme = [theme for theme in claim_theme if theme != "high_protein"]
     if _contains_any(content_text, _HIGH_RISK_DISEASE_TERMS):
         issue_area.extend(["claims_wording", "substantiation"])
 

@@ -144,6 +144,22 @@ def main() -> int:
         row for row in off_market_opportunities
         if any(term in off_text(row) for term in generic_opportunity_terms)
     ]
+    generic_snack_terms = [
+        "potato crisps",
+        "potato chips",
+        "corn chips",
+        "crisps",
+        "chips",
+        "cheese & onion",
+        "cheese and onion",
+        "savoury snack",
+        "savory snack",
+    ]
+    generic_snack_opportunities = [
+        row for row in off_market_opportunities
+        if any(term in off_text(row) for term in generic_snack_terms)
+        and "protein_bar" not in (row.get("product_type") or [])
+    ]
     generic_visible_off_records = [
         row for row in visible_off_rows
         if any(term in off_text(row) for term in generic_opportunity_terms)
@@ -263,6 +279,19 @@ def main() -> int:
         print("  none")
     else:
         for row in generic_product_opportunities:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"claim_theme={row.get('claim_theme')} "
+                f"product_type={row.get('product_type')} "
+                f"title={row.get('title')}"
+            )
+
+    print("\ngeneric snack Open Food Facts records inside market_opportunities for manual review:")
+    if not generic_snack_opportunities:
+        print("  none")
+    else:
+        for row in generic_snack_opportunities:
             print(
                 "  "
                 f"id={row.get('id')} "
