@@ -422,6 +422,12 @@ or final substantiation advice.
 | `matched_themes` | array | Deterministically matched themes, e.g. `["high_protein"]` |
 | `disclaimer` | string | Fixed disclaimer |
 | `ai_used` | boolean | Indicates whether OpenAI was actually used. Can be `false` even when `use_ai=true` if AI is disabled, unavailable, missing a key, skipped by deterministic rules, or rate-limited. |
+| `ai_available` | boolean | Whether AI assistance is currently available for this request path. |
+| `ai_quota_remaining` | number | Remaining AI reviews for the most restrictive active quota. |
+| `ai_quota_reset` | string | ISO timestamp for the next quota reset. |
+| `assessment_mode` | string | `"deterministic"` or `"ai_assisted"`. |
+| `cache_hit` | boolean | `true` when an AI-assisted response came from cache and did not consume quota. |
+| `upgrade_prompt` | string | Optional message when quota is exhausted. |
 
 **AI behaviour:**
 
@@ -432,6 +438,13 @@ or final substantiation advice.
 - OpenAI is not called by default for clear known pathways such as `High in protein`.
 - OpenAI may enhance vague/unclassified claims when enabled and requested.
 - OpenAI must not be treated as legal certainty and must not invent source citations.
+- Phase 1 quota controls are in-memory:
+  - `FOOD_CLAIM_REVIEW_AI_MAX_DAILY`, default `25` global AI calls/day
+  - `FOOD_CLAIM_REVIEW_AI_MAX_PER_IP_DAILY`, default `3` AI calls/IP/day
+  - `FOOD_CLAIM_REVIEW_AI_MAX_INPUT_CHARS`, default `1000`
+  - `FOOD_CLAIM_REVIEW_AI_CACHE_ENABLED`, default `true`
+- Cache key is based on normalised `claim_text`, `food_type`, and `jurisdiction`.
+- Cache hits do not consume quota.
 
 **High-risk therapeutic example:**
 

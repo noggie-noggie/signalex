@@ -34,7 +34,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query, Response, status
+from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -794,7 +794,7 @@ def food_claim_pathways(claim: Optional[str] = None):
 
 
 @app.post("/api/food/claim-review")
-def food_claim_review(body: FoodClaimReviewRequest):
+def food_claim_review(body: FoodClaimReviewRequest, request: Request):
     """Deterministic free-text food claim assessment. Phase 1: no AI."""
     claim_text = (body.claim_text or "").strip()
     if not claim_text:
@@ -805,6 +805,7 @@ def food_claim_review(body: FoodClaimReviewRequest):
         jurisdiction=(body.jurisdiction or "AU/NZ").strip(),
         use_ai=body.use_ai,
         force_ai=body.force_ai,
+        client_ip=request.client.host if request.client else None,
     )
 
 

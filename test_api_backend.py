@@ -204,6 +204,11 @@ class ApiBackendTests(unittest.TestCase):
             "matched_themes",
             "disclaimer",
             "ai_used",
+            "ai_available",
+            "ai_quota_remaining",
+            "ai_quota_reset",
+            "assessment_mode",
+            "cache_hit",
         ]
         with TestClient(app) as client:
             response = client.post(

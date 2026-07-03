@@ -31,6 +31,11 @@ _FRONTEND_FIELDS = [
     "matched_themes",
     "disclaimer",
     "ai_used",
+    "ai_available",
+    "ai_quota_remaining",
+    "ai_quota_reset",
+    "assessment_mode",
+    "cache_hit",
 ]
 
 _THERAPEUTIC_PATTERNS: list[tuple[str, str]] = [
@@ -164,6 +169,7 @@ def review_food_claim(
     jurisdiction: str = "AU/NZ",
     use_ai: bool = False,
     force_ai: bool = False,
+    client_ip: str | None = None,
 ) -> dict[str, Any]:
     """Return deterministic free-text food claim assessment."""
     raw_claim = (claim_text or "").strip()
@@ -218,6 +224,7 @@ def review_food_claim(
             jurisdiction=jurisdiction,
             use_ai=use_ai,
             force_ai=force_ai,
+            client_ip=client_ip,
         )
 
     if not theme_matches:
@@ -229,6 +236,7 @@ def review_food_claim(
             jurisdiction=jurisdiction,
             use_ai=use_ai,
             force_ai=force_ai,
+            client_ip=client_ip,
         )
 
     primary = theme_matches[0]
@@ -244,6 +252,7 @@ def review_food_claim(
             jurisdiction=jurisdiction,
             use_ai=use_ai,
             force_ai=force_ai,
+            client_ip=client_ip,
         )
 
     risk_level = pathway["risk_level"]
@@ -279,6 +288,7 @@ def review_food_claim(
         jurisdiction=jurisdiction,
         use_ai=use_ai,
         force_ai=force_ai,
+        client_ip=client_ip,
     )
 
 
