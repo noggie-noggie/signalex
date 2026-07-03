@@ -7,6 +7,7 @@ frontend-safe taxonomy fields for dashboard filtering and onboarding relevance.
 
 from __future__ import annotations
 
+import os
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -140,7 +141,9 @@ _PRODUCT_TYPE_PATTERNS = [
     ("fermented_drink", ["kombucha", "kefir"]),
     ("yoghurt_drink", ["yoghurt drink", "yogurt drink", "protein smoothie"]),
     ("protein_bar", ["protein bar", "protein crisp", "high protein bar"]),
-    ("plant_based_milk", ["plant based milk", "almond milk", "soy milk", "oat milk", "high protein almond"]),
+    ("plant_based_milk", ["plant based milk", "plant milk", "almond milk", "soy milk", "oat milk", "macadamia milk", "high protein almond"]),
+    ("meat_alternative", ["notburger", "not burger", "meat alternative", "meat-free burger", "meat free burger", "plant based burger", "plant-based burger", "veggie burger"]),
+    ("dairy_alternative", ["dairy alternative", "milk alternative", "plant based milk", "plant milk", "almond milk", "soy milk", "oat milk", "macadamia milk"]),
     ("energy_drink", ["energy drink", "pre workout", "berocca", "hydralyte"]),
     ("infant_formula", ["infant formula", "formulated supplementary foods for young children"]),
     ("infant_snack", ["infant snack", "baby snack", "kids snack"]),
@@ -188,6 +191,8 @@ _CATEGORY_FROM_PRODUCT_TYPE = {
     "seafood": "meat_seafood_animal",
     "meat_product": "meat_seafood_animal",
     "plant_based_milk": "plant_based",
+    "meat_alternative": "plant_based",
+    "dairy_alternative": "plant_based",
     "infant_formula": "infant_kids_family",
     "infant_snack": "infant_kids_family",
     "ingredient": "ingredients_additives",
@@ -223,7 +228,6 @@ _MEANINGFUL_OPPORTUNITY_CLAIM_THEMES = {
     "source_of_fibre",
     "natural",
     "clean_label",
-    "plant_based",
     "free_from",
     "kids_nutrition",
     "sustainability",
@@ -235,6 +239,8 @@ _MEANINGFUL_OPPORTUNITY_PRODUCT_TYPES = {
     "fermented_drink",
     "kombucha",
     "plant_based_milk",
+    "meat_alternative",
+    "dairy_alternative",
 }
 
 _GENERIC_PRODUCT_TYPES = {"other", "egg", "meat_product", "seafood", "ingredient"}
@@ -246,6 +252,39 @@ _GENERIC_PRODUCT_OPPORTUNITY_REVIEW_TERMS = [
     "v energy",
     "fresh farm cage eggs",
     "cage eggs",
+]
+
+_UNKNOWN_PRODUCT_TERMS = [
+    "unknown product",
+    "product unknown",
+]
+
+_ALCOHOL_TERMS = [
+    "whisky",
+    "whiskey",
+    "scotch",
+    "vodka",
+    "gin",
+    "rum",
+    "tequila",
+    "bourbon",
+    "wine",
+    "beer",
+    "cider",
+    "liqueur",
+    "alcoholic beverage",
+]
+
+_GENERIC_VISIBLE_REVIEW_TERMS = [
+    "mi goreng",
+    "fried noodles",
+    "potato crisps",
+    "cheese & onion",
+    "cheese and onion",
+    "wraps lite",
+    "peri-peri rub",
+    "peri peri rub",
+    "garlic peri",
 ]
 
 
@@ -289,6 +328,17 @@ def _content_text(row: dict[str, Any]) -> str:
 
 def _contains_any(text: str, terms: list[str]) -> bool:
     return any(term in text for term in terms)
+
+
+def _contains_alcohol_term(text: str) -> bool:
+    for term in _ALCOHOL_TERMS:
+        if " " in term:
+            if term in text:
+                return True
+            continue
+        if re.search(rf"(?<![a-z]){re.escape(term)}(?![a-z])", text):
+            return True
+    return False
 
 
 def _tags_from_patterns(text: str, patterns: list[tuple[str, list[str]]]) -> list[str]:
@@ -368,6 +418,20 @@ def _non_recall_issue_area(text: str, source: str) -> list[str]:
     return tags
 
 
+def _open_food_facts_exclusion_reason(text: str) -> str:
+    if _contains_any(text, _UNKNOWN_PRODUCT_TERMS):
+        return "Excluded from food launch: unknown Open Food Facts product"
+    include_alcohol = os.getenv("FOOD_INCLUDE_ALCOHOL_PRODUCTS", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if not include_alcohol and _contains_alcohol_term(text):
+        return "Excluded from food launch: alcohol product"
+    return ""
+
+
 def _has_meaningful_market_relevance(
     claim_theme: list[str],
     product_type: list[str],
@@ -423,11 +487,14 @@ def _has_meaningful_market_relevance(
                     "source of fiber",
                     "low sugar",
                     "no sugar",
-                    "plant based",
-                    "plant-based",
                     "clean label",
-                    "natural",
                     "novel ingredient",
+                    "alternative meat",
+                    "meat alternative",
+                    "dairy alternative",
+                    "milk alternative",
+                    "notburger",
+                    "not burger",
                 ],
             )
         )
@@ -448,8 +515,13 @@ def _has_meaningful_market_relevance(
             "source of fibre",
             "source of fiber",
             "clean label",
-            "plant based",
-            "plant-based",
+            "novel ingredient",
+            "alternative meat",
+            "meat alternative",
+            "dairy alternative",
+            "milk alternative",
+            "notburger",
+            "not burger",
         ],
     )
 
@@ -468,6 +540,11 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
     existing_type = _norm(row.get("signal_type") or row.get("event_type")).lower()
     claim = _norm(row.get("claim"))
     is_supplement_leakage = source == "open_food_facts" and is_supplement_like_food(row)
+    off_exclusion_reason = (
+        _open_food_facts_exclusion_reason(content_text)
+        if source == "open_food_facts"
+        else ""
+    )
     fsanz_relevance = (
         classify_fsanz_update_relevance(row)
         if source == "food_fsanz_updates"
@@ -520,6 +597,9 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
         signal_type = "recall"
         dashboard_section = "recalls_safety"
     elif is_supplement_leakage:
+        signal_type = "excluded"
+        dashboard_section = "excluded"
+    elif off_exclusion_reason:
         signal_type = "excluded"
         dashboard_section = "excluded"
     elif fsanz_relevance is not None and not fsanz_relevance.visible:
@@ -599,6 +679,8 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
             "food_relevance_reason": fsanz_relevance.reason,
             "food_relevance_confidence": fsanz_relevance.confidence,
         })
+    if off_exclusion_reason:
+        result["noise_reason"] = off_exclusion_reason
     if dashboard_section == "excluded":
         result["is_noise"] = 1
     return result

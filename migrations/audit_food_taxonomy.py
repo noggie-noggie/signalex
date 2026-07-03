@@ -11,6 +11,7 @@ Usage:
 from __future__ import annotations
 
 import sqlite3
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -103,15 +104,64 @@ def main() -> int:
         "v energy",
         "fresh farm cage eggs",
         "cage eggs",
+        "mi goreng",
+        "fried noodles",
+        "potato crisps",
+        "cheese & onion",
+        "cheese and onion",
+        "wraps lite",
+        "peri-peri rub",
+        "peri peri rub",
+        "garlic peri",
     ]
+    alcohol_terms = [
+        "whisky",
+        "whiskey",
+        "scotch",
+        "vodka",
+        "gin",
+        "rum",
+        "tequila",
+        "bourbon",
+        "wine",
+        "beer",
+        "cider",
+        "liqueur",
+        "alcoholic beverage",
+    ]
+    unknown_terms = ["unknown product", "product unknown"]
+    def off_text(row: dict) -> str:
+        return " ".join(
+            str(row.get(field) or "").lower()
+            for field in ("title", "summary", "product_name", "product_category")
+        )
+    def contains_term(text: str, term: str) -> bool:
+        if " " in term:
+            return term in text
+        return re.search(rf"(?<![a-z]){re.escape(term)}(?![a-z])", text) is not None
+
     generic_product_opportunities = [
         row for row in off_market_opportunities
-        if any(
-            term in " ".join(
-                str(row.get(field) or "").lower()
-                for field in ("title", "summary", "product_name", "product_category")
-            )
-            for term in generic_opportunity_terms
+        if any(term in off_text(row) for term in generic_opportunity_terms)
+    ]
+    generic_visible_off_records = [
+        row for row in visible_off_rows
+        if any(term in off_text(row) for term in generic_opportunity_terms)
+    ]
+    visible_alcohol_off_records = [
+        row for row in visible_off_rows
+        if any(contains_term(off_text(row), term) for term in alcohol_terms)
+    ]
+    visible_unknown_off_records = [
+        row for row in visible_off_rows
+        if any(term in off_text(row) for term in unknown_terms)
+    ]
+    excluded_off_rows = [
+        row for row in rows
+        if row.get("source_label") == "open_food_facts"
+        and (
+            int(row.get("is_noise") or 0) == 1
+            or row.get("dashboard_section") == "excluded"
         )
     ]
 
@@ -218,6 +268,56 @@ def main() -> int:
                 f"id={row.get('id')} "
                 f"claim_theme={row.get('claim_theme')} "
                 f"product_type={row.get('product_type')} "
+                f"title={row.get('title')}"
+            )
+
+    print("\ngeneric Open Food Facts records visible for manual review:")
+    if not generic_visible_off_records:
+        print("  none")
+    else:
+        for row in generic_visible_off_records:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"section={row.get('dashboard_section')} "
+                f"claim_theme={row.get('claim_theme')} "
+                f"product_type={row.get('product_type')} "
+                f"title={row.get('title')}"
+            )
+
+    print("\nalcohol Open Food Facts records visible for manual review:")
+    if not visible_alcohol_off_records:
+        print("  none")
+    else:
+        for row in visible_alcohol_off_records:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"section={row.get('dashboard_section')} "
+                f"title={row.get('title')}"
+            )
+
+    print("\nunknown Open Food Facts records visible for manual review:")
+    if not visible_unknown_off_records:
+        print("  none")
+    else:
+        for row in visible_unknown_off_records:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"section={row.get('dashboard_section')} "
+                f"title={row.get('title')}"
+            )
+
+    print("\nOpen Food Facts excluded/noise titles and reasons:")
+    if not excluded_off_rows:
+        print("  none")
+    else:
+        for row in excluded_off_rows:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"reason={row.get('noise_reason') or '(not set)'} "
                 f"title={row.get('title')}"
             )
 
