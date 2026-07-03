@@ -52,8 +52,23 @@ _THERAPEUTIC_PATTERNS: list[tuple[str, str]] = [
     ("inflammation", r"\binflammation\b|\binflammatory\b"),
     ("pain", r"\bpain\b"),
     ("injury", r"\binjury\b|\binjuries\b"),
+    ("insomnia", r"\binsomnia\b"),
+    ("infection", r"\binfection[s]?\b"),
+    ("cold", r"\bcolds?\b"),
+    ("flu", r"\bflu\b"),
     ("cure", r"\bcure[s]?\b|\bcuring\b"),
     ("treat", r"\btreat[s]?\b|\btreating\b"),
+    ("heals or repairs body tissue", r"\b(heal[s]?|repair[s]?|rebuild[s]?|reverse[s]?)\s+(muscle|collagen|joint[s]?|cartilage|gut|gut\s+lining|tissue|injur(?:y|ies)|damage|skin|bone[s]?)\b"),
+    ("body tissue repair", r"\b(cartilage|joint[s]?|collagen|muscle|gut|skin|bone[s]?)\s+(repair|healing|regeneration)\b"),
+    ("cartilage repair", r"\bcartilage\s+(repair|rebuild|regeneration)\b"),
+    ("joint repair", r"\bjoint[s]?\s+(repair|rebuild|healing)\b"),
+    ("collagen repair", r"\bcollagen\s+(repair|rebuild|healing)\b"),
+    ("leaky gut", r"\bleaky\s+gut\b"),
+    ("hormone balance", r"\bhormone\s+balance\b"),
+    ("pain relief", r"\bpain\s+relief\b"),
+    ("anti-inflammatory", r"\banti\s+inflammatory\b|\banti-inflammatory\b"),
+    ("lowers cholesterol", r"\blower[s]?\s+cholesterol\b|\breduce[s]?\s+cholesterol\b"),
+    ("rapid fat burning", r"\b(burn[s]?\s+fat\s+fast|rapid\s+fat\s+loss|melts?\s+fat)\b"),
     ("prevent disease", r"\bprevent[s]?\s+(disease|illness|infection)\b"),
     ("prevents colds", r"\bprevent[s]?\s+colds?\b"),
     ("prevents flu", r"\bprevent[s]?\s+flu\b"),
@@ -70,7 +85,16 @@ _THEME_PATTERNS: list[tuple[str, str, str]] = [
     ("low_sugar", "Low sugar", r"\b(low\s+sugar|reduced\s+sugar|no\s+sugar|sugar\s+free|no\s+added\s+sugar)\b"),
     ("gut_health", "Gut health", r"\b(gut\s+health|digestive\s+wellbeing|digestive\s+health|digestion|probiotic|prebiotic|live\s+cultures?)\b"),
     ("immunity", "Immunity", r"\b(improv(?:e|es|ing)\s+immunity|helps?\s+immunity|supports?\s+immunity|immune\s+support|immune\s+health|supports?\s+immune\s+function|boosts?\s+immunity|strengthens?\s+immunity|improv(?:e|es|ing)\s+immune\s+system|immune\s+defen[cs]e|immunity|immune\s+system)\b"),
-    ("energy", "Energy", r"\b(energy|active\s+lifestyle|active\s+lifestyles|vitality)\b"),
+    ("muscle_performance", "Muscle / performance", r"\b(muscle\s+(strength|function|performance|recovery|maintenance)|supports?\s+muscle|builds?\s+muscle|active\s+lifestyle|sports?\s+performance|exercise\s+performance)\b"),
+    ("collagen_skin", "Collagen / skin / beauty", r"\b(collagen\s+(formation|support|production)|supports?\s+collagen|skin\s+(structure|health|elasticity)|beauty|hair|nails?)\b"),
+    ("joint_bone", "Joint / bone", r"\b(joint\s+health|supports?\s+joints?|bone\s+health|supports?\s+bones?|calcium|vitamin\s+d|cartilage)\b"),
+    ("energy", "Energy / fatigue", r"\b(energy|boosts?\s+energy|fatigue|tiredness|active\s+lifestyle|active\s+lifestyles|vitality)\b"),
+    ("weight_satiety", "Weight management / satiety", r"\b(weight\s+management|healthy\s+weight|satiety|fuller\s+for\s+longer|appetite|burns?\s+fat|fat\s+burn)\b"),
+    ("brain_focus_mood", "Brain / focus / mood", r"\b(focus|concentration|mental\s+performance|clarity|brain\s+health|mood|stress)\b"),
+    ("sleep_calm", "Sleep / calm", r"\b(sleep|calm|relaxation|relax|restful)\b"),
+    ("heart_cholesterol", "Heart / cholesterol", r"\b(heart\s+health|cardiovascular|cholesterol|omega\s*3|plant\s+sterol|beta\s+glucan)\b"),
+    ("blood_sugar", "Blood sugar / glycaemic", r"\b(blood\s+sugar|glycaemic|glycemic|glucose|low\s+gi)\b"),
+    ("hydration_electrolytes", "Hydration / electrolytes", r"\b(hydration|hydrate|electrolytes?|sodium|potassium|magnesium|fluid\s+balance)\b"),
 ]
 
 _THEME_TO_PATHWAY = {
@@ -153,6 +177,199 @@ _GUT_HEALTH_ROUTE_NAMES_BY_FOOD_TYPE = {
     "snack": {"Fibre pathway"},
     "cereal": {"Fibre pathway"},
     "plant_based": {"Fibre pathway", "Fermented food pathway"},
+}
+
+_FAMILY_GUIDANCE: dict[str, dict[str, Any]] = {
+    "muscle_performance": {
+        "risk_level": "medium",
+        "claim_type": "general_health_or_function_claim",
+        "recommended_pathways": [
+            {
+                "name": "Protein / muscle function route",
+                "description": "May be supportable where protein or relevant minerals are present at meaningful levels and the wording stays about normal muscle function or maintenance.",
+                "requirements": [
+                    "Protein, magnesium, calcium, or electrolyte basis identified",
+                    "Amount per serve declared or substantiated",
+                    "No injury recovery, repair, anabolic, or rapid muscle-gain implication",
+                ],
+            }
+        ],
+        "wording_to_avoid": ["Repairs muscle damage", "Speeds injury recovery", "Builds muscle fast", "Anabolic", "Rapid muscle gain"],
+        "safer_wording": ["Supports muscle function", "Supports active lifestyles", "Protein contributes to muscle maintenance"],
+        "evidence_requirements": ["Protein or mineral amount per serve", "Nutrition information panel", "Target consumer and use context"],
+        "recommended_action": "Check the nutrient basis and avoid injury recovery, repair, anabolic, or rapid muscle-gain wording.",
+    },
+    "collagen_skin": {
+        "risk_level": "medium",
+        "claim_type": "general_health_or_function_claim",
+        "recommended_pathways": [
+            {
+                "name": "Collagen / skin support route",
+                "description": "May be possible where the product has a relevant collagen, vitamin C, protein, or nutrient basis and the claim stays about normal structure or support.",
+                "requirements": [
+                    "Relevant ingredient or nutrient basis identified",
+                    "Amount per serve declared or substantiated",
+                    "No repair, healing, anti-ageing reversal, or treatment implication",
+                ],
+            }
+        ],
+        "wording_to_avoid": ["Repairs collagen", "Heals skin", "Reverses ageing", "Repairs wrinkles", "Heals joints"],
+        "safer_wording": ["Supports collagen formation", "Supports skin structure", "Contains nutrients that support normal skin health"],
+        "evidence_requirements": ["Collagen/nutrient amount per serve", "Ingredient form and source", "Substantiation for skin/collagen wording"],
+        "recommended_action": "Use support-style wording only where ingredient levels and substantiation fit. Avoid repair, healing, or reversal language.",
+    },
+    "joint_bone": {
+        "risk_level": "medium",
+        "claim_type": "general_health_or_function_claim",
+        "recommended_pathways": [
+            {
+                "name": "Joint / bone support route",
+                "description": "May be possible for normal joint or bone support where calcium, vitamin D, protein, or another relevant basis is present.",
+                "requirements": [
+                    "Relevant nutrient or ingredient present at meaningful level",
+                    "Amount per serve declared or substantiated",
+                    "No arthritis, pain relief, cartilage repair, or injury-treatment implication",
+                ],
+            }
+        ],
+        "wording_to_avoid": ["Treats arthritis", "Pain relief", "Rebuilds cartilage", "Repairs joints", "Prevents bone loss"],
+        "safer_wording": ["Supports joint health", "Supports bone health", "Contains calcium to support normal bones"],
+        "evidence_requirements": ["Calcium/vitamin D/protein or ingredient levels", "Nutrition information panel", "Target consumer context"],
+        "recommended_action": "Keep wording to normal joint or bone support and avoid pain, arthritis, cartilage repair, or treatment implications.",
+    },
+    "energy": {
+        "risk_level": "medium",
+        "claim_type": "general_health_or_function_claim",
+        "recommended_pathways": [
+            {
+                "name": "Energy metabolism route",
+                "description": "May be possible where B vitamins, iron, magnesium, carbohydrate, or another relevant basis supports normal energy metabolism.",
+                "requirements": [
+                    "Relevant nutrient or ingredient basis identified",
+                    "Amount per serve declared or substantiated",
+                    "No disease, chronic fatigue, stimulant, or exaggerated energy promise",
+                ],
+            }
+        ],
+        "wording_to_avoid": ["Cures tiredness", "Treats fatigue", "Boosts energy instantly", "Stimulant effect", "Fixes low energy"],
+        "safer_wording": ["Supports normal energy metabolism", "Supports active lifestyles", "Contains nutrients that support energy metabolism"],
+        "evidence_requirements": ["B vitamin/iron/magnesium/carbohydrate basis", "Amount per serve", "Nutrition information panel"],
+        "recommended_action": "Check the nutrient basis and soften energy wording. Avoid disease-like fatigue treatment or exaggerated stimulation claims.",
+    },
+    "weight_satiety": {
+        "risk_level": "medium",
+        "claim_type": "general_health_or_function_claim",
+        "recommended_pathways": [
+            {
+                "name": "Satiety / weight management route",
+                "description": "May be possible where protein, fibre, portion format, or product context supports general satiety or weight-management wording.",
+                "requirements": [
+                    "Protein, fibre, energy, or satiety basis identified",
+                    "Serving size and nutrition panel available",
+                    "No rapid fat loss, medical weight-loss, or treatment implication",
+                ],
+            }
+        ],
+        "wording_to_avoid": ["Burns fat fast", "Rapid weight loss", "Melts fat", "Treats obesity", "Appetite suppressant"],
+        "safer_wording": ["Supports weight management", "Helps you feel fuller for longer", "A source of fibre/protein"],
+        "evidence_requirements": ["Energy, protein, fibre and serving size", "Reference product/context if comparative", "Substantiation for satiety wording"],
+        "recommended_action": "Keep weight wording general and evidence-based. Avoid rapid fat-loss or medical weight-treatment claims.",
+    },
+    "brain_focus_mood": {
+        "risk_level": "review_required",
+        "claim_type": "general_health_or_function_claim",
+        "recommended_pathways": [
+            {
+                "name": "Focus / mood support route",
+                "description": "May require careful review where caffeine, B vitamins, magnesium, or other ingredients are used to support general focus or wellbeing.",
+                "requirements": [
+                    "Relevant ingredient or nutrient basis identified",
+                    "Amount per serve and consumer context known",
+                    "No anxiety, depression, clinical mood, or cognitive treatment implication",
+                ],
+            }
+        ],
+        "wording_to_avoid": ["Treats anxiety", "Treats depression", "Clinically improves mood", "Fixes brain fog", "ADHD support"],
+        "safer_wording": ["Supports focus", "Supports mental performance", "Supports general wellbeing"],
+        "evidence_requirements": ["Ingredient/nutrient basis and amount", "Caffeine level if relevant", "Target consumer context"],
+        "recommended_action": "Review cognitive and mood wording carefully. Avoid mental-health, clinical, or treatment implications.",
+    },
+    "sleep_calm": {
+        "risk_level": "review_required",
+        "claim_type": "general_health_or_function_claim",
+        "recommended_pathways": [
+            {
+                "name": "Sleep / calm support route",
+                "description": "May require careful review where ingredients are positioned for general relaxation or calm rather than treating sleep disorders.",
+                "requirements": [
+                    "Ingredient basis and amount per serve identified",
+                    "Consumer context and timing of use known",
+                    "No insomnia, sedative, treatment, or clinical sleep implication",
+                ],
+            }
+        ],
+        "wording_to_avoid": ["Treats insomnia", "Cures sleeplessness", "Sedative effect", "Clinically improves sleep", "Stops anxiety"],
+        "safer_wording": ["Supports relaxation", "Supports calm", "Part of an evening routine"],
+        "evidence_requirements": ["Ingredient basis and amount", "Serving size", "Substantiation for sleep/calm wording"],
+        "recommended_action": "Use cautious relaxation-style wording and avoid insomnia, sedative, anxiety, or treatment implications.",
+    },
+    "heart_cholesterol": {
+        "risk_level": "medium",
+        "claim_type": "general_health_or_function_claim",
+        "recommended_pathways": [
+            {
+                "name": "Heart health support route",
+                "description": "May be possible where the product has a relevant nutrient or permitted ingredient basis and wording avoids disease treatment.",
+                "requirements": [
+                    "Relevant omega-3, fibre, plant sterol, nutrient, or ingredient basis identified",
+                    "Amount per serve declared or substantiated",
+                    "No heart disease, blood pressure treatment, or cholesterol-lowering implication unless specifically reviewed",
+                ],
+            }
+        ],
+        "wording_to_avoid": ["Lowers cholesterol", "Prevents heart disease", "Lowers blood pressure", "Unclogs arteries", "Prevents heart attack"],
+        "safer_wording": ["Supports heart health", "Contains nutrients that support general wellbeing", "A source of omega-3"],
+        "evidence_requirements": ["Relevant nutrient/ingredient level", "Nutrition information panel", "Permitted-claim review if cholesterol wording is intended"],
+        "recommended_action": "Review heart wording carefully. Avoid cholesterol, blood pressure, or disease-risk wording unless a specific permitted pathway is confirmed.",
+    },
+    "blood_sugar": {
+        "risk_level": "review_required",
+        "claim_type": "general_health_or_function_claim",
+        "recommended_pathways": [
+            {
+                "name": "Blood sugar / glycaemic route",
+                "description": "May be possible for low-GI or general healthy blood sugar wording only with strong product-specific nutrition support.",
+                "requirements": [
+                    "GI, carbohydrate, sugar, fibre, or formulation basis identified",
+                    "Nutrition panel and serving size available",
+                    "No diabetes, insulin management, or treatment implication",
+                ],
+            }
+        ],
+        "wording_to_avoid": ["Controls blood sugar", "Manages diabetes", "Stabilises insulin", "Diabetic approved", "Prevents glucose spikes"],
+        "safer_wording": ["Supports healthy blood sugar as part of a balanced diet", "Low GI", "No added sugar"],
+        "evidence_requirements": ["Sugars/carbohydrate/fibre levels", "GI data if relevant", "Nutrition information panel"],
+        "recommended_action": "Review blood sugar wording conservatively and avoid diabetes or insulin-management implications.",
+    },
+    "hydration_electrolytes": {
+        "risk_level": "review_required",
+        "claim_type": "general_health_or_function_claim",
+        "recommended_pathways": [
+            {
+                "name": "Hydration / electrolyte route",
+                "description": "May be supportable where electrolyte levels and use context support general hydration wording.",
+                "requirements": [
+                    "Sodium, potassium, magnesium, or electrolyte levels declared",
+                    "Serving size and use context identified",
+                    "No medical dehydration or treatment implication",
+                ],
+            }
+        ],
+        "wording_to_avoid": ["Treats dehydration", "Medical hydration", "Cures dehydration", "Clinical rehydration"],
+        "safer_wording": ["Supports hydration", "Contains electrolytes", "Helps replace electrolytes lost through sweat"],
+        "evidence_requirements": ["Electrolyte levels per serve", "Serving size", "Use context such as exercise or general hydration"],
+        "recommended_action": "Check electrolyte levels and intended use context. Avoid medical rehydration or dehydration-treatment wording.",
+    },
 }
 
 _FOOD_TYPE_MAP = {
@@ -343,6 +560,11 @@ def _detect_themes(normalised: str) -> list[ThemeMatch]:
     return matches
 
 
+def _has_theme_or_therapeutic_signal(value: str) -> bool:
+    normalised = _normalise_text(value)
+    return bool(_detect_themes(normalised) or _detect_therapeutic_terms(normalised))
+
+
 def _split_claim_phrases(claim_text: str) -> list[str]:
     """Split free-text copy into reviewable claim phrases."""
     raw = (claim_text or "").strip()
@@ -357,16 +579,20 @@ def _split_claim_phrases(claim_text: str) -> list[str]:
     expanded: list[str] = []
     benefit_tail = (
         r"immunity|immune\s+support|immune\s+health|gut\s+health|digestive\s+health|"
-        r"digestive\s+wellbeing|active\s+lifestyle|energy"
+        r"digestive\s+wellbeing|active\s+lifestyle|energy|fatigue|tiredness|"
+        r"muscle\s+strength|muscle\s+function|muscle\s+recovery|collagen|"
+        r"collagen\s+formation|skin\s+structure|joint\s+health|joints?|bone\s+health|"
+        r"hydration|electrolytes?|focus|mood|sleep|calm|heart\s+health|"
+        r"blood\s+sugar|healthy\s+blood\s+sugar|weight\s+management|satiety"
     )
-    support_verb = r"supports?|helps?|helps\s+support|promotes|maintains|improves?|boosts?|strengthens?"
+    support_verb = r"supports?|helps?|helps\s+support|promotes|maintains|improves?|boosts?|strengthens?|reduces?|repairs?|heals?|rebuilds?"
     for part in primary_parts:
         comma_parts = [
             item.strip(" \t\r\n,")
             for item in re.split(r",\s+", part)
             if item.strip(" \t\r\n,")
         ]
-        if len(comma_parts) > 1 and sum(bool(_detect_themes(_normalise_text(item)) or _detect_therapeutic_terms(_normalise_text(item))) for item in comma_parts) > 1:
+        if len(comma_parts) > 1 and sum(_has_theme_or_therapeutic_signal(item) for item in comma_parts) > 1:
             candidates = comma_parts
         else:
             candidates = [part]
@@ -391,7 +617,7 @@ def _split_claim_phrases(claim_text: str) -> list[str]:
             if joined_benefit:
                 first = joined_benefit.group("first").strip()
                 second = f"{joined_benefit.group('verb')} {joined_benefit.group('second').strip()}"
-                if _detect_themes(_normalise_text(first)) and _detect_themes(_normalise_text(second)):
+                if _has_theme_or_therapeutic_signal(first) and _has_theme_or_therapeutic_signal(second):
                     expanded.append(first)
                     expanded.append(second)
                     continue
@@ -404,7 +630,7 @@ def _split_claim_phrases(claim_text: str) -> list[str]:
             if benefit_and_benefit:
                 first = benefit_and_benefit.group("first").strip()
                 second = benefit_and_benefit.group("second").strip()
-                if _detect_themes(_normalise_text(first)) and _detect_themes(_normalise_text(second)):
+                if _has_theme_or_therapeutic_signal(first) and _has_theme_or_therapeutic_signal(second):
                     expanded.append(first)
                     expanded.append(second)
                     continue
@@ -472,6 +698,17 @@ def _breakdown_for_phrase(phrase: str) -> dict[str, Any]:
                 "disease-specific digestive claims."
             ),
         }
+
+    for theme in themes:
+        guidance = _FAMILY_GUIDANCE.get(theme)
+        if guidance:
+            return {
+                "claim": phrase,
+                "risk_level": guidance["risk_level"],
+                "claim_type": guidance["claim_type"],
+                "matched_themes": themes,
+                "recommended_action": guidance["recommended_action"],
+            }
 
     if themes:
         return {
@@ -667,6 +904,34 @@ def _enrich_response_for_detected_themes(
             claim_text=claim_text,
         )
         supporting_routes.extend(gut_routes)
+
+    family_themes = [theme for theme in themes if theme in _FAMILY_GUIDANCE]
+    for theme in family_themes:
+        guidance = _FAMILY_GUIDANCE[theme]
+        adjusted["wording_to_avoid"] = _merge_unique(
+            list(adjusted.get("wording_to_avoid") or []),
+            list(guidance.get("wording_to_avoid") or []),
+        )
+        adjusted["safer_wording"] = _merge_unique(
+            list(adjusted.get("safer_wording") or []),
+            list(guidance.get("safer_wording") or []),
+        )
+        adjusted["evidence_requirements"] = _merge_unique(
+            list(adjusted.get("evidence_requirements") or []),
+            list(guidance.get("evidence_requirements") or []),
+        )
+        adjusted["recommended_pathways"] = _dedupe_routes(
+            [
+                *list(adjusted.get("recommended_pathways") or []),
+                *list(guidance.get("recommended_pathways") or []),
+            ]
+        )
+        if adjusted.get("claim_type") == "unclassified_food_claim":
+            adjusted["claim_type"] = guidance["claim_type"]
+        if adjusted.get("risk_level") == "review_required" and guidance.get("risk_level") == "medium":
+            adjusted["risk_level"] = "medium"
+        if not adjusted.get("recommended_action") or adjusted.get("recommended_action", "").startswith("Collect the missing"):
+            adjusted["recommended_action"] = guidance["recommended_action"]
 
     adjusted["possible_supporting_routes"] = supporting_routes
     return _append_supporting_routes_note(adjusted)

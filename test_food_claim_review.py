@@ -330,6 +330,90 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertIn("Vitamin C route", supporting_route_names)
         self.assertIn("Live cultures pathway", supporting_route_names)
 
+    def test_supports_muscle_strength_claim_family(self):
+        body = review_food_claim("supports muscle strength", food_type="Protein bar")
+        self.assert_frontend_fields(body)
+        self.assertIn(body["risk_level"], {"medium", "review_required"})
+        self.assertEqual(body["claim_type"], "general_health_or_function_claim")
+        self.assertIn("muscle_performance", body["matched_themes"])
+        self.assertTrue(any(route["name"] == "Protein / muscle function route" for route in body["recommended_pathways"]))
+
+    def test_repairs_muscle_damage_remains_high_risk(self):
+        body = review_food_claim("repairs muscle damage", food_type="Protein bar")
+        self.assert_frontend_fields(body)
+        self.assertEqual(body["risk_level"], "high")
+        self.assertEqual(body["claim_type"], "therapeutic_or_disease_related_claim")
+        self.assertEqual(body["recommended_pathways"], [])
+
+    def test_supports_collagen_formation_claim_family(self):
+        body = review_food_claim("supports collagen formation", food_type="Beverage")
+        self.assert_frontend_fields(body)
+        self.assertIn(body["risk_level"], {"medium", "review_required"})
+        self.assertEqual(body["claim_type"], "general_health_or_function_claim")
+        self.assertIn("collagen_skin", body["matched_themes"])
+        self.assertTrue(any(route["name"] == "Collagen / skin support route" for route in body["recommended_pathways"]))
+
+    def test_repairs_collagen_and_heals_joints_high_risk(self):
+        body = review_food_claim("repairs collagen and heals joints", food_type="Beverage")
+        self.assert_frontend_fields(body)
+        self.assertTrue(body["multi_claim"])
+        self.assertEqual(body["risk_level"], "high")
+        self.assertEqual(body["claim_type"], "therapeutic_or_disease_related_claim")
+        self.assertEqual(body["recommended_pathways"], [])
+
+    def test_supports_hydration_with_electrolytes(self):
+        body = review_food_claim("supports hydration with electrolytes", food_type="Beverage")
+        self.assert_frontend_fields(body)
+        self.assertIn("hydration_electrolytes", body["matched_themes"])
+        self.assertTrue(any(route["name"] == "Hydration / electrolyte route" for route in body["recommended_pathways"]))
+
+    def test_boosts_energy_and_reduces_fatigue_multi_claim(self):
+        body = review_food_claim("boosts energy and reduces fatigue", food_type="Beverage")
+        self.assert_frontend_fields(body)
+        self.assertTrue(body["multi_claim"])
+        themes = [theme for item in body["claim_breakdown"] for theme in item["matched_themes"]]
+        self.assertIn("energy", themes)
+        self.assertTrue(any(route["name"] == "Energy metabolism route" for route in body["recommended_pathways"]))
+        self.assertIn("Treats fatigue", body["wording_to_avoid"])
+
+    def test_supports_focus_and_mood_multi_claim(self):
+        body = review_food_claim("supports focus and mood", food_type="Snack")
+        self.assert_frontend_fields(body)
+        self.assertTrue(body["multi_claim"])
+        themes = [theme for item in body["claim_breakdown"] for theme in item["matched_themes"]]
+        self.assertIn("brain_focus_mood", themes)
+        self.assertTrue(any(route["name"] == "Focus / mood support route" for route in body["recommended_pathways"]))
+
+    def test_helps_sleep_claim_family(self):
+        body = review_food_claim("helps sleep", food_type="Beverage")
+        self.assert_frontend_fields(body)
+        self.assertIn("sleep_calm", body["matched_themes"])
+        self.assertTrue(any(route["name"] == "Sleep / calm support route" for route in body["recommended_pathways"]))
+
+    def test_supports_heart_health_claim_family(self):
+        body = review_food_claim("supports heart health", food_type="Snack")
+        self.assert_frontend_fields(body)
+        self.assertIn("heart_cholesterol", body["matched_themes"])
+        self.assertTrue(any(route["name"] == "Heart health support route" for route in body["recommended_pathways"]))
+
+    def test_supports_healthy_blood_sugar_claim_family(self):
+        body = review_food_claim("supports healthy blood sugar", food_type="Cereal")
+        self.assert_frontend_fields(body)
+        self.assertIn("blood_sugar", body["matched_themes"])
+        self.assertTrue(any(route["name"] == "Blood sugar / glycaemic route" for route in body["recommended_pathways"]))
+
+    def test_multi_claim_family_breakdown_for_each_detected_claim(self):
+        body = review_food_claim(
+            "supports muscle function, supports collagen formation, supports hydration with electrolytes",
+            food_type="Beverage",
+        )
+        self.assert_frontend_fields(body)
+        self.assertTrue(body["multi_claim"])
+        claims = [item["claim"] for item in body["claim_breakdown"]]
+        self.assertIn("supports muscle function", claims)
+        self.assertIn("supports collagen formation", claims)
+        self.assertIn("supports hydration with electrolytes", claims)
+
 
 if __name__ == "__main__":
     unittest.main()
