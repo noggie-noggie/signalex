@@ -445,6 +445,9 @@ Context affects the card copy:
 | `evidence_requirements` | array | Evidence/substantiation inputs needed |
 | `recommended_action` | string | Next action for the user |
 | `matched_themes` | array | Deterministically matched themes, e.g. `["high_protein"]` |
+| `multi_claim` | boolean | `true` when the submitted text contains more than one reviewable claim phrase. |
+| `claim_breakdown` | array | Per-claim assessment objects with `claim`, `risk_level`, `claim_type`, `matched_themes`, and `recommended_action`. |
+| `overall_note` | string | Extra note when multiple claims need separate review. Empty for single-claim input. |
 | `context` | object | Normalised context echo: `food_type`, `claim_location`, and `serving_size`. |
 | `disclaimer` | string | Fixed disclaimer |
 | `ai_used` | boolean | Indicates whether OpenAI was actually used. Can be `false` even when `use_ai=true` if AI is disabled, unavailable, missing a key, skipped by deterministic rules, or rate-limited. |
@@ -463,6 +466,12 @@ Context affects the card copy:
 - OpenAI is not called by default for obvious therapeutic/disease claims such as IBS, diabetes, cure/treat wording, pain, or injury.
 - OpenAI is not called by default for clear known pathways such as `High in protein`.
 - OpenAI may enhance vague/unclassified claims when enabled and requested.
+
+**Multi-claim behaviour:**
+
+- Text separated by periods, semicolons, relevant commas, or joined benefit phrases such as `supports gut health and immunity` may return `multi_claim=true`.
+- Existing top-level fields remain for backwards compatibility.
+- Use `claim_breakdown` when the frontend needs to show separate review cards for each claim phrase.
 - OpenAI must not be treated as legal certainty and must not invent source citations.
 - Phase 1 quota controls are in-memory:
   - `FOOD_CLAIM_REVIEW_AI_MAX_DAILY`, default `25` global AI calls/day

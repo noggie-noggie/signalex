@@ -29,6 +29,9 @@ _FRONTEND_FIELDS = [
     "evidence_requirements",
     "recommended_action",
     "matched_themes",
+    "multi_claim",
+    "claim_breakdown",
+    "overall_note",
     "context",
     "disclaimer",
     "ai_used",
@@ -62,6 +65,7 @@ _THEME_PATTERNS: list[tuple[str, str, str]] = [
     ("source_of_fibre", "Source of fibre", r"\b(fibre|fiber|high\s+fibre|high\s+fiber|source\s+of\s+fibre|source\s+of\s+fiber)\b"),
     ("low_sugar", "Low sugar", r"\b(low\s+sugar|reduced\s+sugar|no\s+sugar|sugar\s+free|no\s+added\s+sugar)\b"),
     ("gut_health", "Gut health", r"\b(gut\s+health|digestive\s+wellbeing|digestive\s+health|digestion|probiotic|prebiotic|live\s+cultures?)\b"),
+    ("immunity", "Immunity", r"\b(immunity|immune\s+support|immune\s+health|immune\s+system)\b"),
     ("energy", "Energy", r"\b(energy|active\s+lifestyle|active\s+lifestyles|vitality)\b"),
 ]
 
@@ -71,6 +75,13 @@ _THEME_TO_PATHWAY = {
     "low_sugar": "low_sugar",
     "gut_health": "gut_health",
     "energy": "energy",
+}
+
+_RISK_RANK = {
+    "low": 0,
+    "review_required": 1,
+    "medium": 2,
+    "high": 3,
 }
 
 _UNCLASSIFIED_MISSING_INFO = [
@@ -290,6 +301,174 @@ def _detect_themes(normalised: str) -> list[ThemeMatch]:
     return matches
 
 
+def _split_claim_phrases(claim_text: str) -> list[str]:
+    """Split free-text copy into reviewable claim phrases."""
+    raw = (claim_text or "").strip()
+    if not raw:
+        return []
+
+    primary_parts = [
+        part.strip(" \t\r\n,")
+        for part in re.split(r"[.;\n]+", raw)
+        if part.strip(" \t\r\n,")
+    ]
+    expanded: list[str] = []
+    benefit_tail = (
+        r"immunity|immune\s+support|immune\s+health|gut\s+health|digestive\s+health|"
+        r"digestive\s+wellbeing|active\s+lifestyle|energy"
+    )
+    support_verb = r"supports?|helps\s+support|promotes|maintains"
+    for part in primary_parts:
+        comma_parts = [
+            item.strip(" \t\r\n,")
+            for item in re.split(r",\s+", part)
+            if item.strip(" \t\r\n,")
+        ]
+        if len(comma_parts) > 1 and sum(bool(_detect_themes(_normalise_text(item)) or _detect_therapeutic_terms(_normalise_text(item))) for item in comma_parts) > 1:
+            candidates = comma_parts
+        else:
+            candidates = [part]
+
+        for candidate in candidates:
+            match = re.match(
+                rf"^(?P<verb>{support_verb})\s+(?P<first>.+?)\s+and\s+(?P<second>{benefit_tail})$",
+                candidate,
+                flags=re.IGNORECASE,
+            )
+            if match:
+                verb = match.group("verb")
+                expanded.append(f"{verb} {match.group('first').strip()}")
+                expanded.append(f"{verb} {match.group('second').strip()}")
+            else:
+                expanded.append(candidate)
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for phrase in expanded:
+        clean = re.sub(r"\s+", " ", phrase).strip()
+        key = clean.lower()
+        if clean and key not in seen:
+            seen.add(key)
+            deduped.append(clean)
+    return deduped
+
+
+def _breakdown_for_phrase(phrase: str) -> dict[str, Any]:
+    normalised = _normalise_text(phrase)
+    therapeutic_terms = _detect_therapeutic_terms(normalised)
+    theme_matches = _detect_themes(normalised)
+    themes = [match.key for match in theme_matches]
+    if therapeutic_terms:
+        return {
+            "claim": phrase,
+            "risk_level": "high",
+            "claim_type": "therapeutic_or_disease_related_claim",
+            "matched_themes": themes,
+            "recommended_action": (
+                "Remove disease-specific or therapeutic wording and reframe as "
+                "general wellbeing or nutrition-content wording only where "
+                "supportable."
+            ),
+        }
+
+    if "high_protein" in themes:
+        pathway = get_claim_pathway("high_protein") or {}
+        return {
+            "claim": phrase,
+            "risk_level": "medium",
+            "claim_type": "nutrition_content_claim",
+            "matched_themes": themes,
+            "recommended_action": pathway.get(
+                "recommended_action",
+                "Check protein amount, source, nutrition panel declaration, and substantiation before use.",
+            ),
+        }
+
+    if "immunity" in themes:
+        return {
+            "claim": phrase,
+            "risk_level": "review_required",
+            "claim_type": "general_health_or_function_claim",
+            "matched_themes": themes,
+            "recommended_action": (
+                "Review vitamin/mineral/ingredient basis and substantiation before "
+                "using immunity wording."
+            ),
+        }
+
+    if "gut_health" in themes:
+        return {
+            "claim": phrase,
+            "risk_level": "review_required",
+            "claim_type": "general_health_or_function_claim",
+            "matched_themes": themes,
+            "recommended_action": (
+                "Review product formulation and substantiation. Avoid "
+                "disease-specific digestive claims."
+            ),
+        }
+
+    if themes:
+        return {
+            "claim": phrase,
+            "risk_level": "review_required",
+            "claim_type": "general_health_or_function_claim",
+            "matched_themes": themes,
+            "recommended_action": (
+                "Review product formulation, label context, and substantiation "
+                "before using this consumer-facing claim."
+            ),
+        }
+
+    return {
+        "claim": phrase,
+        "risk_level": "review_required",
+        "claim_type": "unclassified_food_claim",
+        "matched_themes": [],
+        "recommended_action": (
+            "Review exact wording, product context, and substantiation before use."
+        ),
+    }
+
+
+def _build_claim_breakdown(claim_text: str) -> tuple[bool, list[dict[str, Any]], str]:
+    phrases = _split_claim_phrases(claim_text)
+    if not phrases and claim_text.strip():
+        phrases = [claim_text.strip()]
+    breakdown = [_breakdown_for_phrase(phrase) for phrase in phrases]
+    multi_claim = len(breakdown) > 1
+    note = (
+        "Multiple claims were detected. Review each claim separately because each "
+        "may require different substantiation."
+        if multi_claim
+        else ""
+    )
+    return multi_claim, breakdown, note
+
+
+def _highest_breakdown_risk(breakdown: list[dict[str, Any]]) -> str | None:
+    if not breakdown:
+        return None
+    return max(
+        (str(item.get("risk_level") or "review_required") for item in breakdown),
+        key=lambda risk: _RISK_RANK.get(risk, _RISK_RANK["review_required"]),
+    )
+
+
+def _apply_claim_breakdown(response: dict[str, Any], claim_text: str) -> dict[str, Any]:
+    multi_claim, breakdown, note = _build_claim_breakdown(claim_text)
+    adjusted = dict(response)
+    adjusted["multi_claim"] = multi_claim
+    adjusted["claim_breakdown"] = breakdown
+    adjusted["overall_note"] = note
+    highest_risk = _highest_breakdown_risk(breakdown)
+    if highest_risk and _RISK_RANK.get(highest_risk, 1) > _RISK_RANK.get(str(adjusted.get("risk_level")), 1):
+        adjusted["risk_level"] = highest_risk
+    if multi_claim and highest_risk == "high":
+        adjusted["risk_level"] = "high"
+    return adjusted
+
+
 def _empty_response(claim_text: str, display_claim: str) -> dict[str, Any]:
     return {
         "claim_text": claim_text,
@@ -317,6 +496,9 @@ def _empty_response(claim_text: str, display_claim: str) -> dict[str, Any]:
             "the claim before using it in customer-facing materials."
         ),
         "matched_themes": [],
+        "multi_claim": False,
+        "claim_breakdown": [],
+        "overall_note": "",
         "disclaimer": DISCLAIMER,
         "ai_used": False,
     }
@@ -376,9 +558,13 @@ def review_food_claim(
                 "the formulation and substantiation support it."
             ),
             "matched_themes": [match.key for match in theme_matches],
+            "multi_claim": False,
+            "claim_breakdown": [],
+            "overall_note": "",
             "disclaimer": DISCLAIMER,
             "ai_used": False,
         }
+        response = _apply_claim_breakdown(response, raw_claim)
         response = _adjust_response_for_context(response, context)
         return maybe_enhance_claim_review(
             response,
@@ -393,6 +579,7 @@ def review_food_claim(
 
     if not theme_matches:
         response = _empty_response(raw_claim, display_claim)
+        response = _apply_claim_breakdown(response, raw_claim)
         response = _adjust_response_for_context(response, context)
         return maybe_enhance_claim_review(
             response,
@@ -411,6 +598,7 @@ def review_food_claim(
     if not pathway:
         response = _empty_response(raw_claim, display_claim)
         response["matched_themes"] = [match.key for match in theme_matches]
+        response = _apply_claim_breakdown(response, raw_claim)
         response = _adjust_response_for_context(response, context)
         return maybe_enhance_claim_review(
             response,
@@ -446,9 +634,13 @@ def review_food_claim(
         "evidence_requirements": pathway["evidence_requirements"],
         "recommended_action": pathway["recommended_action"],
         "matched_themes": [match.key for match in theme_matches],
+        "multi_claim": False,
+        "claim_breakdown": [],
+        "overall_note": "",
         "disclaimer": DISCLAIMER,
         "ai_used": False,
     }
+    response = _apply_claim_breakdown(response, raw_claim)
     response = _adjust_response_for_context(response, context)
     return maybe_enhance_claim_review(
         response,

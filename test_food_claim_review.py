@@ -40,6 +40,8 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertGreater(len(body["safer_wording"]), 0)
         self.assertFalse(body["ai_used"])
         self.assertEqual(body["context"]["food_type"], "protein_bar")
+        self.assertFalse(body["multi_claim"])
+        self.assertEqual(len(body["claim_breakdown"]), 1)
 
     def test_unknown_harmless_wording_returns_review_required(self):
         body = review_food_claim("Fresh bright taste", food_type="drink")
@@ -234,6 +236,37 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertEqual(food_type, "yoghurt")
         self.assertEqual(context["claim_location"], "marketing_advertising")
         self.assertEqual(context["serving_size"], {"value": "150", "unit": "g"})
+
+    def test_multi_claim_high_protein_gut_health_immunity_breakdown(self):
+        body = review_food_claim(
+            "High in protein. Supports gut health and immunity.",
+            food_type="Yoghurt",
+        )
+        self.assert_frontend_fields(body)
+        self.assertTrue(body["multi_claim"])
+        self.assertEqual(body["risk_level"], "medium")
+        claims = [item["claim"] for item in body["claim_breakdown"]]
+        self.assertIn("High in protein", claims)
+        self.assertIn("Supports gut health", claims)
+        self.assertIn("Supports immunity", claims)
+        by_claim = {item["claim"]: item for item in body["claim_breakdown"]}
+        self.assertEqual(by_claim["High in protein"]["claim_type"], "nutrition_content_claim")
+        self.assertIn("high_protein", by_claim["High in protein"]["matched_themes"])
+        self.assertEqual(by_claim["Supports gut health"]["claim_type"], "general_health_or_function_claim")
+        self.assertIn("gut_health", by_claim["Supports gut health"]["matched_themes"])
+        self.assertEqual(by_claim["Supports immunity"]["claim_type"], "general_health_or_function_claim")
+        self.assertIn("immunity", by_claim["Supports immunity"]["matched_themes"])
+        self.assertIn("Multiple claims were detected", body["overall_note"])
+
+    def test_multi_claim_ibs_and_gut_health_overall_high(self):
+        body = review_food_claim("Supports IBS and gut health", food_type="Yoghurt")
+        self.assert_frontend_fields(body)
+        self.assertTrue(body["multi_claim"])
+        self.assertEqual(body["risk_level"], "high")
+        claim_types = [item["claim_type"] for item in body["claim_breakdown"]]
+        self.assertIn("therapeutic_or_disease_related_claim", claim_types)
+        self.assertIn("general_health_or_function_claim", claim_types)
+        self.assertFalse(body["ai_used"])
 
 
 if __name__ == "__main__":
