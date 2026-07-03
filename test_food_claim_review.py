@@ -22,6 +22,7 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertEqual(body["risk_level"], "high")
         self.assertEqual(body["claim_type"], "therapeutic_or_disease_related_claim")
         self.assertIn("IBS", body["assessment"])
+        self.assertIn("IBS and similar condition-specific wording", body["regulatory_context"])
         self.assertEqual(body["recommended_pathways"], [])
         self.assertIn("Supports digestive wellbeing", body["safer_wording"])
         self.assertIn("Contains live cultures", body["safer_wording"])
@@ -344,6 +345,8 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertEqual(body["risk_level"], "high")
         self.assertEqual(body["claim_type"], "therapeutic_or_disease_related_claim")
         self.assertEqual(body["recommended_pathways"], [])
+        self.assertIn("Repair or healing language should be removed", body["regulatory_context"])
+        self.assertNotIn("IBS", body["regulatory_context"])
 
     def test_supports_collagen_formation_claim_family(self):
         body = review_food_claim("supports collagen formation", food_type="Beverage")
@@ -360,6 +363,8 @@ class FoodClaimReviewTests(unittest.TestCase):
         self.assertEqual(body["risk_level"], "high")
         self.assertEqual(body["claim_type"], "therapeutic_or_disease_related_claim")
         self.assertEqual(body["recommended_pathways"], [])
+        self.assertIn("Repair or healing language should be removed", body["regulatory_context"])
+        self.assertNotIn("IBS", body["regulatory_context"])
 
     def test_supports_hydration_with_electrolytes(self):
         body = review_food_claim("supports hydration with electrolytes", food_type="Beverage")

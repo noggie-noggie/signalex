@@ -552,6 +552,38 @@ def _detect_therapeutic_terms(normalised: str) -> list[str]:
     return terms
 
 
+def _high_risk_regulatory_context(jurisdiction: str, therapeutic_terms: list[str]) -> str:
+    terms = {term.lower() for term in therapeutic_terms}
+    repair_markers = {
+        "heals or repairs body tissue",
+        "body tissue repair",
+        "cartilage repair",
+        "joint repair",
+        "collagen repair",
+        "repair muscle damage",
+        "injury",
+    }
+    if "ibs" in terms:
+        return (
+            f"In {jurisdiction}, food claims should not imply treatment, cure, "
+            "prevention, or management of diseases or medical conditions. "
+            "IBS and similar condition-specific wording should be removed from "
+            "food claim copy."
+        )
+    if terms & repair_markers:
+        return (
+            f"In {jurisdiction}, food claims should not imply treatment, cure, "
+            "prevention, repair, or management of diseases, injuries, symptoms, "
+            "or body damage. Repair or healing language should be removed unless "
+            "specialist regulatory review confirms it is appropriate."
+        )
+    return (
+        f"In {jurisdiction}, food claims should not imply treatment, cure, "
+        "prevention, or management of diseases, medical conditions, or symptoms. "
+        "Disease-specific wording should be removed from food claim copy."
+    )
+
+
 def _detect_themes(normalised: str) -> list[ThemeMatch]:
     matches: list[ThemeMatch] = []
     for key, display, pattern in _THEME_PATTERNS:
@@ -1005,12 +1037,7 @@ def review_food_claim(
                 f"({', '.join(therapeutic_terms)}). This is not suitable as a "
                 "food claim without specialist regulatory review."
             ),
-            "regulatory_context": (
-                f"In {jurisdiction}, food claims should not imply treatment, cure, "
-                "prevention, or management of diseases or medical conditions. "
-                "IBS and similar condition-specific wording should be removed from "
-                "food claim copy."
-            ),
+            "regulatory_context": _high_risk_regulatory_context(jurisdiction, therapeutic_terms),
             "recommended_pathways": [],
             "possible_supporting_routes": [],
             "wording_to_avoid": avoid,
