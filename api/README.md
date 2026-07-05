@@ -142,15 +142,16 @@ Response envelope:
 
 ## CORS
 
-CORS permits GET, POST, and OPTIONS. Local development origins on ports 3000
-and 5173 are always allowed. Add external frontend origins through the
-comma-separated `CORS_ORIGINS` environment variable:
+CORS permits GET, POST, and OPTIONS. In development, local origins on ports
+3000 and 5173 are allowed automatically. In production, localhost origins are
+not added automatically; only `CORS_ORIGINS` is used.
 
 ```bash
-CORS_ORIGINS=https://frontend.example.com,https://www.frontend.example.com
+CORS_ORIGINS=https://signalex.com.au,https://www.signalex.com.au
 ```
 
-The API does not default to a wildcard origin.
+If `CORS_ORIGINS` is empty in production, no browser origins are allowed. The
+API does not default to a wildcard origin.
 
 ## Domain storage
 
@@ -165,12 +166,21 @@ The API does not default to a wildcard origin.
 
 ## Authentication
 
-There is no authentication or API key enforcement yet.
+`/api/health` is public. All other `/api/*` endpoints require:
 
-**Before public deployment**, add one of:
-- API key header validation (FastAPI `Security` dependency)
-- OAuth2 / JWT middleware
-- IP allowlist at the reverse-proxy level (nginx/Caddy)
+```http
+x-api-key: <key>
+```
+
+Configure:
+
+```bash
+APP_ENV=production
+SIGNALEX_API_KEY=<strong-shared-api-key>
+```
+
+In development, if `SIGNALEX_API_KEY` is unset, requests are allowed and the API
+logs a warning.
 
 The API is read-only and contains no PII, but enforcement citation data may be commercially sensitive.
 

@@ -133,13 +133,15 @@ _LOCAL_CORS_ORIGINS = [
 
 
 def _cors_origins() -> list[str]:
-    """Return local origins plus comma-separated CORS_ORIGINS values."""
+    """Return environment-appropriate CORS origins."""
     configured = [
         origin.strip().rstrip("/")
         for origin in os.getenv("CORS_ORIGINS", "").split(",")
         if origin.strip()
     ]
-    return list(dict.fromkeys([*_LOCAL_CORS_ORIGINS, *configured]))
+    if _is_development_env():
+        return list(dict.fromkeys([*_LOCAL_CORS_ORIGINS, *configured]))
+    return list(dict.fromkeys(configured))
 
 
 app.add_middleware(

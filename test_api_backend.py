@@ -21,15 +21,41 @@ class ApiBackendTests(unittest.TestCase):
     def tearDown(self):
         self.env_patcher.stop()
 
-    def test_configured_cors_origins_are_added(self):
+    def test_development_cors_includes_localhost_and_configured_origins(self):
         with patch.dict(
             "os.environ",
-            {"CORS_ORIGINS": "https://food.example.com, https://www.food.example.com/"},
+            {
+                "APP_ENV": "development",
+                "CORS_ORIGINS": "https://food.example.com, https://www.food.example.com/",
+            },
         ):
             origins = _cors_origins()
+        self.assertIn("http://localhost:3000", origins)
         self.assertIn("http://localhost:5173", origins)
+        self.assertIn("http://127.0.0.1:3000", origins)
+        self.assertIn("http://127.0.0.1:5173", origins)
         self.assertIn("https://food.example.com", origins)
         self.assertIn("https://www.food.example.com", origins)
+
+    def test_production_cors_does_not_include_localhost_by_default(self):
+        with patch.dict(
+            "os.environ",
+            {"APP_ENV": "production", "CORS_ORIGINS": ""},
+        ):
+            origins = _cors_origins()
+        self.assertEqual(origins, [])
+
+    def test_production_cors_uses_configured_origins_only(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "APP_ENV": "production",
+                "CORS_ORIGINS": "https://signalex.com.au, https://www.signalex.com.au/",
+            },
+        ):
+            origins = _cors_origins()
+        self.assertEqual(origins, ["https://signalex.com.au", "https://www.signalex.com.au"])
+        self.assertNotIn("http://localhost:5173", origins)
 
     def test_food_and_pharma_endpoints(self):
         with TestClient(app) as client:

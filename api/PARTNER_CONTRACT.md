@@ -796,16 +796,24 @@ GET /api/signals?domain=vms&limit=50&offset=50   # page 2
 
 ## Known limitations
 
-### No authentication
-All endpoints are public with no API key or token requirement. Do not expose
-the API on a public network until an auth layer is added (API key header, JWT,
-or IP allowlist at the reverse-proxy level).
+### API key authentication
+`/api/health` is public. All other `/api/*` endpoints require the `x-api-key`
+header documented above.
 
 ### CORS configuration
-GET, POST, and OPTIONS are allowed for configured origins. Local development
-origins on ports 3000 and 5173 are built in. Set `CORS_ORIGINS` to a
-comma-separated list of external frontend origins. The API does not default
-to `allow_origins=["*"]`.
+GET, POST, and OPTIONS are allowed for configured origins. In development,
+localhost origins on ports 3000 and 5173 are included automatically, along with
+any origins in `CORS_ORIGINS`.
+
+In production, localhost origins are not included automatically. Set
+`CORS_ORIGINS` to the exact frontend origins:
+
+```env
+CORS_ORIGINS=https://signalex.com.au,https://www.signalex.com.au
+```
+
+If `CORS_ORIGINS` is empty in production, no browser origins are allowed. The
+API does not fall back to `allow_origins=["*"]`.
 
 ### Pharma not yet in signals.db
 `/api/signals?domain=pharma` always returns `total: 0`. Pharma intelligence is
