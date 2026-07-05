@@ -28,3 +28,7 @@ Thumbs.db
 # Reports caches (large, rebuilt from source)
 reports/ai_cache.json
 reports/enrichment_cache.json
+
+# local secret backups
+.env.backup*
+*.env.backup*
