@@ -10,6 +10,17 @@ from services.food_taxonomy import classify_food_signal
 
 
 class ApiBackendTests(unittest.TestCase):
+    def setUp(self):
+        self.env_patcher = patch.dict(
+            "os.environ",
+            {"APP_ENV": "development", "SIGNALEX_API_KEY": ""},
+            clear=False,
+        )
+        self.env_patcher.start()
+
+    def tearDown(self):
+        self.env_patcher.stop()
+
     def test_configured_cors_origins_are_added(self):
         with patch.dict(
             "os.environ",
@@ -235,6 +246,51 @@ class ApiBackendTests(unittest.TestCase):
             self.assertGreaterEqual(body["signals"]["vms"], 0)
             self.assertTrue(body["citations"]["loaded"])
             self.assertEqual(body["citations"]["sourceOfTruthFor"], "pharma")
+
+    def test_health_is_public_without_api_key_in_production(self):
+        with patch.dict("os.environ", {"APP_ENV": "production", "SIGNALEX_API_KEY": "secret"}, clear=False):
+            with TestClient(app) as client:
+                response = client.get("/api/health")
+        self.assertEqual(response.status_code, 200)
+
+    def test_signals_fails_without_api_key_in_production(self):
+        with patch.dict("os.environ", {"APP_ENV": "production", "SIGNALEX_API_KEY": "secret"}, clear=False):
+            with TestClient(app) as client:
+                response = client.get("/api/signals?domain=food&limit=1")
+        self.assertEqual(response.status_code, 401)
+
+    def test_signals_fails_with_wrong_api_key(self):
+        with patch.dict("os.environ", {"APP_ENV": "production", "SIGNALEX_API_KEY": "secret"}, clear=False):
+            with TestClient(app) as client:
+                response = client.get(
+                    "/api/signals?domain=food&limit=1",
+                    headers={"x-api-key": "wrong"},
+                )
+        self.assertEqual(response.status_code, 403)
+
+    def test_signals_succeeds_with_correct_api_key(self):
+        with patch.dict("os.environ", {"APP_ENV": "production", "SIGNALEX_API_KEY": "secret"}, clear=False):
+            with TestClient(app) as client:
+                response = client.get(
+                    "/api/signals?domain=food&limit=1",
+                    headers={"x-api-key": "secret"},
+                )
+        self.assertEqual(response.status_code, 200)
+
+    def test_food_claim_review_is_protected(self):
+        with patch.dict("os.environ", {"APP_ENV": "production", "SIGNALEX_API_KEY": "secret"}, clear=False):
+            with TestClient(app) as client:
+                response = client.post(
+                    "/api/food/claim-review",
+                    json={"claim_text": "High in protein", "food_type": "protein bar"},
+                )
+        self.assertEqual(response.status_code, 401)
+
+    def test_dev_mode_without_api_key_allows_local_development(self):
+        with patch.dict("os.environ", {"APP_ENV": "development", "SIGNALEX_API_KEY": ""}, clear=False):
+            with TestClient(app) as client:
+                response = client.get("/api/signals?domain=food&limit=1")
+        self.assertEqual(response.status_code, 200)
 
 
 if __name__ == "__main__":

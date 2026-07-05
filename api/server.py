@@ -28,7 +28,9 @@ Endpoints:
 from __future__ import annotations
 
 import json
+import logging
 import os
+import secrets
 import sqlite3
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -36,6 +38,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
@@ -62,9 +65,64 @@ load_dotenv(_ROOT / ".env")
 # ---------------------------------------------------------------------------
 app = FastAPI(
     title="Signalex Read-Only API",
-    description="Read-only regulatory intelligence endpoints. No auth yet.",
+    description="Read-only regulatory intelligence endpoints.",
     version="0.2.0",
 )
+
+logger = logging.getLogger(__name__)
+_AUTH_WARNING_LOGGED = False
+
+
+def _app_env() -> str:
+    return (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "development").strip().lower()
+
+
+def _configured_api_key() -> str:
+    return os.getenv("SIGNALEX_API_KEY", "").strip()
+
+
+def _is_development_env() -> bool:
+    return _app_env() in {"development", "dev", "local", "test"}
+
+
+def _is_public_api_path(path: str) -> bool:
+    return path == "/api/health" or path.startswith("/api/health/")
+
+
+@app.middleware("http")
+async def _require_api_key(request: Request, call_next):
+    """Protect all non-health /api routes with x-api-key."""
+    global _AUTH_WARNING_LOGGED
+    path = request.url.path
+    if not path.startswith("/api/") or _is_public_api_path(path) or request.method == "OPTIONS":
+        return await call_next(request)
+
+    expected_key = _configured_api_key()
+    if not expected_key:
+        if _is_development_env():
+            if not _AUTH_WARNING_LOGGED:
+                logger.warning(
+                    "SIGNALEX_API_KEY is not set; allowing unauthenticated API requests in development mode."
+                )
+                _AUTH_WARNING_LOGGED = True
+            return await call_next(request)
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": "API key is not configured."},
+        )
+
+    supplied_key = request.headers.get("x-api-key")
+    if not supplied_key:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": "Missing API key."},
+        )
+    if not secrets.compare_digest(supplied_key, expected_key):
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": "Invalid API key."},
+        )
+    return await call_next(request)
 
 _LOCAL_CORS_ORIGINS = [
     "http://localhost:3000",

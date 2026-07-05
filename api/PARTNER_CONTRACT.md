@@ -6,7 +6,7 @@ semantics, filtering, and current limitations.
 
 **Version:** 0.2.0  
 **Last updated:** 2026-06-24
-**Status:** Development — no auth
+**Status:** Development — API key required for non-health endpoints
 
 ---
 
@@ -18,6 +18,36 @@ semantics, filtering, and current limitations.
 | Production (placeholder) | `https://api.signalex.com.au` |
 
 All paths below are relative to the base URL.
+
+---
+
+## Authentication
+
+`GET /api/health` is public and does not require an API key.
+
+All other `/api/*` endpoints require this request header:
+
+```http
+x-api-key: <partner-api-key>
+```
+
+The backend reads the expected key from `SIGNALEX_API_KEY`. In local
+development, requests are allowed without a key when `SIGNALEX_API_KEY` is not
+set. In production, set:
+
+```env
+APP_ENV=production
+SIGNALEX_API_KEY=<strong-shared-api-key>
+```
+
+Auth errors:
+
+| Status | Meaning |
+|--------|---------|
+| `401` | Missing `x-api-key` header |
+| `403` | Wrong API key, or production API key is not configured |
+
+Do not put the API key in query parameters.
 
 ---
 
