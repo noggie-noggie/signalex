@@ -47,6 +47,7 @@ from services.food_claims.cache      import make_input_hash, get_cached_guidance
 from services.food_claim_pathways import get_claim_pathway, list_claim_pathways, normalize_claim_key
 from services.food_claim_review import review_food_claim
 from services.food_taxonomy import enrich_food_signal
+from services.food_duplicates import filter_visible_food_duplicates
 
 # ---------------------------------------------------------------------------
 # Paths — resolved relative to the repo root (one level above this file)
@@ -520,6 +521,7 @@ def signals(
             results = [enrich_food_signal(dict(r)) for r in rows]
             if not include_noise:
                 results = _visible_food_rows(results)
+                results = filter_visible_food_duplicates(results)
             total, results = _page_enriched(results, limit, offset)
         else:
             total = conn.execute(count_sql, params).fetchone()[0]
@@ -990,6 +992,10 @@ def _visible_food_rows(rows: list[dict]) -> list[dict]:
     ]
 
 
+def _visible_unique_food_rows(rows: list[dict]) -> list[dict]:
+    return filter_visible_food_duplicates(_visible_food_rows(rows))
+
+
 def _page_enriched(rows: list[dict], limit: int, offset: int) -> tuple[int, list[dict]]:
     total = len(rows)
     return total, rows[offset : offset + limit]
@@ -1037,7 +1043,7 @@ def food_dashboard():
             f"SELECT * FROM signals WHERE {domain_filter} "
             f"ORDER BY scraped_at DESC"
         ).fetchall())
-        all_rows = _visible_food_rows(all_rows)
+        all_rows = _visible_unique_food_rows(all_rows)
 
         # Overview counts
         total = len(all_rows)
@@ -1150,7 +1156,7 @@ def food_signals(
             f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC",
             params,
         ).fetchall()
-        results = _visible_food_rows(_enrich_food_rows(rows))
+        results = _visible_unique_food_rows(_enrich_food_rows(rows))
         if signal_type:
             results = [r for r in results if signal_type.lower() in r.get("signal_type", "").lower()]
         total, page = _page_enriched(results, limit, offset)
@@ -1216,7 +1222,7 @@ def food_products(
             f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC",
             params,
         ).fetchall()
-        results = _visible_food_rows(_enrich_food_rows(rows))
+        results = _visible_unique_food_rows(_enrich_food_rows(rows))
         total, page = _page_enriched(results, limit, offset)
         return {
             "total":   total,
@@ -1276,7 +1282,7 @@ def food_recalls(
             params,
         ).fetchall()
         results = [
-            r for r in _visible_food_rows(_enrich_food_rows(rows))
+            r for r in _visible_unique_food_rows(_enrich_food_rows(rows))
             if r.get("dashboard_section") == "recalls_safety"
         ]
         total, page = _page_enriched(results, limit, offset)
@@ -1332,7 +1338,7 @@ def food_rules(
             params,
         ).fetchall()
         results = [
-            r for r in _visible_food_rows(_enrich_food_rows(rows))
+            r for r in _visible_unique_food_rows(_enrich_food_rows(rows))
             if r.get("dashboard_section") == "regulatory_updates"
         ]
         total, page = _page_enriched(results, limit, offset)
