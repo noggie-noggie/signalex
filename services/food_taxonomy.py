@@ -278,6 +278,7 @@ _ALCOHOL_TERMS = [
 _GENERIC_VISIBLE_REVIEW_TERMS = [
     "mi goreng",
     "fried noodles",
+    "instant noodles",
     "potato crisps",
     "crisps",
     "chips",
@@ -288,9 +289,16 @@ _GENERIC_VISIBLE_REVIEW_TERMS = [
     "cheese & onion",
     "cheese and onion",
     "wraps lite",
+    "plain wraps",
+    "wraps",
     "peri-peri rub",
     "peri peri rub",
     "garlic peri",
+    "fresh farm cage eggs",
+    "cage eggs",
+    "farm cage eggs",
+    "caramel latte",
+    "instant coffee",
 ]
 
 _GENERIC_SAVOURY_SNACK_TERMS = [
@@ -494,6 +502,54 @@ def _open_food_facts_exclusion_reason(text: str) -> str:
     return ""
 
 
+def _is_energy_drink_signal(product_type: list[str], text: str) -> bool:
+    return "energy_drink" in product_type or _contains_any(
+        text,
+        ["energy drink", "caffeine", "red bull", "monster energy", "v energy"],
+    )
+
+
+def _is_generic_open_food_facts_product(
+    text: str,
+    claim_theme: list[str],
+    product_type: list[str],
+    has_meaningful_market_relevance: bool,
+) -> bool:
+    """True for OFF rows too weak/noisy for the Food launch dashboard."""
+    if _is_energy_drink_signal(product_type, text):
+        return False
+    if has_meaningful_market_relevance:
+        return False
+    if set(product_type) & _MEANINGFUL_OPPORTUNITY_PRODUCT_TYPES:
+        return False
+    if "protein_bar" in product_type:
+        return False
+    if _contains_any(text, ["fortified", "added vitamins", "added minerals", "nutrition fortification"]):
+        return False
+
+    themes = set(claim_theme)
+    if themes and themes <= {"plant_based", "natural"}:
+        return True
+    if _contains_any(text, _GENERIC_VISIBLE_REVIEW_TERMS):
+        return True
+    if _is_generic_savoury_snack(text) and not _has_functional_snack_evidence(text, claim_theme, product_type):
+        return True
+    if not themes and not set(product_type) & {
+        "energy_drink",
+        "protein_bar",
+        "yoghurt_drink",
+        "fermented_drink",
+        "kombucha",
+        "plant_based_milk",
+        "meat_alternative",
+        "dairy_alternative",
+        "infant_formula",
+        "infant_snack",
+    }:
+        return True
+    return False
+
+
 def _has_meaningful_market_relevance(
     claim_theme: list[str],
     product_type: list[str],
@@ -663,6 +719,19 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
         category,
         content_text,
     )
+    is_generic_off_product = (
+        source == "open_food_facts"
+        and not off_exclusion_reason
+        and not is_supplement_leakage
+        and _is_generic_open_food_facts_product(
+            content_text,
+            claim_theme,
+            product_type,
+            has_meaningful_market_relevance,
+        )
+    )
+    if is_generic_off_product:
+        off_exclusion_reason = "Excluded from food launch: generic Open Food Facts product"
 
     if is_recall:
         signal_type = "recall"

@@ -34,8 +34,10 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
             "product_category": "farming products",
         }
         result = enrich_food_signal(row)
-        self.assertEqual(result["dashboard_section"], "category_signals")
-        self.assertEqual(result["signal_type"], "category_trend")
+        self.assertEqual(result["dashboard_section"], "excluded")
+        self.assertEqual(result["signal_type"], "excluded")
+        self.assertEqual(result["is_noise"], 1)
+        self.assertEqual(result["noise_reason"], "Excluded from food launch: generic Open Food Facts product")
         self.assertEqual(result["impact"], "low")
 
     def test_high_protein_smoothie_can_remain_market_opportunity(self):
@@ -146,8 +148,9 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
             "product_category": "snacks",
         }
         result = enrich_food_signal(row)
-        self.assertEqual(result["dashboard_section"], "category_signals")
-        self.assertEqual(result["signal_type"], "category_trend")
+        self.assertEqual(result["dashboard_section"], "excluded")
+        self.assertEqual(result["signal_type"], "excluded")
+        self.assertEqual(result["is_noise"], 1)
 
     def test_sports_brand_wafer_without_claim_theme_is_category_signal(self):
         row = {
@@ -161,7 +164,8 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
             "product_category": "dietary supplements",
         }
         result = enrich_food_signal(row)
-        self.assertEqual(result["dashboard_section"], "category_signals")
+        self.assertEqual(result["dashboard_section"], "excluded")
+        self.assertEqual(result["is_noise"], 1)
         self.assertEqual(result["impact"], "low")
 
     def test_claim_signal_protein_bar_remains_claims_labelling_not_allergen_failure(self):
@@ -244,7 +248,9 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
         }
         result = enrich_food_signal(row)
         self.assertIn("plant_based", result["claim_theme"])
-        self.assertNotEqual(result["dashboard_section"], "market_opportunities")
+        self.assertEqual(result["dashboard_section"], "excluded")
+        self.assertEqual(result["is_noise"], 1)
+        self.assertEqual(result["noise_reason"], "Excluded from food launch: generic Open Food Facts product")
 
     def test_tayto_crisps_are_not_market_opportunity(self):
         row = {
@@ -257,7 +263,8 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
             "product_category": "plant based foods and beverages",
         }
         result = enrich_food_signal(row)
-        self.assertEqual(result["dashboard_section"], "category_signals")
+        self.assertEqual(result["dashboard_section"], "excluded")
+        self.assertEqual(result["is_noise"], 1)
         self.assertEqual(result["impact"], "low")
         self.assertNotIn("high_protein", result["claim_theme"])
 
@@ -271,7 +278,36 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
             "product_category": "plant based foods and beverages",
         }
         result = enrich_food_signal(row)
-        self.assertNotEqual(result["dashboard_section"], "market_opportunities")
+        self.assertEqual(result["dashboard_section"], "excluded")
+        self.assertEqual(result["is_noise"], 1)
+
+    def test_mission_wraps_lite_are_excluded_as_generic_open_food_facts_product(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "title": "Mission â€” Wraps Lite",
+            "product_name": "Wraps Lite",
+            "product_category": "plant based foods and beverages",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "excluded")
+        self.assertEqual(result["is_noise"], 1)
+        self.assertEqual(result["noise_reason"], "Excluded from food launch: generic Open Food Facts product")
+
+    def test_moccona_caramel_latte_is_excluded_when_only_generic_metadata(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "title": "Moccona â€” Caramel Latte",
+            "product_name": "Caramel Latte",
+            "product_category": "beverages",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "excluded")
+        self.assertEqual(result["is_noise"], 1)
+        self.assertEqual(result["noise_reason"], "Excluded from food launch: generic Open Food Facts product")
 
     def test_generic_plant_based_alone_is_not_market_opportunity(self):
         row = {
@@ -284,7 +320,8 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
         }
         result = enrich_food_signal(row)
         self.assertEqual(result["claim_theme"], ["plant_based"])
-        self.assertNotEqual(result["dashboard_section"], "market_opportunities")
+        self.assertEqual(result["dashboard_section"], "excluded")
+        self.assertEqual(result["is_noise"], 1)
 
     def test_notburger_remains_visible_as_plant_based_innovation(self):
         row = {
