@@ -148,8 +148,15 @@ def main() -> int:
     def off_text(row: dict) -> str:
         return " ".join(
             str(row.get(field) or "").lower()
-            for field in ("title", "summary", "product_name", "product_category")
+            for field in ("title", "summary", "product_name", "product_category", "brand", "company")
         )
+    def off_brand(row: dict) -> str:
+        brand = str(row.get("brand") or row.get("company") or "").strip().lower()
+        if brand:
+            return re.sub(r"\s+", " ", brand)
+        title = str(row.get("title") or row.get("product_name") or "").lower()
+        title = re.split(r"\s+[â€”—-]+\s+|\s+-\s+", title, maxsplit=1)[0]
+        return re.sub(r"[^a-z0-9]+", " ", title).strip() or "(unknown)"
     def contains_term(text: str, term: str) -> bool:
         if " " in term:
             return term in text
@@ -187,6 +194,15 @@ def main() -> int:
         row for row in visible_off_rows
         if any(term in off_text(row) for term in unknown_terms)
     ]
+    off_category_signals_by_brand = Counter(off_brand(row) for row in off_category_signals)
+    visible_energy_brand_rows = [
+        row for row in off_category_signals
+        if any(term in off_text(row) for term in ["red bull", "v energy", "monster"])
+    ]
+    visible_retailer_private_label_rows = [
+        row for row in visible_off_rows
+        if any(term in off_text(row) for term in ["woolworths", "woolworths bakery"])
+    ]
     excluded_off_rows = [
         row for row in rows
         if row.get("source_label") == "open_food_facts"
@@ -205,10 +221,22 @@ def main() -> int:
         and (
             "ingredients: h" in off_text(row)
             or "ingredient h" in off_text(row)
+            or "ingrdients" in off_text(row)
+            or "ingredints" in off_text(row)
+            or "ingedients" in off_text(row)
+            or "caffiene" in off_text(row)
+            or "taur1ne" in off_text(row)
+            or "glucuronolact0ne" in off_text(row)
             or "ingredienti" in off_text(row)
             or "ingredientes" in off_text(row)
+            or re.search(r"\bingredients?\s*:\s*[a-z]\s*(?:$|[|.;,])", off_text(row))
             or (str(row.get("summary") or "").lower().startswith("ingredients:") and str(row.get("summary") or "").count(",") >= 8)
         )
+    ]
+    visible_suspicious_raw_off_rows = [
+        row for row in suspicious_raw_off_rows
+        if int(row.get("is_noise") or 0) != 1
+        and row.get("dashboard_section") != "excluded"
     ]
     foreign_off_exclusions = [
         row for row in low_quality_off_rows
@@ -329,6 +357,39 @@ def main() -> int:
                 f"title={row.get('title')}"
             )
 
+    print("\nOpen Food Facts category_signals visible records by brand:")
+    if not off_category_signals_by_brand:
+        print("  none")
+    else:
+        for brand, count in sorted(off_category_signals_by_brand.items()):
+            print(f"  {brand}: {count}")
+
+    print("\nremaining Red Bull/V/Monster category_signals visible rows:")
+    if not visible_energy_brand_rows:
+        print("  none")
+    else:
+        for row in visible_energy_brand_rows:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"brand={off_brand(row)} "
+                f"title={row.get('title')} "
+                f"summary={(row.get('summary') or '')[:100]}"
+            )
+
+    print("\nvisible retailer/private-label Open Food Facts rows:")
+    if not visible_retailer_private_label_rows:
+        print("  none")
+    else:
+        for row in visible_retailer_private_label_rows:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"section={row.get('dashboard_section')} "
+                f"claim_theme={row.get('claim_theme')} "
+                f"title={row.get('title')}"
+            )
+
     print("\ngeneric Open Food Facts records inside market_opportunities for manual review:")
     if not generic_product_opportunities:
         print("  none")
@@ -436,6 +497,19 @@ def main() -> int:
                 "  "
                 f"id={row.get('id')} "
                 f"reason={row.get('noise_reason') or '(visible)'} "
+                f"title={row.get('title')} "
+                f"summary={(row.get('summary') or '')[:120]}"
+            )
+
+    print("\nvisible rows with suspicious raw ingredient/OCR text:")
+    if not visible_suspicious_raw_off_rows:
+        print("  none")
+    else:
+        for row in visible_suspicious_raw_off_rows:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"section={row.get('dashboard_section')} "
                 f"title={row.get('title')} "
                 f"summary={(row.get('summary') or '')[:120]}"
             )

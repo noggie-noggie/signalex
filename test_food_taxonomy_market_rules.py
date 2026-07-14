@@ -39,6 +39,22 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
         self.assertEqual(result["is_noise"], 1)
         self.assertEqual(result["noise_reason"], "Excluded from food launch: low-quality Open Food Facts record")
 
+    def test_malformed_energy_drink_summary_is_excluded_low_quality(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "signal_type": "new_product",
+            "title": "V — Energy Drink",
+            "summary": "Ingredients: h | caffiene taur1ne glucuronolact0ne",
+            "product_name": "V Energy Drink",
+            "product_category": "beverages",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "excluded")
+        self.assertEqual(result["is_noise"], 1)
+        self.assertEqual(result["noise_reason"], "Excluded from food launch: low-quality Open Food Facts record")
+
     def test_open_food_facts_ocr_garbage_is_excluded_low_quality(self):
         row = {
             "domain": "food",
@@ -136,6 +152,21 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
         self.assertIn("category_growth", result["issue_area"])
         self.assertIn("energy", result["claim_theme"])
         self.assertIn("natural", result["claim_theme"])
+
+    def test_clean_energy_drink_category_signal_is_retained(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "signal_type": "new_product",
+            "title": "V — Energy Drink",
+            "summary": "Carbonated energy drink with caffeine for beverage category monitoring.",
+            "product_name": "V Energy Drink",
+            "product_category": "beverages",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "category_signals")
+        self.assertNotEqual(result.get("is_noise"), 1)
 
     def test_energy_drink_with_only_energy_claim_is_category_signal(self):
         row = {
@@ -423,9 +454,25 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
             "product_category": "breads",
         }
         result = enrich_food_signal(row)
-        self.assertNotEqual(result["dashboard_section"], "excluded")
-        self.assertIn(result["dashboard_section"], {"claims_labelling", "market_opportunities"})
+        self.assertEqual(result["dashboard_section"], "excluded")
+        self.assertEqual(result["is_noise"], 1)
+        self.assertEqual(result["noise_reason"], "Excluded from food launch: generic Open Food Facts product")
         self.assertIn("source_of_fibre", result["claim_theme"])
+
+    def test_woolworths_cornflour_gluten_free_is_excluded_private_label_generic(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "title": "Woolworths — Cornflour Gluten Free",
+            "summary": "Gluten free cornflour.",
+            "product_name": "Cornflour Gluten Free",
+            "product_category": "pantry ingredients",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "excluded")
+        self.assertEqual(result["is_noise"], 1)
+        self.assertEqual(result["noise_reason"], "Excluded from food launch: generic Open Food Facts product")
 
     def test_protein_peanut_butter_remains_functional_opportunity(self):
         row = {

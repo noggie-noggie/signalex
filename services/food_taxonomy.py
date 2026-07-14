@@ -299,6 +299,9 @@ _GENERIC_VISIBLE_REVIEW_TERMS = [
     "farm cage eggs",
     "caramel latte",
     "instant coffee",
+    "cornflour",
+    "gluten free cornflour",
+    "high fibre wholemeal sandwich bread",
 ]
 
 _LOW_QUALITY_OFF_REASON = "Excluded from food launch: low-quality Open Food Facts record"
@@ -308,6 +311,12 @@ _LOW_QUALITY_FRAGMENT_TERMS = [
     "ingredients h",
     "ingredient: h",
     "ingredient h",
+    "ingrdients",
+    "ingredints",
+    "ingedients",
+    "caffiene",
+    "taur1ne",
+    "glucuronolact0ne",
 ]
 
 _FOREIGN_LANGUAGE_TERMS = [
@@ -372,6 +381,25 @@ _FUNCTIONAL_SNACK_EVIDENCE_TERMS = [
     "notburger",
 ]
 
+_GENERIC_RETAILER_PRIVATE_LABEL_TERMS = [
+    "woolworths",
+    "woolworths bakery",
+]
+
+_PRIVATE_LABEL_STRONG_INTELLIGENCE_TERMS = [
+    "probiotic",
+    "prebiotic",
+    "gut health",
+    "functional beverage",
+    "protein bar",
+    "protein smoothie",
+    "plant milk",
+    "dairy alternative",
+    "meat alternative",
+    "notburger",
+    "novel ingredient",
+]
+
 
 def _norm(value: Any) -> str:
     return str(value or "").strip()
@@ -434,6 +462,11 @@ def _looks_like_ocr_garbage(value: str) -> bool:
     text = (value or "").strip()
     if not text:
         return False
+    lower = text.lower()
+    if re.search(r"\bingredients?\s*:\s*[a-z]\s*(?:$|[|.;,])", lower):
+        return True
+    if _contains_any(lower, _LOW_QUALITY_FRAGMENT_TERMS):
+        return True
     if re.search(r"(.)\1{5,}", text):
         return True
     if re.search(r"[�]{1,}|Ã.|â€|â€™|â€œ|â€", text):
@@ -619,6 +652,23 @@ def _is_energy_drink_signal(product_type: list[str], text: str) -> bool:
     )
 
 
+def _is_generic_private_label_product(text: str, product_type: list[str]) -> bool:
+    if not _contains_any(text, _GENERIC_RETAILER_PRIVATE_LABEL_TERMS):
+        return False
+    if set(product_type) & {
+        "energy_drink",
+        "protein_bar",
+        "yoghurt_drink",
+        "fermented_drink",
+        "kombucha",
+        "plant_based_milk",
+        "meat_alternative",
+        "dairy_alternative",
+    }:
+        return False
+    return not _contains_any(text, _PRIVATE_LABEL_STRONG_INTELLIGENCE_TERMS)
+
+
 def _is_generic_open_food_facts_product(
     text: str,
     claim_theme: list[str],
@@ -628,6 +678,8 @@ def _is_generic_open_food_facts_product(
     """True for OFF rows too weak/noisy for the Food launch dashboard."""
     if _is_energy_drink_signal(product_type, text):
         return False
+    if _is_generic_private_label_product(text, product_type):
+        return True
     if has_meaningful_market_relevance:
         return False
     if set(product_type) & _MEANINGFUL_OPPORTUNITY_PRODUCT_TYPES:

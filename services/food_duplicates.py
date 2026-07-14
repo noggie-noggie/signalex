@@ -111,7 +111,13 @@ def _brand_key(row: dict[str, Any]) -> str:
     if brand:
         return re.sub(r"\s+", " ", brand)
     title = str(row.get("title") or row.get("product_name") or "").lower()
-    title = re.split(r"\s+[—-]\s+|\s+-\s+", title, maxsplit=1)[0]
+    if "red bull" in title:
+        return "red bull"
+    if re.search(r"(^|[^a-z0-9])v([^a-z0-9]|$)", title) and "energy" in title:
+        return "v"
+    if "monster" in title:
+        return "monster"
+    title = re.split(r"\s+(?:-|–|—|â€“|â€”)\s+", title, maxsplit=1)[0]
     return re.sub(r"[^a-z0-9]+", " ", title).strip()
 
 
@@ -120,18 +126,43 @@ def _product_family_key(row: dict[str, Any]) -> str:
         str(row.get(field) or "").lower()
         for field in ("title", "product_name", "summary", "product_category")
     )
-    families = [
-        ("red_bull_energy_drink", ["red bull", "energy drink"]),
-        ("v_energy_drink", ["v energy", "energy drink"]),
-        ("monster_energy_drink", ["monster", "energy drink"]),
-        ("energy_drink", ["energy drink", "caffeine"]),
-    ]
-    for family, terms in families:
-        if any(term in text for term in terms):
-            return family
+    brand = _brand_key(row)
+    if "red bull" in text or brand == "red bull":
+        return "red_bull_energy_drink"
+    if brand == "v" and ("energy" in text or "caffeine" in text):
+        return "v_energy_drink"
+    if "v energy" in text:
+        return "v_energy_drink"
+    if ("monster" in text or brand == "monster") and ("energy" in text or "caffeine" in text):
+        return "monster_energy_drink"
+    if "energy drink" in text or ("caffeine" in text and "beverage" in text):
+        return "energy_drink"
     words = re.findall(r"[a-z0-9]+", text)
     stop = {"the", "and", "with", "flavour", "flavored", "natural", "ingredients"}
     return " ".join(word for word in words[:8] if word not in stop)
+
+
+def _is_energy_drink_family(family: str) -> bool:
+    return family in {
+        "red_bull_energy_drink",
+        "v_energy_drink",
+        "monster_energy_drink",
+        "energy_drink",
+    }
+
+
+def _category_family_product_signature(row: dict[str, Any], family: str) -> str:
+    product_type = _normalise_list_value(row.get("product_type"))
+    if _is_energy_drink_family(family):
+        return "energy_drink"
+    return product_type
+
+
+def _category_family_claim_signature(row: dict[str, Any], family: str) -> str:
+    claim_theme = _normalise_list_value(row.get("claim_theme"))
+    if _is_energy_drink_family(family):
+        return "energy_drink_monitoring"
+    return claim_theme
 
 
 def _off_category_family_key(row: dict[str, Any]) -> str:
@@ -150,8 +181,8 @@ def _off_category_family_key(row: dict[str, Any]) -> str:
             "off_category_family",
             brand,
             family,
-            _normalise_list_value(row.get("claim_theme")),
-            _normalise_list_value(row.get("product_type")),
+            _category_family_claim_signature(row, family),
+            _category_family_product_signature(row, family),
             str(row.get("dashboard_section") or ""),
         ]
     )

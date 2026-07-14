@@ -140,6 +140,35 @@ class FoodDuplicateTests(unittest.TestCase):
                 "claim_theme": ["energy"],
                 "product_type": ["energy_drink", "beverage"],
             },
+            {
+                **_row(103, "Red Bull — Red Bull Zero"),
+                "source_label": "open_food_facts",
+                "dashboard_section": "category_signals",
+                "brand": "Red Bull",
+                "product_name": "Red Bull Zero",
+                "summary": "Energy drink variant.",
+                "claim_theme": ["energy", "natural"],
+                "product_type": ["energy_drink", "ingredient"],
+            },
+            {
+                **_row(104, "Red Bull — Energy Drink"),
+                "source_label": "open_food_facts",
+                "dashboard_section": "category_signals",
+                "brand": "Red Bull",
+                "product_name": "Energy Drink",
+                "summary": "Caffeinated beverage.",
+                "claim_theme": ["natural"],
+                "product_type": ["beverage"],
+            },
+            {
+                **_row(105, "Red Bull — Red Bull energy drink"),
+                "source_label": "open_food_facts",
+                "dashboard_section": "category_signals",
+                "product_name": "Red Bull energy drink",
+                "summary": "Energy beverage.",
+                "claim_theme": ["energy"],
+                "product_type": ["beverage"],
+            },
         ]
         groups = find_open_food_facts_category_duplicate_groups(rows)
         self.assertEqual(len(groups), 1)
@@ -168,8 +197,44 @@ class FoodDuplicateTests(unittest.TestCase):
                 "claim_theme": ["energy"],
                 "product_type": ["energy_drink", "beverage"],
             },
+            {
+                **_row(203, "V — Energy Drink Zero Sugar"),
+                "source_label": "open_food_facts",
+                "dashboard_section": "category_signals",
+                "brand": "V",
+                "product_name": "Energy Drink Zero Sugar",
+                "summary": "Caffeinated beverage.",
+                "claim_theme": ["energy", "natural"],
+                "product_type": ["beverage", "ingredient"],
+            },
         ]
         self.assertEqual(len(filter_visible_food_duplicates(rows)), 1)
+
+    def test_monster_energy_remains_separate_brand_when_clean(self):
+        rows = [
+            {
+                **_row(301, "Red Bull Energy Drink"),
+                "source_label": "open_food_facts",
+                "dashboard_section": "category_signals",
+                "brand": "Red Bull",
+                "product_name": "Red Bull Energy Drink",
+                "summary": "Energy drink with caffeine.",
+                "claim_theme": ["energy"],
+                "product_type": ["energy_drink", "beverage"],
+            },
+            {
+                **_row(302, "Monster Energy Drink"),
+                "source_label": "open_food_facts",
+                "dashboard_section": "category_signals",
+                "brand": "Monster",
+                "product_name": "Monster Energy Drink",
+                "summary": "Energy drink with caffeine.",
+                "claim_theme": ["energy"],
+                "product_type": ["energy_drink", "beverage"],
+            },
+        ]
+        visible = filter_visible_food_duplicates(rows)
+        self.assertEqual({row["id"] for row in visible}, {301, 302})
 
 
 if __name__ == "__main__":
