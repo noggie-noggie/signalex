@@ -301,6 +301,41 @@ _GENERIC_VISIBLE_REVIEW_TERMS = [
     "instant coffee",
 ]
 
+_LOW_QUALITY_OFF_REASON = "Excluded from food launch: low-quality Open Food Facts record"
+
+_LOW_QUALITY_FRAGMENT_TERMS = [
+    "ingredients: h",
+    "ingredients h",
+    "ingredient: h",
+    "ingredient h",
+]
+
+_FOREIGN_LANGUAGE_TERMS = [
+    "ingredienti",
+    "ingredientes",
+    "valori nutrizionali",
+    "informazioni nutrizionali",
+    "può contenere",
+    "puo contenere",
+    "puede contener",
+    "contiene glutine",
+    "sin gluten",
+    "aceite de",
+    "harina de",
+    "prodotto in italia",
+    "fabricado en",
+]
+
+_AU_NZ_RELEVANCE_TERMS = [
+    "australia",
+    "new zealand",
+    "australian",
+    "woolworths",
+    "coles",
+    "aldi australia",
+    "fsanz",
+]
+
 _GENERIC_SAVOURY_SNACK_TERMS = [
     "potato crisps",
     "potato chips",
@@ -393,6 +428,81 @@ def _contains_alcohol_term(text: str) -> bool:
 
 def _is_generic_savoury_snack(text: str) -> bool:
     return _contains_any(text, _GENERIC_SAVOURY_SNACK_TERMS)
+
+
+def _looks_like_ocr_garbage(value: str) -> bool:
+    text = (value or "").strip()
+    if not text:
+        return False
+    if re.search(r"(.)\1{5,}", text):
+        return True
+    if re.search(r"[�]{1,}|Ã.|â€|â€™|â€œ|â€", text):
+        return True
+    alpha_count = len(re.findall(r"[A-Za-z]", text))
+    useful_count = len(re.findall(r"[A-Za-z0-9\s,.;:%/&()\-']", text))
+    if len(text) >= 20 and useful_count / max(len(text), 1) < 0.65:
+        return True
+    if alpha_count < 4 and len(text) > 12:
+        return True
+    return False
+
+
+def _mostly_raw_ingredient_dump(summary: str, text: str) -> bool:
+    raw = (summary or "").strip().lower()
+    if not raw.startswith(("ingredients:", "ingredients ")):
+        return False
+    if _contains_any(
+        text,
+        [
+            "protein",
+            "protein bar",
+            "energy bar",
+            "snack bar",
+            "fibre",
+            "fiber",
+            "high protein",
+            "source of fibre",
+            "source of fiber",
+            "low sugar",
+            "lowcarb",
+            "natural flavour",
+            "natural flavor",
+            "energy drink",
+            "caffeine",
+            "smoothie",
+            "plant milk",
+            "meat alternative",
+            "notburger",
+            "probiotic",
+            "prebiotic",
+        ],
+    ):
+        return False
+    return len(raw) > 140 and raw.count(",") >= 8
+
+
+def _open_food_facts_low_quality_reason(row: dict[str, Any], text: str) -> str:
+    summary = _norm(row.get("summary"))
+    ingredient_name = _norm(row.get("ingredient_name"))
+    product_category = _norm(row.get("product_category")).lower()
+    title = _norm(row.get("title"))
+    product_name = _norm(row.get("product_name"))
+
+    if _contains_any(f"{summary.lower()} {ingredient_name.lower()}", _LOW_QUALITY_FRAGMENT_TERMS):
+        return _LOW_QUALITY_OFF_REASON
+    if ingredient_name and len(ingredient_name.strip()) <= 2:
+        return _LOW_QUALITY_OFF_REASON
+    if _looks_like_ocr_garbage(summary) or _looks_like_ocr_garbage(ingredient_name):
+        return _LOW_QUALITY_OFF_REASON
+    if _mostly_raw_ingredient_dump(summary, text):
+        return _LOW_QUALITY_OFF_REASON
+    if _contains_any(text, _FOREIGN_LANGUAGE_TERMS) and not _contains_any(text, _AU_NZ_RELEVANCE_TERMS):
+        return _LOW_QUALITY_OFF_REASON
+    if product_category and _contains_any(product_category, ["italy", "italia", "spain", "españa", "espana"]):
+        return _LOW_QUALITY_OFF_REASON
+    if not title and not product_name:
+        return _LOW_QUALITY_OFF_REASON
+    return ""
 
 
 def _has_functional_snack_evidence(text: str, claim_theme: list[str], product_type: list[str]) -> bool:
@@ -647,6 +757,136 @@ def _has_meaningful_market_relevance(
     )
 
 
+def _affected_product_types(text: str, category: list[str], product_type: list[str]) -> list[str]:
+    affected: list[str] = []
+    if _contains_any(text, ["young child formula", "infant formula", "infant", "toddler"]):
+        affected.append("infant_and_young_child_foods")
+    if _contains_any(text, ["cell-cultured", "cell cultured", "cultured duck", "novel food"]):
+        affected.append("novel_foods_and_alternative_proteins")
+    if _contains_any(text, ["health star rating", "hsr"]):
+        affected.append("packaged_foods_with_nutrition_labelling")
+    if _contains_any(text, ["allergen", "undeclared"]):
+        affected.append("allergen_sensitive_products")
+    if _contains_any(text, ["cadmium", "maximum level", "contaminant"]):
+        affected.append("products_with_contaminant_limits")
+    if _contains_any(text, ["additive", "processing aid", "enzyme"]):
+        affected.append("products_using_additives_or_processing_aids")
+    affected.extend(category)
+    affected.extend(product_type)
+    return _unique(affected)
+
+
+def _food_why_it_matters(
+    row: dict[str, Any],
+    *,
+    text: str,
+    dashboard_section: str,
+    issue_area: list[str],
+    affected: list[str],
+) -> str:
+    existing = _norm(row.get("why_it_matters"))
+    if existing and dashboard_section != "regulatory_updates":
+        return existing
+    if dashboard_section == "recalls_safety":
+        if "undeclared_allergen" in issue_area:
+            return "This recall can create immediate allergen exposure risk and may require product, supplier, and label checks."
+        if any(tag in issue_area for tag in ["toxin_contamination", "microbial_contamination", "chemical_contamination", "foreign_matter"]):
+            return "This recall signals a food safety risk that may require rapid exposure checks across related products, ingredients, or suppliers."
+        return "This recall may affect food safety, quality assurance, supplier controls, or customer communications."
+    if _contains_any(text, ["young child formula", "infant formula"]):
+        return "This consultation may affect infant and young-child nutrition products, including formulation, claims, labelling, and compliance watchpoints."
+    if _contains_any(text, ["cell-cultured", "cell cultured", "cultured duck", "novel food"]):
+        return "This update is relevant to novel foods and alternative proteins, including approval pathways and market-entry timing."
+    if _contains_any(text, ["health star rating", "hsr"]):
+        return "This update may affect nutrition labelling, reformulation strategy, and front-of-pack positioning for packaged foods."
+    if _contains_any(text, ["allergen", "labelling", "label"]):
+        return "This update may affect label controls, allergen risk management, claims wording, or compliance obligations."
+    if dashboard_section == "regulatory_updates":
+        return "This FSANZ item may affect food standards, formulation decisions, claims, labelling, market access, or compliance monitoring."
+    if dashboard_section == "market_opportunities":
+        return "This product signal may indicate a relevant claim, ingredient, or category trend worth monitoring for food innovation."
+    if dashboard_section == "category_signals":
+        return "This product signal is useful for light category monitoring, but should not be treated as a major opportunity on its own."
+    return existing
+
+
+def _food_recommended_action(
+    row: dict[str, Any],
+    *,
+    text: str,
+    dashboard_section: str,
+    issue_area: list[str],
+) -> str:
+    existing = _norm(row.get("recommended_action"))
+    if existing and dashboard_section not in {"regulatory_updates", "recalls_safety"}:
+        return existing
+    if dashboard_section == "recalls_safety":
+        return "Review the recall notice, check affected products and lots, assess supplier/product exposure, and update food safety or quality teams if relevant."
+    if _contains_any(text, ["young child formula", "infant formula"]):
+        return "Monitor consultation outcomes and review any exposure across young-child nutrition formulation, labelling, claims, and compliance plans."
+    if _contains_any(text, ["cell-cultured", "cell cultured", "cultured duck", "novel food"]):
+        return "Track the approval pathway and assess implications for alternative-protein strategy, competitor monitoring, and novel food compliance."
+    if _contains_any(text, ["health star rating", "hsr"]):
+        return "Review potential implications for nutrition labelling, reformulation, score modelling, and front-of-pack communications."
+    if dashboard_section == "regulatory_updates":
+        return "Review the update for potential impact on formulation, labelling, claims, market access, or compliance obligations."
+    if dashboard_section == "market_opportunities":
+        return "Review the product/category signal for relevance to claims, positioning, ingredients, and product pipeline decisions."
+    return existing or "Review this signal for relevance to food safety, labelling, regulatory compliance, claims, product quality, or category strategy."
+
+
+def _food_impact(
+    *,
+    text: str,
+    dashboard_section: str,
+    issue_area: list[str],
+    severity: str,
+    is_regulatory: bool,
+    is_claim: bool,
+    is_product: bool,
+    has_meaningful_market_relevance: bool,
+) -> str:
+    if dashboard_section == "excluded":
+        return "low"
+    if severity in {"high", "critical", "severe"}:
+        return "high"
+    if dashboard_section == "recalls_safety":
+        if (
+            {"undeclared_allergen", "toxin_contamination", "microbial_contamination", "chemical_contamination"}
+            & set(issue_area)
+            or _contains_any(text, ["infant formula", "young child", "serious health risk"])
+        ):
+            return "high"
+        return "medium"
+    if is_regulatory:
+        if _contains_any(
+            text,
+            [
+                "young child formula",
+                "infant formula",
+                "health star rating",
+                "novel food",
+                "cell-cultured",
+                "cell cultured",
+                "allergen",
+                "labelling",
+                "maximum level",
+                "contaminant",
+                "food standards code",
+                "standard amendment",
+            ],
+        ):
+            return "high"
+        return "medium"
+    if is_claim:
+        return "medium"
+    if is_product and has_meaningful_market_relevance:
+        if _contains_any(text, ["notburger", "novel ingredient", "functional beverage", "gut health", "high protein"]):
+            return "medium"
+        return "low"
+    return "low"
+
+
 def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
     """
     Return deterministic Food taxonomy fields for a signal row.
@@ -666,6 +906,8 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
         if source == "open_food_facts"
         else ""
     )
+    if source == "open_food_facts" and not off_exclusion_reason:
+        off_exclusion_reason = _open_food_facts_low_quality_reason(row, content_text)
     fsanz_relevance = (
         classify_fsanz_update_relevance(row)
         if source == "food_fsanz_updates"
@@ -772,15 +1014,18 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
         if hint in text:
             ingredients.append(hint)
 
+    affected_product_types = _affected_product_types(content_text, _unique(category), _unique(product_type))
     severity = _norm(row.get("severity")).lower()
-    if dashboard_section == "excluded":
-        impact = "low"
-    elif is_recall or severity in {"high", "critical", "severe"}:
-        impact = "high"
-    elif is_regulatory or is_claim or (is_product and has_meaningful_market_relevance) or severity == "medium":
-        impact = "medium"
-    else:
-        impact = "low"
+    impact = _food_impact(
+        text=content_text,
+        dashboard_section=dashboard_section,
+        issue_area=_unique(issue_area),
+        severity=severity,
+        is_regulatory=is_regulatory,
+        is_claim=is_claim,
+        is_product=is_product,
+        has_meaningful_market_relevance=has_meaningful_market_relevance,
+    )
 
     momentum = "active"
     if dashboard_section == "excluded":
@@ -811,6 +1056,20 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
         "dashboard_section": dashboard_section,
         "impact": impact,
         "momentum": momentum,
+        "affected_product_types": affected_product_types,
+        "why_it_matters": _food_why_it_matters(
+            row,
+            text=content_text,
+            dashboard_section=dashboard_section,
+            issue_area=_unique(issue_area),
+            affected=affected_product_types,
+        ),
+        "recommended_action": _food_recommended_action(
+            row,
+            text=content_text,
+            dashboard_section=dashboard_section,
+            issue_area=_unique(issue_area),
+        ),
     }
     if fsanz_relevance is not None:
         result.update({

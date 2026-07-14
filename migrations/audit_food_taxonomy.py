@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from services.food_duplicates import find_open_food_facts_category_duplicate_groups
 from services.food_taxonomy import enrich_food_signal, possible_misclassified_recall
 
 
@@ -52,6 +53,11 @@ def main() -> int:
     ]
     by_signal_type = Counter(row.get("signal_type") or "" for row in rows)
     by_dashboard_section = Counter(row.get("dashboard_section") or "" for row in visible_rows)
+    impact_by_dashboard_section = Counter(
+        (row.get("dashboard_section") or "", row.get("impact") or "")
+        for row in visible_rows
+    )
+    high_impact_rows = [row for row in visible_rows if row.get("impact") == "high"]
     missing_signal_type = [row for row in rows if not row.get("signal_type")]
     missing_dashboard_section = [row for row in rows if not row.get("dashboard_section")]
     weak_category = [row for row in rows if row.get("category") == ["other"]]
@@ -189,6 +195,26 @@ def main() -> int:
             or row.get("dashboard_section") == "excluded"
         )
     ]
+    low_quality_off_rows = [
+        row for row in excluded_off_rows
+        if row.get("noise_reason") == "Excluded from food launch: low-quality Open Food Facts record"
+    ]
+    suspicious_raw_off_rows = [
+        row for row in rows
+        if row.get("source_label") == "open_food_facts"
+        and (
+            "ingredients: h" in off_text(row)
+            or "ingredient h" in off_text(row)
+            or "ingredienti" in off_text(row)
+            or "ingredientes" in off_text(row)
+            or (str(row.get("summary") or "").lower().startswith("ingredients:") and str(row.get("summary") or "").count(",") >= 8)
+        )
+    ]
+    foreign_off_exclusions = [
+        row for row in low_quality_off_rows
+        if any(term in off_text(row) for term in ["ingredienti", "ingredientes", "prodotto in italia", "fabricado en"])
+    ]
+    off_category_duplicate_groups = find_open_food_facts_category_duplicate_groups(visible_off_rows)
 
     print("Food taxonomy audit")
     print("===================")
@@ -202,6 +228,26 @@ def main() -> int:
     print("\nvisible count by dashboard_section:")
     for key, count in sorted(by_dashboard_section.items()):
         print(f"  {key or '(missing)'}: {count}")
+
+    print("\nimpact distribution by dashboard_section:")
+    if not impact_by_dashboard_section:
+        print("  none")
+    else:
+        for (section, impact), count in sorted(impact_by_dashboard_section.items()):
+            print(f"  {section or '(missing)'} / {impact or '(missing)'}: {count}")
+
+    print("\nhigh-impact rows:")
+    if not high_impact_rows:
+        print("  none")
+    else:
+        for row in high_impact_rows:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"section={row.get('dashboard_section')} "
+                f"source={row.get('source_label')} "
+                f"title={row.get('title')}"
+            )
 
     print(f"\nmissing signal_type: {len(missing_signal_type)}")
     print(f"missing dashboard_section: {len(missing_dashboard_section)}")
@@ -357,6 +403,53 @@ def main() -> int:
                 f"id={row.get('id')} "
                 f"reason={row.get('noise_reason') or '(not set)'} "
                 f"title={row.get('title')}"
+            )
+
+    print("\nOpen Food Facts low-quality exclusions:")
+    if not low_quality_off_rows:
+        print("  none")
+    else:
+        for row in low_quality_off_rows:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"title={row.get('title')} "
+                f"summary={(row.get('summary') or '')[:120]}"
+            )
+
+    print("\nOpen Food Facts category duplicate groups collapsed:")
+    if not off_category_duplicate_groups:
+        print("  none")
+    else:
+        for group in off_category_duplicate_groups:
+            print(
+                "  "
+                f"kept_id={group.kept_id} duplicate_ids={group.duplicate_ids} key={group.key}"
+            )
+
+    print("\nrows with suspicious raw ingredient/OCR text:")
+    if not suspicious_raw_off_rows:
+        print("  none")
+    else:
+        for row in suspicious_raw_off_rows:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"reason={row.get('noise_reason') or '(visible)'} "
+                f"title={row.get('title')} "
+                f"summary={(row.get('summary') or '')[:120]}"
+            )
+
+    print("\nnon-English/foreign-market Open Food Facts exclusions:")
+    if not foreign_off_exclusions:
+        print("  none")
+    else:
+        for row in foreign_off_exclusions:
+            print(
+                "  "
+                f"id={row.get('id')} "
+                f"title={row.get('title')} "
+                f"summary={(row.get('summary') or '')[:120]}"
             )
 
     print("\nFSANZ update relevance:")

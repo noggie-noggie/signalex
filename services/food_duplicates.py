@@ -11,6 +11,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 
 DUPLICATE_NOISE_PREFIX = "duplicate food signal: kept id"
+OFF_CATEGORY_DUPLICATE_REASON = "Excluded from food launch: duplicate Open Food Facts category signal"
 
 
 @dataclass(frozen=True)
@@ -99,6 +100,104 @@ def _choose_keeper(rows: list[dict[str, Any]]) -> dict[str, Any]:
     )[0]
 
 
+def _normalise_list_value(value: Any) -> str:
+    if isinstance(value, list):
+        return ",".join(sorted(str(item).strip().lower() for item in value if str(item).strip()))
+    return str(value or "").strip().lower()
+
+
+def _brand_key(row: dict[str, Any]) -> str:
+    brand = str(row.get("brand") or row.get("company") or "").strip().lower()
+    if brand:
+        return re.sub(r"\s+", " ", brand)
+    title = str(row.get("title") or row.get("product_name") or "").lower()
+    title = re.split(r"\s+[—-]\s+|\s+-\s+", title, maxsplit=1)[0]
+    return re.sub(r"[^a-z0-9]+", " ", title).strip()
+
+
+def _product_family_key(row: dict[str, Any]) -> str:
+    text = " ".join(
+        str(row.get(field) or "").lower()
+        for field in ("title", "product_name", "summary", "product_category")
+    )
+    families = [
+        ("red_bull_energy_drink", ["red bull", "energy drink"]),
+        ("v_energy_drink", ["v energy", "energy drink"]),
+        ("monster_energy_drink", ["monster", "energy drink"]),
+        ("energy_drink", ["energy drink", "caffeine"]),
+    ]
+    for family, terms in families:
+        if any(term in text for term in terms):
+            return family
+    words = re.findall(r"[a-z0-9]+", text)
+    stop = {"the", "and", "with", "flavour", "flavored", "natural", "ingredients"}
+    return " ".join(word for word in words[:8] if word not in stop)
+
+
+def _off_category_family_key(row: dict[str, Any]) -> str:
+    if str(row.get("source_label") or "").lower() != "open_food_facts":
+        return ""
+    if row.get("dashboard_section") != "category_signals":
+        return ""
+    if int(row.get("is_noise") or 0) == 1:
+        return ""
+    brand = _brand_key(row)
+    family = _product_family_key(row)
+    if not brand or not family:
+        return ""
+    return "|".join(
+        [
+            "off_category_family",
+            brand,
+            family,
+            _normalise_list_value(row.get("claim_theme")),
+            _normalise_list_value(row.get("product_type")),
+            str(row.get("dashboard_section") or ""),
+        ]
+    )
+
+
+def find_open_food_facts_category_duplicate_groups(rows: list[dict[str, Any]]) -> list[DuplicateGroup]:
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        key = _off_category_family_key(row)
+        if key:
+            buckets.setdefault(key, []).append(row)
+    groups: list[DuplicateGroup] = []
+    for key, bucket in buckets.items():
+        unique_rows = {
+            int(row.get("id") or 0): row
+            for row in bucket
+            if int(row.get("id") or 0) > 0
+        }
+        if len(unique_rows) < 2:
+            continue
+        group_rows = list(unique_rows.values())
+        keeper = sorted(
+            group_rows,
+            key=lambda row: (
+                -_completeness_score(row),
+                int(row.get("id") or 0),
+            ),
+        )[0]
+        kept_id = int(keeper.get("id") or 0)
+        duplicate_ids = sorted(
+            int(row.get("id") or 0)
+            for row in group_rows
+            if int(row.get("id") or 0) != kept_id
+        )
+        groups.append(
+            DuplicateGroup(
+                key=key,
+                kept_id=kept_id,
+                duplicate_ids=duplicate_ids,
+                reason="open_food_facts category family duplicate",
+                rows=sorted(group_rows, key=lambda row: int(row.get("id") or 0)),
+            )
+        )
+    return groups
+
+
 def find_food_duplicate_groups(rows: list[dict[str, Any]]) -> list[DuplicateGroup]:
     """Find duplicate food rows using URL first, then title/date fallback."""
     assigned_duplicate_ids: set[int] = set()
@@ -153,6 +252,11 @@ def filter_visible_food_duplicates(rows: list[dict[str, Any]]) -> list[dict[str,
         for group in find_food_duplicate_groups(rows)
         for duplicate_id in group.duplicate_ids
     }
+    duplicate_ids.update(
+        duplicate_id
+        for group in find_open_food_facts_category_duplicate_groups(rows)
+        for duplicate_id in group.duplicate_ids
+    )
     return [row for row in rows if int(row.get("id") or 0) not in duplicate_ids]
 
 
@@ -168,10 +272,18 @@ def load_food_rows(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 
 def mark_food_duplicates(conn: sqlite3.Connection, *, apply: bool = False) -> list[DuplicateGroup]:
     """Find duplicates and optionally mark duplicate rows as noise."""
-    groups = find_food_duplicate_groups(load_food_rows(conn))
+    rows = load_food_rows(conn)
+    groups = [
+        *find_food_duplicate_groups(rows),
+        *find_open_food_facts_category_duplicate_groups(rows),
+    ]
     if apply:
         for group in groups:
-            reason = f"{DUPLICATE_NOISE_PREFIX} {group.kept_id}"
+            reason = (
+                OFF_CATEGORY_DUPLICATE_REASON
+                if group.reason == "open_food_facts category family duplicate"
+                else f"{DUPLICATE_NOISE_PREFIX} {group.kept_id}"
+            )
             for duplicate_id in group.duplicate_ids:
                 conn.execute(
                     """

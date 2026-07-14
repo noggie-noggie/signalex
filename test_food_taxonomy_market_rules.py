@@ -23,6 +23,52 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
         self.assertNotIn("undeclared_allergen", result["issue_area"])
         self.assertNotIn("incorrect_labelling", result["issue_area"])
 
+    def test_open_food_facts_ingredients_h_is_excluded_low_quality(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "signal_type": "new_product",
+            "title": "V energy drink, ingredients: h",
+            "summary": "ingredients: h",
+            "product_name": "V energy drink",
+            "product_category": "beverages",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "excluded")
+        self.assertEqual(result["is_noise"], 1)
+        self.assertEqual(result["noise_reason"], "Excluded from food launch: low-quality Open Food Facts record")
+
+    def test_open_food_facts_ocr_garbage_is_excluded_low_quality(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "signal_type": "new_product",
+            "title": "Woolworths Bakery â€” Bread",
+            "summary": "%%%% ##### @@@@ 12345 &&&&",
+            "product_name": "Bread",
+            "product_category": "breads",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "excluded")
+        self.assertEqual(result["noise_reason"], "Excluded from food launch: low-quality Open Food Facts record")
+
+    def test_foreign_language_open_food_facts_row_is_excluded_unless_au_relevant(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "signal_type": "new_product",
+            "title": "Barilla â€” Pasta",
+            "summary": "Ingredienti: semola di grano duro. Prodotto in Italia.",
+            "product_name": "Pasta",
+            "product_category": "Italy pasta",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "excluded")
+        self.assertEqual(result["noise_reason"], "Excluded from food launch: low-quality Open Food Facts record")
+
     def test_generic_cenovis_eggs_are_not_market_opportunity(self):
         row = {
             "domain": "food",
@@ -55,6 +101,22 @@ class FoodTaxonomyMarketRulesTests(unittest.TestCase):
         self.assertEqual(result["dashboard_section"], "market_opportunities")
         self.assertIn("high_protein", result["claim_theme"])
         self.assertEqual(result["impact"], "medium")
+
+    def test_genuine_high_protein_claim_product_still_retained(self):
+        row = {
+            "domain": "food",
+            "source_label": "open_food_facts",
+            "authority": "open_food_facts",
+            "signal_type": "new_product",
+            "title": "Example Brand â€” High Protein Fibre Bar",
+            "summary": "High protein source of fibre snack bar.",
+            "product_name": "High Protein Fibre Bar",
+            "product_category": "snacks",
+        }
+        result = enrich_food_signal(row)
+        self.assertEqual(result["dashboard_section"], "market_opportunities")
+        self.assertIn("high_protein", result["claim_theme"])
+        self.assertIn("source_of_fibre", result["claim_theme"])
 
     def test_red_bull_energy_drink_is_category_signal(self):
         row = {

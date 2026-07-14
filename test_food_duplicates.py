@@ -8,6 +8,7 @@ import unittest
 from services.food_duplicates import (
     canonical_food_url,
     filter_visible_food_duplicates,
+    find_open_food_facts_category_duplicate_groups,
     find_food_duplicate_groups,
     mark_food_duplicates,
 )
@@ -116,6 +117,59 @@ class FoodDuplicateTests(unittest.TestCase):
         include_noise_visible = rows
         self.assertEqual([row["id"] for row in default_visible], [1])
         self.assertEqual([row["id"] for row in include_noise_visible], [1, 2])
+
+    def test_red_bull_category_signal_family_duplicates_are_collapsed(self):
+        rows = [
+            {
+                **_row(101, "Red Bull Energy Drink"),
+                "source_label": "open_food_facts",
+                "dashboard_section": "category_signals",
+                "brand": "Red Bull",
+                "product_name": "Red Bull Energy Drink 250mL",
+                "summary": "Energy drink with caffeine.",
+                "claim_theme": ["energy"],
+                "product_type": ["energy_drink", "beverage"],
+            },
+            {
+                **_row(102, "Red Bull Energy Drink Sugar Free"),
+                "source_label": "open_food_facts",
+                "dashboard_section": "category_signals",
+                "brand": "Red Bull",
+                "product_name": "Red Bull Energy Drink Sugar Free",
+                "summary": "Carbonated energy drink with caffeine.",
+                "claim_theme": ["energy"],
+                "product_type": ["energy_drink", "beverage"],
+            },
+        ]
+        groups = find_open_food_facts_category_duplicate_groups(rows)
+        self.assertEqual(len(groups), 1)
+        visible = filter_visible_food_duplicates(rows)
+        self.assertEqual(len(visible), 1)
+
+    def test_v_energy_category_signal_family_duplicates_are_collapsed(self):
+        rows = [
+            {
+                **_row(201, "V Energy Drink"),
+                "source_label": "open_food_facts",
+                "dashboard_section": "category_signals",
+                "brand": "V",
+                "product_name": "V Energy Drink",
+                "summary": "Energy drink with caffeine.",
+                "claim_theme": ["energy"],
+                "product_type": ["energy_drink", "beverage"],
+            },
+            {
+                **_row(202, "V Blue Energy Drink"),
+                "source_label": "open_food_facts",
+                "dashboard_section": "category_signals",
+                "brand": "V",
+                "product_name": "V Blue Energy Drink",
+                "summary": "Caffeinated energy drink.",
+                "claim_theme": ["energy"],
+                "product_type": ["energy_drink", "beverage"],
+            },
+        ]
+        self.assertEqual(len(filter_visible_food_duplicates(rows)), 1)
 
 
 if __name__ == "__main__":
