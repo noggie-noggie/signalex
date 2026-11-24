@@ -253,7 +253,8 @@ class TGAScraper(BaseScraper):
         date_str = date_str.strip()
         # Try ISO 8601 with timezone first (handles "2026-03-02T12:00:00Z")
         try:
-            return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
         except ValueError:
             pass
 

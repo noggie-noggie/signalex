@@ -100,6 +100,8 @@ def classify_sentiment_batch(signals: list[dict]) -> list[dict]:
             i, len(signals), (sig.get("title") or "")[:60],
         )
         sentiment, confidence, reasoning, ai_summary = _classify_one(client, sig)
+        if not reasoning and not ai_summary:
+            continue  # A failed/empty provider result is not a neutral assessment.
 
         update_sentiment(sig["source_id"], sentiment, confidence, reasoning)
         if ai_summary:
@@ -187,7 +189,7 @@ def build_sentiment_report() -> SentimentReport:
     Compute ingredient-level 30-day sentiment scores and flag rising risks.
     Reads from signals.db (last 30 days only).
     """
-    signals = get_signals_since(days=30)
+    signals = get_signals_since(days=30, domain="vms")
     if not signals:
         return SentimentReport(generated_at=datetime.now(timezone.utc).isoformat())
 

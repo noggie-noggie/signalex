@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import logging
+import os
 from datetime import datetime, timezone
 
 _SOURCE_TIMEOUT_SECS = 5 * 60   # 5 min per scraper source
@@ -38,12 +39,36 @@ from scrapers.who_ictrp import WHOICTRPScraper
 from scrapers.efsa_journal import EFSAJournalScraper
 from scrapers.biorxiv import BiorxivScraper
 from scrapers.semantic_scholar import SemanticScholarScraper
-from classifier.claude import SignalClassifier
+from classifier.claude import ClassifiedSignal, SignalClassifier
+from services.vms_evidence import classify as source_fact
 from alerts.dispatcher import AlertDispatcher
 from analytics.db import save_signals_batch     # SQLite store (sole persistence layer)
 from analytics.feedback import build_few_shot_examples, log_accuracy_run
 
 logger = logging.getLogger(__name__)
+
+
+def _legacy_classifier():
+    # Maintenance staging never calls this. Legacy operators must opt in to spend.
+    if config.ANTHROPIC_API_KEY and os.getenv("VMS_LEGACY_AI_ENABLED", "").lower() == "true":
+        return SignalClassifier()
+    return None
+
+
+def _publishable(classifier, records, method):
+    facts, unresolved = [], []
+    for raw in records:
+        result = source_fact(raw["authority"], raw)
+        if result:
+            facts.append(ClassifiedSignal(**result))
+        else:
+            unresolved.append(raw)
+    if unresolved and classifier is None:
+        logger.warning("%s: %d candidates not published; stage source for evidence review", method, len(unresolved))
+    elif unresolved:
+        facts.extend(s for s in _classify_with_feedback(classifier, unresolved, method)
+                     if s.output_tokens and s.summary.strip())
+    return facts
 
 
 # ---------------------------------------------------------------------------
@@ -128,7 +153,7 @@ def scrape_and_classify() -> None:
     """
     Job 1: Scrape original sources (TGA/FDA/ARTG), classify with Claude, persist to SQLite.
     """
-    classifier = SignalClassifier()
+    classifier = _legacy_classifier()
 
     scrapers_cfg = [
         ("tga",  TGAScraper),
@@ -147,7 +172,7 @@ def scrape_and_classify() -> None:
             raw_signals = scraper.run()
             logger.info("%s returned %d raw signal(s)", scraper.authority, len(raw_signals))
 
-            classified = _classify_with_feedback(classifier, raw_signals, key)
+            classified = _publishable(classifier, raw_signals, key)
             saved = save_signals_batch(classified)
             logger.info("Saved %d new signal(s) from %s", saved, scraper.authority)
             all_classified.extend(classified)
@@ -193,7 +218,7 @@ def run_full_pipeline() -> dict:
       8. Print pipeline summary
       9. Return summary dict for programmatic use
     """
-    from analytics.sentiment import run_sentiment_analysis
+    from analytics.sentiment import build_sentiment_report, run_sentiment_analysis
     from analytics.trends import run_trend_detection
     from alerts.custom_alerts import CustomAlertEvaluator
     from alerts.dispatcher import AlertDispatcher
@@ -201,7 +226,7 @@ def run_full_pipeline() -> dict:
     started_at = datetime.now(timezone.utc)
     logger.info("Full pipeline started at %s", started_at.isoformat())
 
-    classifier  = SignalClassifier()
+    classifier  = _legacy_classifier()
     dispatcher  = AlertDispatcher()
 
     # ------------------------------------------------------------------
@@ -255,7 +280,7 @@ def run_full_pipeline() -> dict:
 
             logger.info("%s: %d raw signal(s)", label, len(raw_signals))
 
-            classified = _classify_with_feedback(classifier, raw_signals, classify_method)
+            classified = _publishable(classifier, raw_signals, classify_method)
             saved_sqlite = save_signals_batch(classified)
 
             source_counts[label] = saved_sqlite
@@ -273,7 +298,7 @@ def run_full_pipeline() -> dict:
     # Sentiment analysis
     # ------------------------------------------------------------------
     logger.info("Running sentiment analysis…")
-    sentiment_report = run_sentiment_analysis()
+    sentiment_report = run_sentiment_analysis() if classifier is not None else build_sentiment_report()
 
     # ------------------------------------------------------------------
     # Trend detection

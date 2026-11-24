@@ -73,9 +73,15 @@ class BiorxivScraper(BaseScraper):
         date_to   = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         date_from = (datetime.now(timezone.utc) - timedelta(days=_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
         interval  = f"{date_from}/{date_to}"
+        window = getattr(self, "window", None)
+        if window:
+            interval = f"{window[0]}/{window[1]}"
+        self.completed_queries = 0
 
         signals: list[RawSignal] = []
         seen_dois: set[str] = set()
+        keywords = _load_keywords()
+        latest = {}
 
         # Try the date-range API for both servers
         for server in ("biorxiv", "medrxiv"):
@@ -84,22 +90,35 @@ class BiorxivScraper(BaseScraper):
             fetched = 0
             max_items = 500
 
-            while fetched < max_items:
+            page_keys = set()
+            total = None
+            while window or fetched < max_items:
                 time.sleep(0.5)
                 try:
-                    url = f"{_API_BASE}/{server}/{interval}/{cursor}/{_PAGE_SIZE}"
+                    url = f"{_API_BASE}/{server}/{interval}/{cursor}/json"
                     resp = self._get_session().get(url, timeout=30)
                     if resp.status_code != 200:
+                        if window:
+                            resp.raise_for_status()
+                            raise ValueError("Unexpected preprint response")
                         break
                     data = resp.json()
 
                     messages   = data.get("messages", [{}])
                     status_msg = (messages[0].get("status", "") if messages else "").lower()
+                    if window:
+                        meta = messages[0]
+                        count = int(meta["total"])
+                        if status_msg != "ok" or int(meta["cursor"]) != cursor or (total is not None and total != count):
+                            raise ValueError("Preprint page does not reconcile")
+                        total = count
                     if "ok" not in status_msg and "found" not in status_msg:
                         break
 
                     collection = data.get("collection", [])
                     if not collection:
+                        if window and fetched != total:
+                            raise ValueError("Incomplete preprint archive")
                         break
 
                     for item in collection:
@@ -110,16 +129,21 @@ class BiorxivScraper(BaseScraper):
                         category = item.get("category") or ""
                         version  = str(item.get("version", "1"))
                         pub_date = item.get("date") or ""
+                        if window:
+                            if not doi or not title or (doi,version) in page_keys or not str(window[0]) <= pub_date <= str(window[1]):
+                                raise ValueError("Unexpected preprint identity/date")
+                            page_keys.add((doi,version))
 
-                        if not doi or doi in seen_dois:
+                        if not doi or (not window and doi in seen_dois):
                             continue
                         seen_dois.add(doi)
 
-                        if not _is_vms_relevant(title, abstract):
+                        text = (title+" "+abstract).lower()
+                        if not any(k in text for k in keywords):
                             continue
 
                         canonical_url = f"https://doi.org/{doi}"
-                        if url_exists(canonical_url):
+                        if not window and url_exists(canonical_url):
                             continue
 
                         body_text = (
@@ -138,18 +162,32 @@ class BiorxivScraper(BaseScraper):
                             body_text  = body_text[:4000],
                             scraped_at = self._now_iso(),
                         ))
+                        if window and int(version) > latest.get(doi, (0, None))[0]:
+                            latest[doi] = (int(version), signals[-1])
 
                     fetched += len(collection)
+                    if window:
+                        if fetched == total:
+                            break
+                        if fetched > total:
+                            raise ValueError("Preprint count changed")
+                        cursor = fetched
+                        continue
                     if len(collection) < _PAGE_SIZE:
                         break
                     cursor += _PAGE_SIZE
 
                 except Exception:
+                    if window:
+                        raise
                     logger.exception("%s: fetch failed at cursor %d", server, cursor)
                     break
+            self.completed_queries += 1
 
         # Fallback: search biorxiv.org HTML for specific ingredient terms if API returned nothing
-        if not signals:
+        if window:
+            return [row for _, row in latest.values()]
+        if not signals and not window:
             logger.info("bioRxiv: API returned 0 VMS signals, trying web search fallback")
             try:
                 watchlist = list(_load_keywords())[:8]

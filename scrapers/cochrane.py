@@ -63,6 +63,12 @@ class CochraneScraper(BaseScraper):
 
         date_from = (datetime.now(timezone.utc) - timedelta(days=_LOOKBACK_DAYS)).strftime("%Y/%m/%d")
         date_to   = datetime.now(timezone.utc).strftime("%Y/%m/%d")
+        window = getattr(self, "window", None)
+        self.completed_queries = 0
+        if window:
+            if not watchlist:
+                raise ValueError("Missing Cochrane watchlist")
+            date_from, date_to = (d.strftime("%Y/%m/%d") for d in window)
 
         signals: list[RawSignal] = []
         seen_pmids: set[str] = set()
@@ -78,10 +84,14 @@ class CochraneScraper(BaseScraper):
                     "datetype": "pdat", "mindate": date_from, "maxdate": date_to,
                     "retmax": str(_MAX_PER_QUERY), "retmode": "xml", "usehistory": "n",
                 }
-                resp = self._get_session().get(_ESEARCH_URL, params=params, timeout=30)
-                resp.raise_for_status()
-                root = ET.fromstring(resp.text)
-                pmids = [el.text for el in root.findall(".//Id") if el.text]
+                if window:
+                    from scrapers.window_pages import pmids as fetch_pmids
+                    pmids = fetch_pmids(self._get_session(), _ESEARCH_URL, params)
+                else:
+                    resp = self._get_session().get(_ESEARCH_URL, params=params, timeout=30)
+                    resp.raise_for_status()
+                    root = ET.fromstring(resp.text)
+                    pmids = [el.text for el in root.findall(".//Id") if el.text]
                 logger.info("Cochrane query %r → %d PMIDs", query[:60], len(pmids))
 
                 for pmid in pmids:
@@ -90,13 +100,20 @@ class CochraneScraper(BaseScraper):
                     seen_pmids.add(pmid)
                     time.sleep(0.35)
                     try:
-                        sig = self._fetch_review(pmid, url_exists)
+                        sig = self._fetch_review(pmid, (lambda _: False) if window else url_exists)
                         if sig:
                             signals.append(sig)
+                        elif window:
+                            raise ValueError("Missing Cochrane review")
                     except Exception:
+                        if window:
+                            raise
                         logger.exception("Cochrane efetch failed for PMID %s", pmid)
 
+                self.completed_queries += 1
             except Exception:
+                if window:
+                    raise
                 logger.exception("Cochrane esearch failed for %r", query[:60])
 
         logger.info("Cochrane: %d systematic review signals fetched", len(signals))
@@ -111,6 +128,8 @@ class CochraneScraper(BaseScraper):
         article = root.find(".//PubmedArticle")
         if article is None:
             return None
+        if getattr(self, "window", None) and article.findtext(".//MedlineCitation/PMID") != pmid:
+            raise ValueError("EFetch review identity mismatch")
 
         title_elem = article.find(".//ArticleTitle")
         title = (title_elem.text or "").strip() if title_elem is not None else f"Cochrane Review PMID {pmid}"

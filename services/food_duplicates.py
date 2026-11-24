@@ -30,8 +30,9 @@ def canonical_food_url(url: str | None) -> str:
         return ""
     parts = urlsplit(raw)
     path = re.sub(r"/+", "/", parts.path or "").rstrip("/")
-    path = re.sub(r"-\d+$", "", path)
-    return urlunsplit((parts.scheme, parts.netloc, path, "", ""))
+    if parts.hostname in ("foodstandards.gov.au", "www.foodstandards.gov.au"):
+        path = re.sub(r"-[0-2]$", "", path)
+    return urlunsplit((parts.scheme, parts.netloc, path, parts.query, ""))
 
 
 def normalise_food_title(title: str | None) -> str:
@@ -69,7 +70,7 @@ def duplicate_keys_for_row(row: dict[str, Any]) -> list[tuple[str, str]]:
     keys: list[tuple[str, str]] = []
     if canonical_url:
         keys.append(("url", f"{domain}|{source}|{canonical_url}"))
-    if title:
+    if not canonical_url and title and date_key:
         keys.append(("title_date", f"{domain}|{source}|{title}|{date_key}"))
     return keys
 
@@ -285,30 +286,58 @@ def filter_visible_food_duplicates(rows: list[dict[str, Any]]) -> list[dict[str,
     }
     duplicate_ids.update(
         duplicate_id
-        for group in find_open_food_facts_category_duplicate_groups(rows)
+        for group in find_open_food_facts_category_duplicate_groups([r for r in rows if r.get("id") not in duplicate_ids])
         for duplicate_id in group.duplicate_ids
     )
     return [row for row in rows if int(row.get("id") or 0) not in duplicate_ids]
 
 
-def load_food_rows(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+def load_food_rows(conn: sqlite3.Connection, source=None) -> list[dict[str, Any]]:
     conn.row_factory = sqlite3.Row
     return [
         dict(row)
         for row in conn.execute(
-            "SELECT * FROM signals WHERE domain = 'food' ORDER BY scraped_at DESC"
+            "SELECT * FROM signals WHERE domain = 'food'" +
+            (" AND source_label=?" if source else "") + " ORDER BY scraped_at DESC",
+            (source,) if source else (),
         ).fetchall()
     ]
 
 
-def mark_food_duplicates(conn: sqlite3.Connection, *, apply: bool = False) -> list[DuplicateGroup]:
+def mark_food_duplicates(conn: sqlite3.Connection, *, apply: bool = False, commit: bool = True,
+                         sync_quality: bool = False, source=None) -> list[DuplicateGroup]:
     """Find duplicates and optionally mark duplicate rows as noise."""
-    rows = load_food_rows(conn)
-    groups = [
-        *find_food_duplicate_groups(rows),
-        *find_open_food_facts_category_duplicate_groups(rows),
-    ]
+    rows = load_food_rows(conn, source)
+    from services.food_taxonomy import enrich_food_signal
+    eligible = []
+    previous = set()
+    for r in rows:
+        reason = r.get("noise_reason") or ""
+        owned_off = {"Excluded from food launch: " + suffix for suffix in (
+            "low-quality Open Food Facts record", "unknown Open Food Facts product",
+            "alcohol product", "generic Open Food Facts product")}
+        managed = reason.startswith("Food taxonomy: ") or (r.get("source_label") == "open_food_facts" and reason in owned_off)
+        if managed and sync_quality:
+            r.update(is_noise=0, noise_reason="")
+        if reason.startswith(DUPLICATE_NOISE_PREFIX) or reason == OFF_CATEGORY_DUPLICATE_REASON:
+            previous.add(r["id"])
+            r.update(is_noise=0, noise_reason="")
+        e = enrich_food_signal(r)
+        if apply and sync_quality and not r.get("is_noise"):
+            noise = int(bool(e.get("is_noise") or e["dashboard_section"] == "excluded"))
+            if noise or managed:
+                reason = (e.get("noise_reason") or "Food taxonomy: " + (e.get("food_relevance_reason") or "excluded")) if noise else ""
+                conn.execute("UPDATE signals SET is_noise=?, noise_reason=? WHERE domain='food' AND id=?",
+                             (noise, reason, r["id"]))
+                previous.discard(r["id"])
+        if not e.get("is_noise") and e["dashboard_section"] != "excluded":
+            eligible.append(e)
+    groups = find_food_duplicate_groups(eligible)
+    losers = {i for g in groups for i in g.duplicate_ids}
+    groups.extend(find_open_food_facts_category_duplicate_groups([r for r in eligible if r["id"] not in losers]))
     if apply:
+        for i in previous - {i for g in groups for i in g.duplicate_ids}:
+            conn.execute("UPDATE signals SET is_noise=0,noise_reason='' WHERE id=? AND domain='food'", (i,))
         for group in groups:
             reason = (
                 OFF_CATEGORY_DUPLICATE_REASON
@@ -326,5 +355,6 @@ def mark_food_duplicates(conn: sqlite3.Connection, *, apply: bool = False) -> li
                     """,
                     (reason, duplicate_id),
                 )
-        conn.commit()
+        if commit:
+            conn.commit()
     return groups

@@ -1,0 +1,21 @@
+[Unit]
+Description=Validate and optionally publish Signalex Food and VMS (no AI or notifications)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=signalex
+WorkingDirectory=/srv/signalex-runtime/current/app
+StateDirectory=signalex-stage
+StateDirectoryMode=0700
+UMask=0077
+Environment=SIGNALEX_REFRESH_PUBLISH=false
+EnvironmentFile=/etc/signalex-stage.conf
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/srv/signalex-runtime/current/bin/python -m maintenance.refresh daily --configured --db /srv/signalex/data/signals.db --state /var/lib/signalex-stage/refresh --since ${FIRST_DAY}
+ProtectSystem=strict
+ReadWritePaths=/srv/signalex/data
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true

@@ -86,7 +86,7 @@ def _is_development_env() -> bool:
 
 
 def _is_public_api_path(path: str) -> bool:
-    return path == "/api/health" or path.startswith("/api/health/")
+    return path.rstrip("/") == "/api/health"
 
 
 @app.middleware("http")
@@ -117,7 +117,7 @@ async def _require_api_key(request: Request, call_next):
             status_code=status.HTTP_401_UNAUTHORIZED,
             content={"detail": "Missing API key."},
         )
-    if not secrets.compare_digest(supplied_key, expected_key):
+    if not secrets.compare_digest(supplied_key.encode(), expected_key.encode()):
         return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
             content={"detail": "Invalid API key."},
@@ -541,12 +541,18 @@ def signals(
         if col not in columns:
             # Column doesn't exist in this schema — skip safely
             continue
-        where_clauses.append(f"{col} LIKE ?")
-        params.append(f"%{value}%")
+        if param_name == "domain":
+            where_clauses.append(f"{col} = ?")
+            params.append(value)
+        else:
+            where_clauses.append(f"{col} LIKE ?")
+            params.append(f"%{value}%")
 
     # ── is_noise filter (default: hide noise rows) ────────────────────────────
     if not include_noise and "is_noise" in columns:
         where_clauses.append("(is_noise = 0 OR is_noise IS NULL)")
+        if {"domain","summary"} <= set(columns):
+            where_clauses.append("(coalesce(domain,'') != 'vms' OR trim(coalesce(summary,'')) != '')")
 
     # ── Low-quality source filter (VMS default views only) ────────────────────
     # Applied when:
@@ -573,15 +579,17 @@ def signals(
 
     conn = _get_conn()
     try:
-        if domain == "food":
+        if domain == "food" or (not domain and "domain" in columns):
             rows = conn.execute(
                 f"SELECT * FROM signals {where_sql} ORDER BY scraped_at DESC",
                 params,
             ).fetchall()
-            results = [enrich_food_signal(dict(r)) for r in rows]
+            results = [enrich_food_signal(dict(r)) if r["domain"] == "food" else dict(r) for r in rows]
             if not include_noise:
-                results = _visible_food_rows(results)
-                results = filter_visible_food_duplicates(results)
+                visible_ids = {r["id"] for r in _visible_unique_food_rows([r for r in results if r["domain"] == "food"])}
+                results = [r for r in results if r["domain"] != "food" or r["id"] in visible_ids]
+            if not domain:
+                results = [{k:v for k,v in r.items() if k in columns} for r in results]
             total, results = _page_enriched(results, limit, offset)
         else:
             total = conn.execute(count_sql, params).fetchone()[0]

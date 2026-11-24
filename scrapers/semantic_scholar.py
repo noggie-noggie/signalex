@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -60,6 +61,10 @@ class SemanticScholarScraper(BaseScraper):
         from analytics.db import url_exists
 
         queries = _EXTRA_QUERIES + _load_watchlist_terms()
+        window = getattr(self, "window", None)
+        if window and len(queries) == len(_EXTRA_QUERIES):
+            raise ValueError("Missing Semantic Scholar watchlist")
+        self.completed_queries = 0
         cutoff_year = datetime.now(timezone.utc).year - 1  # papers from last ~2 years
         recent_cutoff = (datetime.now(timezone.utc) - timedelta(days=_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
 
@@ -79,20 +84,12 @@ class SemanticScholarScraper(BaseScraper):
                     "year":      f"{cutoff_year}-",
                 }
                 headers = {"User-Agent": "Signalex/1.0 (regulatory intelligence; research use)"}
-                resp = self._get_session().get(_API_URL, params=params, headers=headers, timeout=30)
-
-                if resp.status_code == 429:
-                    logger.warning("Semantic Scholar: rate limited, waiting 60s")
-                    time.sleep(60)
-                    resp = self._get_session().get(_API_URL, params=params, headers=headers, timeout=30)
-                if resp.status_code == 429:
-                    logger.warning("Semantic Scholar: still rate limited, skipping remaining queries")
-                    break
-
-                resp.raise_for_status()
-                data = resp.json()
-
-                for paper in data.get("data", []):
+                if os.getenv("SEMANTIC_SCHOLAR_API_KEY"):
+                    headers["x-api-key"] = os.environ["SEMANTIC_SCHOLAR_API_KEY"]
+                if window:
+                    params.pop("year")
+                    params.update(publicationDateOrYear=f"{window[0]}:{window[1]}", limit=100)
+                for paper in self._pages(params, headers, window):
                     paper_id    = paper.get("paperId", "")
                     title       = (paper.get("title") or "").strip()
                     abstract    = paper.get("abstract") or ""
@@ -106,6 +103,8 @@ class SemanticScholarScraper(BaseScraper):
                     pmid = ext_ids.get("PubMed") or ext_ids.get("PMID") or ""
                     doi  = ext_ids.get("DOI") or ""
 
+                    if window and (not title or not paper_id or not str(window[0]) <= pub_date <= str(window[1])):
+                        raise ValueError("Unverified paper identity or publication date")
                     if not title or paper_id in seen_ids:
                         continue
                     seen_ids.add(paper_id)
@@ -118,13 +117,13 @@ class SemanticScholarScraper(BaseScraper):
                     else:
                         url = f"https://www.semanticscholar.org/paper/{paper_id}"
 
-                    if url_exists(url):
+                    if not window and url_exists(url):
                         continue
 
                     # Filter: keep highly-cited OR recent (last 30 days)
                     is_recent  = pub_date >= recent_cutoff if pub_date else False
                     is_notable = cite_count >= 10
-                    if not is_recent and not is_notable and cite_count > 0:
+                    if not window and not is_recent and not is_notable and cite_count > 0:
                         continue
 
                     authors = paper.get("authors") or []
@@ -152,8 +151,38 @@ class SemanticScholarScraper(BaseScraper):
                         scraped_at = self._now_iso(),
                     ))
 
-            except Exception:
+                self.completed_queries += 1
+            except Exception as exc:
+                if window:
+                    raise
+                if getattr(getattr(exc, "response", None), "status_code", None) in (401,403,429):
+                    break
                 logger.exception("Semantic Scholar: query failed: %r", query[:50])
 
         logger.info("Semantic Scholar: %d signals fetched", len(signals))
         return signals
+
+    def _pages(self, params, headers, window):
+        seen = set()
+        total = None
+        while True:
+            resp = self._get_session().get(_API_URL, params=dict(params, offset=len(seen)),
+                                           headers=headers, timeout=30, allow_redirects=False)
+            resp.raise_for_status()
+            data = resp.json()
+            batch = data["data"]
+            if window:
+                count = int(data["total"])
+                if count > 1000 or (total is not None and count != total) or int(data["offset"]) != len(seen):
+                    raise ValueError("Semantic Scholar search capped or count changed; narrow window")
+                total = count
+            for paper in batch:
+                if window and paper["paperId"] in seen:
+                    raise ValueError("Repeated paper")
+                seen.add(paper["paperId"])
+                yield paper
+            if not window or len(seen) == total:
+                return
+            if not batch or data.get("next") != len(seen):
+                raise ValueError("Incomplete Semantic Scholar search")
+            time.sleep(_RATE_LIMIT_SLEEP)

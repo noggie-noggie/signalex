@@ -121,6 +121,9 @@ def save_signal(sig: "ClassifiedSignal") -> bool:
     """
     payload = sig.model_dump()
     payload["domain"] = payload.get("domain") or getattr(sig, "domain", None) or "vms"
+    if payload["domain"] == "vms" and not (payload.get("summary") or "").strip():
+        logger.warning("Not storing a VMS classifier fallback without a summary")
+        return False
     payload["competitor_signal"] = int(sig.competitor_signal)
     payload["is_noise"] = int(sig.is_noise)
     payload["created_at"] = datetime.now(timezone.utc).isoformat()
@@ -221,6 +224,9 @@ def save_food_signal(d: dict) -> bool:
             },
         )
         inserted = conn.execute("SELECT changes()").fetchone()[0] > 0
+        if inserted and d.get("domain", "food") == "food":
+            from services.food_duplicates import mark_food_duplicates
+            mark_food_duplicates(conn, apply=True, commit=False, sync_quality=True)
         conn.commit()
         return inserted
     finally:
@@ -259,14 +265,14 @@ def update_sentiment(
         conn.close()
 
 
-def get_signals_since(days: int = 30) -> list[dict]:
+def get_signals_since(days: int = 30, *, domain: str | None = None) -> list[dict]:
     """Return all signals scraped within the last `days` days, newest first."""
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     conn = get_conn()
     try:
         rows = conn.execute(
-            "SELECT * FROM signals WHERE scraped_at >= ? ORDER BY scraped_at DESC",
-            (cutoff,),
+            "SELECT * FROM signals WHERE scraped_at >= ? AND (? IS NULL OR domain=?) ORDER BY scraped_at DESC",
+            (cutoff, domain, domain),
         ).fetchall()
         return [dict(r) for r in rows]
     finally:
@@ -278,7 +284,7 @@ def get_signals_missing_sentiment() -> list[dict]:
     conn = get_conn()
     try:
         rows = conn.execute(
-            "SELECT * FROM signals WHERE (sentiment IS NULL OR sentiment = '') ORDER BY scraped_at DESC"
+            "SELECT * FROM signals WHERE domain='vms' AND (sentiment IS NULL OR sentiment = '') ORDER BY scraped_at DESC"
         ).fetchall()
         return [dict(r) for r in rows]
     finally:
@@ -324,7 +330,7 @@ def get_signals_missing_ai_summary() -> list[dict]:
     conn = get_conn()
     try:
         rows = conn.execute(
-            "SELECT * FROM signals WHERE (ai_summary IS NULL OR ai_summary = '') ORDER BY scraped_at DESC"
+            "SELECT * FROM signals WHERE domain='vms' AND (ai_summary IS NULL OR ai_summary = '') ORDER BY scraped_at DESC"
         ).fetchall()
         return [dict(r) for r in rows]
     finally:

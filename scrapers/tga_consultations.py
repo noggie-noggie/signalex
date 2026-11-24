@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, timezone
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
@@ -48,6 +49,8 @@ class TGAConsultationsScraper(BaseScraper):
     authority = "tga_consultations"
 
     def fetch_raw(self) -> list[RawSignal]:
+        if getattr(self, "window", None):
+            return self._archive()
         try:
             html = self._http_get(_CONSULTATIONS_URL)
         except Exception:
@@ -99,9 +102,62 @@ class TGAConsultationsScraper(BaseScraper):
                 ))
 
         # Filter to VMS-relevant signals only
-        relevant = [s for s in signals if self._is_vms_relevant(s["title"] + " " + s["body_text"])]
+        relevant = [s for s in signals if re.fullmatch(
+            r"https://www\.tga\.gov\.au/(?:news|resources)/consultations/[^/?#]+/?", s["url"])
+                    and self._is_vms_relevant(s["title"] + " " + s["body_text"])]
         logger.info("TGA Consultations: %d/%d signals are VMS-relevant", len(relevant), len(signals))
         return relevant
+
+    def _archive(self):
+        """Listing dates can be closing dates: use article publication/modification metadata."""
+        since, until = self.window
+        session = self._get_session()
+        page = "https://www.tga.gov.au/news/consultations"
+        pages, urls, rows = set(), set(), []
+        self.completed_queries = 0
+        while page not in pages and len(pages) < 100:
+            pages.add(page)
+            response = session.get(page, timeout=30)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.content, "lxml")
+            cards = soup.select("main .summary__content")
+            if not cards:
+                raise ValueError("Missing TGA consultation listing cards")
+            for card in cards:
+                a = card.select_one(".summary__title a[href]")
+                if a is None:
+                    raise ValueError("Missing TGA notice identity")
+                url = urljoin(page,a["href"])
+                if not re.fullmatch(r"https://www\.tga\.gov\.au/(?:news|resources)/consultations/[\w-]+/?", url):
+                    raise ValueError("Unexpected TGA consultation URL")
+                if url in urls:
+                    continue
+                urls.add(url)
+                title = a.get_text(" ", strip=True)
+                context = card.get_text(" ",strip=True)
+                if not self._is_vms_relevant(context):
+                    continue
+                detail = session.get(url,timeout=30)
+                detail.raise_for_status()
+                doc = BeautifulSoup(detail.content,"lxml")
+                dates = {}
+                for kind in ("published_time","modified_time"):
+                    el = doc.find("meta", property="article:"+kind)
+                    if el:
+                        dates[kind] = datetime.fromisoformat(el["content"]).astimezone(timezone.utc).date()
+                if "published_time" not in dates:
+                    raise ValueError("Missing TGA publication date")
+                if any(since <= d <= until for d in dates.values()):
+                    rows.append(self._make_signal(title, url, "see official consultation",
+                                                  dates["published_time"].isoformat(), f"Source dates: {dates}\n{context[:1500]}"))
+            nxt = soup.select_one("a[rel~=next], .pager__item--next a")
+            if not nxt:
+                self.completed_queries = 1
+                return rows
+            page = urljoin(page,nxt["href"])
+            if not re.fullmatch(r"https://www\.tga\.gov\.au/news/consultations\?page=\d+",page):
+                raise ValueError("Unexpected TGA archive pagination")
+        raise ValueError("TGA consultation archive truncated")
 
     def _parse_table_row(self, cells: list, seen_urls: set) -> RawSignal | None:
         """Parse a table row with title/status/date cells."""

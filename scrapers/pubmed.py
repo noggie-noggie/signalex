@@ -158,12 +158,35 @@ class PubMedScraper(BaseScraper):
             datetime.now(timezone.utc) - timedelta(days=_LOOKBACK_DAYS)
         ).strftime("%Y/%m/%d")
         date_to = datetime.now(timezone.utc).strftime("%Y/%m/%d")
+        window = getattr(self, "window", None)
+        self.completed_queries = 0
+        if window:
+            date_from, date_to = (d.strftime("%Y/%m/%d") for d in window)
+            if not watchlist_queries:
+                raise ValueError("Missing PubMed watchlist")
 
         for query in all_queries:
             time.sleep(0.4)  # stay under 3 req/sec between search queries
             try:
                 pmids = self._search_pmids(query, date_from, date_to)
                 logger.info("PubMed query %r → %d PMIDs", query[:50], len(pmids))
+                if window:
+                    pending = [p for p in pmids if p not in seen_pmids]
+                    for start in range(0, len(pending), 100):
+                        batch = pending[start:start+100]
+                        resp = self._get_session().get(_EFETCH_URL, params={
+                            "db":"pubmed", "id":",".join(batch), "retmode":"xml", "rettype":"abstract"
+                        }, timeout=60)
+                        resp.raise_for_status()
+                        root = ET.fromstring(resp.content)
+                        articles = root.findall("./PubmedArticle") + root.findall("./PubmedBookArticle/BookDocument")
+                        ids = [a.findtext("./MedlineCitation/PMID") or a.findtext("./PMID") for a in articles]
+                        if len(ids) != len(batch) or set(ids) != set(batch):
+                            raise ValueError("EFetch batch did not reconcile")
+                        signals.extend(self._article(p, a) for p,a in zip(ids, articles))
+                        seen_pmids.update(ids)
+                    self.completed_queries += 1
+                    continue
 
                 for pmid in pmids:
                     if pmid in seen_pmids:
@@ -174,11 +197,17 @@ class PubMedScraper(BaseScraper):
                         signal = self._fetch_article(pmid)
                         if signal:
                             signals.append(signal)
+                        elif window:
+                            raise ValueError("Missing PubMed article")
                         time.sleep(0.35)  # stay under 3 req/sec
                     except Exception:
+                        if window:
+                            raise
                         logger.exception("PubMed efetch failed for PMID %s", pmid)
-
+                self.completed_queries += 1
             except Exception:
+                if window:
+                    raise
                 logger.exception("PubMed esearch failed for query %r", query[:50])
 
         logger.info(
@@ -202,6 +231,9 @@ class PubMedScraper(BaseScraper):
             "retmode":    "xml",
             "usehistory": "n",
         }
+        if getattr(self, "window", None):
+            from scrapers.window_pages import pmids
+            return pmids(self._get_session(), _ESEARCH_URL, params)
         resp = self._get_session().get(_ESEARCH_URL, params=params, timeout=30)
         resp.raise_for_status()
 
@@ -223,15 +255,20 @@ class PubMedScraper(BaseScraper):
         article = root.find(".//PubmedArticle")
         if article is None:
             return None
+        if getattr(self, "window", None) and article.findtext(".//MedlineCitation/PMID") != pmid:
+            raise ValueError("EFetch article identity mismatch")
 
-        # Title
+        return self._article(pmid, article)
+
+    def _article(self, pmid, article):
+        # Preserve text inside inline scientific markup.
         title_elem = article.find(".//ArticleTitle")
-        title = (title_elem.text or "").strip() if title_elem is not None else f"PubMed PMID {pmid}"
+        title = "".join(title_elem.itertext()).strip() if title_elem is not None else f"PubMed PMID {pmid}"
 
         # Abstract
         abstract_parts = article.findall(".//AbstractText")
         abstract = " ".join(
-            (elem.text or "") for elem in abstract_parts if elem.text
+            "".join(elem.itertext()) for elem in abstract_parts
         ).strip()
 
         # Authors

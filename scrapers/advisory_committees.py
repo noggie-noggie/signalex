@@ -22,7 +22,7 @@ from scrapers.base import BaseScraper, RawSignal
 logger = logging.getLogger(__name__)
 
 _FDA_CALENDAR_URL = "https://www.fda.gov/advisory-committees/advisory-committee-calendar"
-_EMA_CALENDAR_URL = "https://www.ema.europa.eu/en/about-us/committees-working-parties/scientific-committees/scientific-committee-meetings"
+_EMA_CALENDAR_URL = "https://www.ema.europa.eu/en/committees/committee-herbal-medicinal-products-hmpc"
 _EMA_CALENDAR_FALLBACK = "https://www.ema.europa.eu/en/committees/committee-meeting-dates"
 
 # Keywords that indicate VMS relevance in agenda items
@@ -169,6 +169,19 @@ class AdvisoryCommitteesScraper(BaseScraper):
 
         # EMA meeting dates are typically in tables grouped by committee
         current_committee = ""
+
+        if url == _EMA_CALENDAR_URL:
+            for a in soup.select('a[href^="/en/events/committee-herbal-medicinal-products-hmpc-"]'):
+                event_url = "https://www.ema.europa.eu" + a["href"]
+                title = a.get_text(" ", strip=True)
+                if not title or event_url in seen:
+                    continue
+                seen.add(event_url)
+                signals.append(RawSignal(source_id=self._make_source_id("advisory_committee", f"ema::{event_url}"),
+                                         authority=self.authority, url=event_url, title=title,
+                                         body_text=f"EMA meeting calendar entry: {title}. A listing is not a regulatory decision.",
+                                         scraped_at=self._now_iso()))
+            return signals
 
         for elem in soup.find_all(["h2", "h3", "h4", "tr", "li"]):
             tag = elem.name

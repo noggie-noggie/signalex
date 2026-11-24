@@ -19,6 +19,7 @@ from email.utils import parsedate_to_datetime
 
 import requests
 from bs4 import BeautifulSoup
+from scrapers.fsanz_archive import detail_summary, listings, published
 
 logger = logging.getLogger(__name__)
 
@@ -111,12 +112,14 @@ def _get_session() -> requests.Session:
     return s
 
 
-def _scrape_rss(session: requests.Session) -> list[dict]:
+def _scrape_rss(session: requests.Session, strict=False) -> list[dict]:
     """Parse the FSANZ RSS feed for standards proposals, applications, and news."""
     try:
         resp = session.get(_RSS_URL, timeout=30)
         resp.raise_for_status()
     except Exception as exc:
+        if strict:
+            raise
         logger.warning("FSANZ updates RSS: fetch failed — %s", exc)
         return []
 
@@ -125,6 +128,8 @@ def _scrape_rss(session: requests.Session) -> list[dict]:
     if not items:
         soup  = BeautifulSoup(resp.content, "lxml")
         items = soup.find_all("item")
+    if strict and not items:
+        raise ValueError("Unrecognised or empty FSANZ feed")
 
     records: list[dict] = []
     for item in items:
@@ -136,7 +141,10 @@ def _scrape_rss(session: requests.Session) -> list[dict]:
         title   = title_el.get_text(strip=True)                        if title_el else ""
         url     = link_el.get_text(strip=True)                         if link_el  else _RSS_URL
         summary = _strip_html(desc_el.get_text(strip=False))           if desc_el  else ""
-        pub     = _parse_rfc2822(pub_el.get_text())                    if pub_el   else _now_iso()
+        if strict and (not title or not link_el or not pub_el):
+            raise ValueError("Incomplete FSANZ RSS item")
+        pub = (parsedate_to_datetime(pub_el.get_text()).isoformat() if strict else
+               _parse_rfc2822(pub_el.get_text()) if pub_el else _now_iso())
 
         if not title:
             continue
@@ -168,16 +176,18 @@ def _scrape_rss(session: requests.Session) -> list[dict]:
     return records
 
 
-def _scrape_media_page(session: requests.Session) -> list[dict]:
+def _scrape_media_page(session: requests.Session, since=None) -> list[dict]:
     """Scrape the FSANZ media page for calls for comment and media releases."""
-    try:
-        resp = session.get(_MEDIA_URL, timeout=30)
-        resp.raise_for_status()
-    except Exception as exc:
-        logger.warning("FSANZ updates media page: fetch failed — %s", exc)
-        return []
+    records = []
+    for soup in listings(session, _MEDIA_URL, since, ".published-date"):
+        records.extend(_media_cards(soup, since))
+    if since:
+        for record in records:
+            record["summary"] = detail_summary(session, record["url"])
+    return records
 
-    soup = BeautifulSoup(resp.text, "lxml")
+
+def _media_cards(soup, since):
     records: list[dict] = []
     seen: set[str] = set()
 
@@ -196,6 +206,9 @@ def _scrape_media_page(session: requests.Session) -> list[dict]:
         seen.add(full_url)
 
         parent  = a.find_parent(["li", "div", "article", "p"])
+        date = published(parent.select_one(".published-date")) if parent else None
+        if since and (not date or date.date() < since):
+            continue
         summary = parent.get_text(separator=" ", strip=True)[:500] if parent else text
         severity = _infer_severity(text + " " + summary)
 
@@ -208,7 +221,7 @@ def _scrape_media_page(session: requests.Session) -> list[dict]:
             "title":              text[:300],
             "summary":            summary[:1000],
             "url":                full_url,
-            "scraped_at":         _now_iso(),
+            "scraped_at":         date.isoformat() if date else _now_iso(),
             "severity":           severity,
             "company":            "",
             "brand":              "",
@@ -221,32 +234,38 @@ def _scrape_media_page(session: requests.Session) -> list[dict]:
         })
 
     logger.info("FSANZ updates media: %d records", len(records))
-    return records[:50]
+    return records if since else records[:50]
 
 
 class FoodFSANZUpdatesScraper:
     """Scraper for FSANZ regulatory standards updates and consultations."""
 
-    def run(self) -> list[dict]:
+    def run(self, since=None) -> list[dict]:
         session = _get_session()
         records: list[dict] = []
 
         # 1. RSS feed (primary)
         try:
-            records.extend(_scrape_rss(session))
+            records.extend(_scrape_rss(session, strict=since is not None))
         except Exception:
+            if since:
+                raise
             logger.exception("FSANZ updates: RSS scrape failed")
 
         # 2. Media page (supplementary)
         try:
-            records.extend(_scrape_media_page(session))
+            records.extend(_scrape_media_page(session, since))
         except Exception:
+            if since:
+                raise
             logger.exception("FSANZ updates: media page scrape failed")
 
         # Deduplicate by source_id
         seen:   set[str]   = set()
         unique: list[dict] = []
         for r in records:
+            if since and datetime.fromisoformat(r["scraped_at"]).date() < since:
+                continue
             if r["source_id"] not in seen:
                 seen.add(r["source_id"])
                 unique.append(r)

@@ -174,6 +174,7 @@ class EFSAJournalScraper(BaseScraper):
         """Fetch EFSA's latest outputs via their publications RSS."""
         signals = []
         rss_urls = [
+            "https://www.efsa.europa.eu/en/publications/rss",
             "https://www.efsa.europa.eu/en/rss/scientific-outputs.xml",
             "https://www.efsa.europa.eu/sites/default/files/feed/science.xml",
         ]

@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from services.food_duplicates import find_open_food_facts_category_duplicate_groups
+from services.food_duplicates import find_open_food_facts_category_duplicate_groups, filter_visible_food_duplicates
 from services.food_taxonomy import enrich_food_signal, possible_misclassified_recall
 
 
@@ -51,6 +51,8 @@ def main() -> int:
         if int(row.get("is_noise") or 0) != 1
         and row.get("dashboard_section") != "excluded"
     ]
+    off_category_duplicate_groups = find_open_food_facts_category_duplicate_groups(visible_rows)
+    visible_rows = filter_visible_food_duplicates(visible_rows)
     by_signal_type = Counter(row.get("signal_type") or "" for row in rows)
     by_dashboard_section = Counter(row.get("dashboard_section") or "" for row in visible_rows)
     impact_by_dashboard_section = Counter(
@@ -197,7 +199,7 @@ def main() -> int:
     off_category_signals_by_brand = Counter(off_brand(row) for row in off_category_signals)
     visible_energy_brand_rows = [
         row for row in off_category_signals
-        if any(term in off_text(row) for term in ["red bull", "v energy", "monster"])
+        if off_brand(row) == "v" or any(term in off_text(row) for term in ["red bull", "v energy", "monster"])
     ]
     visible_retailer_private_label_rows = [
         row for row in visible_off_rows
@@ -242,7 +244,6 @@ def main() -> int:
         row for row in low_quality_off_rows
         if any(term in off_text(row) for term in ["ingredienti", "ingredientes", "prodotto in italia", "fabricado en"])
     ]
-    off_category_duplicate_groups = find_open_food_facts_category_duplicate_groups(visible_off_rows)
 
     print("Food taxonomy audit")
     print("===================")

@@ -132,6 +132,8 @@ def _has(text: str, term: str) -> bool:
 
 
 def _content_type(text: str, matched_positive: list[str], matched_negative: list[str]) -> str:
+    if "recall" not in text and any(term in text for term in ("call for comment", "consultation")):
+        return "consultation"
     if any(_has(text, term) for term in ["recall", "contamination", "toxin", "pathogen", "food safety", "allergen"]):
         return "recall_safety"
     if any(_has(text, term) for term in ["call for comment", "consultation"]):

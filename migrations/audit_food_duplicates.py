@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from services.food_duplicates import find_food_duplicate_groups, load_food_rows
+from services.food_duplicates import mark_food_duplicates, load_food_rows, filter_visible_food_duplicates
 from services.food_taxonomy import enrich_food_signal
 
 
@@ -22,14 +22,14 @@ def main() -> int:
         print(f"ERROR: signals database not found: {DB_PATH}")
         return 1
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH.resolve().as_uri() + "?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     try:
         raw_rows = load_food_rows(conn)
+        groups = mark_food_duplicates(conn)
     finally:
         conn.close()
 
-    groups = find_food_duplicate_groups(raw_rows)
     enriched_by_id = {int(row.get("id") or 0): enrich_food_signal(row) for row in raw_rows}
     visible_duplicate_groups = []
     for group in groups:
@@ -44,7 +44,11 @@ def main() -> int:
 
     print(f"food_rows={len(raw_rows)}")
     print(f"duplicate_groups_count={len(groups)}")
-    print(f"visible_duplicates_count={len(visible_duplicate_groups)}")
+    eligible = [r for r in enriched_by_id.values() if not r.get("is_noise") and r["dashboard_section"] != "excluded"]
+    customer_ids = {r["id"] for r in filter_visible_food_duplicates(eligible)}
+    print(f"unflagged_duplicate_groups_before_api_filter={len(visible_duplicate_groups)}")
+    print("visible_duplicates_count=" + str(sum(
+        max(0, len(customer_ids.intersection([g.kept_id, *g.duplicate_ids])) - 1) for g in groups)))
 
     for group, visible_ids in visible_duplicate_groups[:50]:
         print(

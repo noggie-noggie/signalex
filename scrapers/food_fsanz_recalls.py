@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 
 import requests
 from bs4 import BeautifulSoup
+from scrapers.fsanz_archive import detail_summary, listings, published
 
 logger = logging.getLogger(__name__)
 
@@ -83,20 +84,28 @@ def _get_session() -> requests.Session:
     return s
 
 
-def _scrape_recall_listing(session: requests.Session) -> list[dict]:
+def _scrape_recall_listing(session: requests.Session, since=None) -> list[dict]:
     """
     Scrape the FSANZ recall-alert listing page.
     Individual recalls are linked as /food-recalls/recall-alert/{slug}.
     The link's parent element holds a short description (reason, state, etc.).
     """
-    try:
-        resp = session.get(_RECALLS_URL, timeout=30)
-        resp.raise_for_status()
-    except Exception as exc:
-        logger.warning("FSANZ recalls: fetch failed — %s", exc)
-        return []
+    records = []
+    for soup in listings(session, _RECALLS_URL, since, ".recall-card__date"):
+        batch = _recall_cards(soup, since)
+        if since:
+            nodes = soup.select(".recall-card__date")
+            dates = [published(n) for n in nodes]
+            if None in dates or len(batch) != sum(d.date() >= since for d in dates):
+                raise ValueError("FSANZ dated recall cards did not reconcile")
+        records.extend(batch)
+    if since:
+        for record in records:
+            record["summary"] = (record["summary"] + ". " + detail_summary(session, record["url"]))[:1000]
+            record["severity"] = _infer_severity(record["summary"])
+    return records
 
-    soup = BeautifulSoup(resp.text, "lxml")
+def _recall_cards(soup: BeautifulSoup, since=None) -> list[dict]:
     records: list[dict] = []
     seen: set[str] = set()
 
@@ -120,6 +129,13 @@ def _scrape_recall_listing(session: requests.Session) -> list[dict]:
         if not summary:
             summary = context[:500]
 
+        card = a.find_parent("article", class_="recall-card")
+        date = published(card.select_one(".recall-card__date")) if card else None
+        if since and (not date or date.date() < since):
+            continue
+        if card:
+            summary = " — ".join(n.get_text(" ", strip=True) for n in card.select(
+                ".recall-card__type-label, .recall-card__business, .recall-card__location-pill"))
         severity = _infer_severity(title + " " + summary)
         allergen = _extract_allergen(title + " " + summary)
 
@@ -127,6 +143,9 @@ def _scrape_recall_listing(session: requests.Session) -> list[dict]:
         parts   = [p.strip() for p in title.split(" - ")]
         company = parts[0] if len(parts) > 1 else ""
         product = " - ".join(parts[1:]) if len(parts) > 1 else title
+        if card and card.select_one(".recall-card__business"):
+            company = card.select_one(".recall-card__business").get_text(" ", strip=True)
+            product = title
 
         records.append({
             "source_id":          _make_source_id(full_url, title),
@@ -137,7 +156,7 @@ def _scrape_recall_listing(session: requests.Session) -> list[dict]:
             "title":              title[:300],
             "summary":            summary[:1000],
             "url":                full_url,
-            "scraped_at":         _now_iso(),
+            "scraped_at":         date.isoformat() if date else _now_iso(),
             "severity":           severity,
             "company":            company[:200],
             "brand":              company[:200],
@@ -157,6 +176,6 @@ def _scrape_recall_listing(session: requests.Session) -> list[dict]:
 class FoodFSANZRecallsScraper:
     """Scraper for FSANZ food recall notices."""
 
-    def run(self) -> list[dict]:
+    def run(self, since=None) -> list[dict]:
         session = _get_session()
-        return _scrape_recall_listing(session)
+        return _scrape_recall_listing(session, since)

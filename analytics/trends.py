@@ -70,7 +70,7 @@ def run_trend_detection() -> TrendReport:
     Main entry point. Loads recent signals from SQLite and computes trends.
     Returns a TrendReport.
     """
-    signals_30d = get_signals_since(days=30)
+    signals_30d = get_signals_since(days=30, domain="vms")
     cutoff_7d   = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
 
     if not signals_30d:

@@ -62,6 +62,10 @@ class ClinicalTrialsScraper(BaseScraper):
         from analytics.db import url_exists
 
         queries = _EXTRA_QUERIES + _load_watchlist_terms()
+        window = getattr(self, "window", None)
+        if window and len(queries) == len(_EXTRA_QUERIES):
+            raise ValueError("Missing trial watchlist")
+        self.completed_queries = 0
         date_from = (datetime.now(timezone.utc) - timedelta(days=_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
 
         signals: list[RawSignal] = []
@@ -83,11 +87,15 @@ class ClinicalTrialsScraper(BaseScraper):
                         "StartDate,CompletionDate,BriefSummary,StudyType"
                     ),
                 }
-                resp = self._get_session().get(_API_URL, params=params, timeout=30)
-                resp.raise_for_status()
-                data = resp.json()
-
-                for study in data.get("studies", []):
+                if window:
+                    from scrapers.window_pages import trial_pages
+                    params["filter.advanced"] = f"AREA[LastUpdatePostDate]RANGE[{window[0]},{window[1]}]"
+                    studies = trial_pages(self._get_session(), _API_URL, params)
+                else:
+                    resp = self._get_session().get(_API_URL, params=params, timeout=30)
+                    resp.raise_for_status()
+                    studies = resp.json()["studies"]
+                for study in studies:
                     proto = study.get("protocolSection", {})
                     id_mod     = proto.get("identificationModule", {})
                     status_mod = proto.get("statusModule", {})
@@ -102,7 +110,7 @@ class ClinicalTrialsScraper(BaseScraper):
                     seen_nct.add(nct_id)
 
                     url = f"https://clinicaltrials.gov/study/{nct_id}"
-                    if url_exists(url):
+                    if not window and url_exists(url):
                         continue
 
                     title  = id_mod.get("briefTitle") or id_mod.get("officialTitle") or f"Trial {nct_id}"
@@ -140,7 +148,10 @@ class ClinicalTrialsScraper(BaseScraper):
                         scraped_at = self._now_iso(),
                     ))
 
+                self.completed_queries += 1
             except Exception:
+                if window:
+                    raise
                 logger.exception("ClinicalTrials: query failed: %r", query[:50])
 
         logger.info("ClinicalTrials.gov: %d signals fetched", len(signals))

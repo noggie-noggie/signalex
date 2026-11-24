@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -38,7 +39,7 @@ _AUTHORITY    = "open_food_facts"
 _FIELDS = ",".join([
     "code", "product_name", "brands", "categories_tags",
     "ingredients_text", "allergens_tags", "labels_tags",
-    "nutriments", "last_modified_t", "url",
+    "last_modified_t", "url",
     "countries_tags", "quantity", "nutrition_grade_fr",
 ])
 
@@ -127,8 +128,6 @@ def _extract_claims(product: dict) -> str:
 def _is_relevant(product: dict) -> bool:
     """True if product falls into a category we track."""
     cats = set(product.get("categories_tags", []))
-    if cats & _EXCLUDED_CATEGORIES:
-        return False
     return bool(cats & _RELEVANT_CATEGORIES)
 
 
@@ -198,46 +197,38 @@ def _product_to_signal(product: dict) -> dict:
 class OpenFoodFactsScraper:
     """Scraper for Open Food Facts product intelligence."""
 
-    def run(self) -> list[dict]:
+    categories = ("protein-bars", "energy-drinks", "plant-based-foods-and-beverages")
+    archive_page_size = 100
+
+    def run(self, since=None) -> list[dict]:
         """Fetch and return normalised food product signal dicts."""
         session  = _get_session()
         records: list[dict] = []
+        self.incomplete_queries = []
 
-        # Query 1: Recent Australian protein/snack foods
-        records.extend(self._fetch_products(
-            session,
-            params={
-                "categories_tags_en": "protein-bars",
-                "countries_tags_en":  "australia",
-                "sort_by":            "last_modified_t",
-                "page_size":          "20",
-                "fields":             _FIELDS,
-            },
-        ))
-
-        # Query 2: Recent Australian beverages / functional drinks
-        records.extend(self._fetch_products(
-            session,
-            params={
-                "categories_tags_en": "energy-drinks",
-                "countries_tags_en":  "australia",
-                "sort_by":            "last_modified_t",
-                "page_size":          "20",
-                "fields":             _FIELDS,
-            },
-        ))
-
-        # Query 3: Recent Australian plant-based foods
-        records.extend(self._fetch_products(
-            session,
-            params={
-                "categories_tags_en": "plant-based-foods-and-beverages",
-                "countries_tags_en":  "australia",
-                "sort_by":            "last_modified_t",
-                "page_size":          "20",
-                "fields":             _FIELDS,
-            },
-        ))
+        for idx, category in enumerate(self.categories):
+            if idx:
+                time.sleep(7)  # search rate limit: <=10 requests/minute
+            for page in range(1, 11 if since else 2):
+                if page > 1:
+                    time.sleep(7)
+                params = dict(categories_tags=f"en:{category}", countries_tags="en:australia",
+                              sort_by="last_modified_t", page_size=self.archive_page_size if since else 20,
+                              page=page, fields=_FIELDS)
+                try:
+                    batch, done = self._fetch_products(session, params, since)
+                except (requests.RequestException, ValueError) as exc:
+                    self.incomplete_queries.append(category)
+                    response = getattr(exc, "response", None)
+                    if response is not None and (response.status_code in (403, 429) or response.headers.get("Retry-After")):
+                        return list({r["source_id"]: r for r in records}.values())
+                    break
+                records.extend(batch)
+                if done:
+                    break
+            else:
+                if since:
+                    self.incomplete_queries.append(category)
 
         # Deduplicate by source_id
         seen:   set[str]  = set()
@@ -254,7 +245,8 @@ class OpenFoodFactsScraper:
         self,
         session: requests.Session,
         params: dict,
-    ) -> list[dict]:
+        since=None,
+    ) -> tuple[list[dict], bool]:
         """Fetch one page of products and convert to signal dicts."""
         try:
             resp = session.get(_API_BASE, params=params, timeout=30)
@@ -262,16 +254,28 @@ class OpenFoodFactsScraper:
             data = resp.json()
         except Exception as exc:
             logger.warning("Open Food Facts: API request failed — %s", exc)
-            return []
+            raise
 
         products = data.get("products", [])
         if not products:
             logger.debug("Open Food Facts: empty result page (params=%s)", params)
-            return []
+            if "products" not in data:
+                raise ValueError("OFF search response missing products")
+            return [], True
 
         signals = []
+        dates = []
         for p in products:
             try:
+                if since:
+                    ts = p.get("last_modified_t")
+                    if not ts:
+                        raise ValueError("Missing product modification timestamp")
+                    dates.append(datetime.fromtimestamp(int(ts), timezone.utc).date())
+                    if dates[-1] < since:
+                        continue
+                if params["categories_tags"] not in (p.get("categories_tags") or []) or "en:australia" not in (p.get("countries_tags") or []):
+                    continue
                 if is_supplement_like_food(p):
                     logger.info(
                         "Open Food Facts: excluding supplement-like product %r",
@@ -290,7 +294,14 @@ class OpenFoodFactsScraper:
                 if sig["title"].strip() and sig["title"] != " — ":
                     signals.append(sig)
             except Exception:
+                if since:
+                    raise
                 logger.debug("Open Food Facts: skipping malformed product record")
 
         logger.info("Open Food Facts: %d products from query %s", len(signals), params.get("categories_tags_en", ""))
-        return signals
+        if since and dates != sorted(dates, reverse=True):
+            raise ValueError("OFF did not honour modification-date ordering")
+        exhausted = len(products) < params["page_size"]
+        if since and "count" in data:
+            exhausted = int(params["page"]) * int(params["page_size"]) >= int(data["count"])
+        return signals, exhausted or bool(dates and dates[-1] < since)

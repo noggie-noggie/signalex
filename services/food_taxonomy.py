@@ -463,6 +463,8 @@ def _looks_like_ocr_garbage(value: str) -> bool:
     if not text:
         return False
     lower = text.lower()
+    if re.search(r"\bingred!ents\b|\bntity\s+\d|\bauf backblech\b", lower):
+        return True
     if re.search(r"\bingredients?\s*:\s*[a-z]\s*(?:$|[|.;,])", lower):
         return True
     if _contains_any(lower, _LOW_QUALITY_FRAGMENT_TERMS):
@@ -520,6 +522,9 @@ def _open_food_facts_low_quality_reason(row: dict[str, Any], text: str) -> str:
     product_category = _norm(row.get("product_category")).lower()
     title = _norm(row.get("title"))
     product_name = _norm(row.get("product_name"))
+    if not ingredient_name and (summary.lower() == "open food facts product record." or
+                                summary.lower().startswith(("claims/labels:", "allergens:"))):
+        return _LOW_QUALITY_OFF_REASON
 
     if _contains_any(f"{summary.lower()} {ingredient_name.lower()}", _LOW_QUALITY_FRAGMENT_TERMS):
         return _LOW_QUALITY_OFF_REASON
@@ -985,7 +990,13 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
     if not issue_area and is_product and not is_supplement_leakage:
         issue_area.append("category_growth")
 
-    claim_theme = _tags_from_patterns(content_text, _CLAIM_THEME_PATTERNS)
+    # Nutrition and ingredients in a raw ingredient declaration are not
+    # positioning claims (e.g. wheat gluten is not a high-protein claim).
+    positioning = content_text
+    if source == "open_food_facts" and _norm(row.get("summary")).lower().startswith("ingredients:"):
+        positioning = " ".join(_norm(row.get(k)).lower() for k in
+                               ("title", "product_name", "claim", "brand", "company"))
+    claim_theme = _tags_from_patterns(positioning, _CLAIM_THEME_PATTERNS)
     if (
         "high_protein" in claim_theme
         and _is_generic_savoury_snack(content_text)
@@ -995,7 +1006,7 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
     if _contains_any(content_text, _HIGH_RISK_DISEASE_TERMS):
         issue_area.extend(["claims_wording", "substantiation"])
 
-    product_type = _tags_from_patterns(content_text, _PRODUCT_TYPE_PATTERNS)
+    product_type = _tags_from_patterns(positioning, _PRODUCT_TYPE_PATTERNS)
     if not product_type and is_product:
         product_type = ["ingredient" if "ingredient" in text else "other"]
 
@@ -1011,14 +1022,14 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
         claim_theme,
         product_type,
         category,
-        content_text,
+        positioning,
     )
     is_generic_off_product = (
         source == "open_food_facts"
         and not off_exclusion_reason
         and not is_supplement_leakage
         and _is_generic_open_food_facts_product(
-            content_text,
+            positioning,
             claim_theme,
             product_type,
             has_meaningful_market_relevance,
@@ -1042,6 +1053,10 @@ def classify_food_signal(row: dict[str, Any]) -> dict[str, Any]:
     elif is_regulatory:
         signal_type = "consultation" if "consultation" in text or "call for comment" in text else "regulatory_update"
         dashboard_section = "regulatory_updates"
+    elif (source == "open_food_facts" and "energy_drink" in product_type
+          and not _contains_any(positioning, ["novel ingredient", "functional beverage", "probiotic", "prebiotic", "gut health"])):
+        signal_type = "category_trend"
+        dashboard_section = "category_signals"
     elif is_claim:
         signal_type = "claim_risk"
         dashboard_section = "claims_labelling"
@@ -1146,6 +1161,12 @@ def enrich_food_signal(row: dict[str, Any]) -> dict[str, Any]:
     # Keep event_type aligned for Food API consumers while retaining legacy rows
     # in the database unchanged.
     enriched["event_type"] = enriched["signal_type"]
+    if (row.get("source_label") == "open_food_facts" and enriched["dashboard_section"] != "excluded"
+            and _norm(row.get("summary")).lower().startswith("ingredients:")):
+        label = _norm(row.get("claim"))
+        enriched["summary"] = (f"Open Food Facts lists {row.get('title') or 'this product'}."
+                               + (f" Reported labels: {label}." if label else "")
+                               + " This is a product observation, not a confirmed market trend.")
     return sanitize_food_text_fields(enriched)
 
 

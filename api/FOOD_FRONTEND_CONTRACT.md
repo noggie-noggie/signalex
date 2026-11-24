@@ -15,6 +15,11 @@ Frontend-facing contract for the Signalex Food API.
 All requests and responses use JSON. Extra response properties may be added;
 the frontend should read only the supported fields documented here.
 
+Only `/api/health` is public in production. For every other endpoint, your
+trusted server must send `x-api-key: <SIGNALEX_API_KEY>`. A missing key
+returns 401; a wrong key returns 403. Never embed this key in browser code
+or a `VITE_*` variable. The browser should call your server-side proxy.
+
 ## Shared types
 
 ### Paginated response
@@ -432,8 +437,8 @@ production.
 ### Fetch helper
 
 ```js
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+// Same-origin partner proxy; the proxy supplies x-api-key server-side.
+const API_BASE = "/signalex-proxy";
 
 async function apiFetch(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, options);

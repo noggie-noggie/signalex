@@ -216,13 +216,13 @@ class AdverseEventsScraper(BaseScraper):
             html = self._http_get(_DAEN_URL)
         except Exception:
             logger.warning("TGA DAEN: could not fetch landing page (may require POST/JS)")
-            return self._daen_fallback()
+            return []
 
         soup = BeautifulSoup(html, "lxml")
         summary_sections = self._extract_sections(soup, _VMS_KEYWORDS)
 
         if not summary_sections:
-            return self._daen_fallback()
+            return []
 
         body_text = (
             "TGA Database of Adverse Event Notifications (DAEN) — Supplement Reports\n\n"
@@ -238,23 +238,6 @@ class AdverseEventsScraper(BaseScraper):
             scraped_at = self._now_iso(),
         )
         return [signal]
-
-    def _daen_fallback(self) -> list[RawSignal]:
-        """Return a placeholder signal when DAEN cannot be scraped dynamically."""
-        body_text = (
-            "TGA DAEN (Database of Adverse Event Notifications) monitors adverse events "
-            "for complementary medicines including vitamins, minerals, and herbal products "
-            "sold in Australia. The DAEN requires form-based POST interactions. "
-            "Periodic summary reports are available at: https://www.tga.gov.au/reporting-problems"
-        )
-        return [RawSignal(
-            source_id  = self._make_source_id("adverse_events", _DAEN_URL + ":fallback"),
-            authority  = "adverse_events",
-            url        = _DAEN_URL,
-            title      = "TGA DAEN: Complementary Medicine Adverse Event Monitoring",
-            body_text  = body_text,
-            scraped_at = self._now_iso(),
-        )]
 
     # ------------------------------------------------------------------
     # Helpers

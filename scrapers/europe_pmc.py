@@ -57,6 +57,10 @@ class EuropePMCScraper(BaseScraper):
         from analytics.db import url_exists
 
         queries = _EXTRA_QUERIES + _load_watchlist()
+        window = getattr(self, "window", None)
+        if window and len(queries) == len(_EXTRA_QUERIES):
+            raise ValueError("Missing Europe PMC watchlist")
+        self.completed_queries = 0
         date_from = (datetime.now(timezone.utc) - timedelta(days=_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
 
         signals: list[RawSignal] = []
@@ -75,11 +79,15 @@ class EuropePMCScraper(BaseScraper):
                     "format":      "json",
                     "sort":        "P_PDATE_D desc",
                 }
-                resp = self._get_session().get(_API_URL, params=params, timeout=30)
-                resp.raise_for_status()
-                data = resp.json()
-
-                for item in data.get("resultList", {}).get("result", []):
+                if window:
+                    from scrapers.window_pages import europe_pages
+                    params["query"] = f"({query}) AND FIRST_PDATE:[{window[0]} TO {window[1]}]"
+                    items = europe_pages(self._get_session(), _API_URL, params)
+                else:
+                    resp = self._get_session().get(_API_URL, params=params, timeout=30)
+                    resp.raise_for_status()
+                    items = resp.json()["resultList"]["result"]
+                for item in items:
                     pmid  = item.get("pmid", "")
                     pmcid = item.get("pmcid", "")
                     doi   = item.get("doi", "")
@@ -102,7 +110,7 @@ class EuropePMCScraper(BaseScraper):
                     seen_ids.add(url)
 
                     # Skip if this URL already exists in DB (catches PubMed overlaps)
-                    if url_exists(url):
+                    if not window and url_exists(url):
                         dedup_skipped += 1
                         continue
 
@@ -129,7 +137,10 @@ class EuropePMCScraper(BaseScraper):
                         scraped_at = self._now_iso(),
                     ))
 
+                self.completed_queries += 1
             except Exception:
+                if window:
+                    raise
                 logger.exception("Europe PMC: query failed: %r", query[:50])
 
         logger.info(
